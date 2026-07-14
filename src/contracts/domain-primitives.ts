@@ -1,0 +1,49 @@
+import { z } from "zod";
+
+import {
+  BOOKING_STATUSES,
+  EVAL_CASE_SOURCE_KINDS,
+  EVAL_CASE_TYPES,
+  MESSAGE_ROLES,
+} from "./constants";
+
+export const revisionSchema = z.number().int().positive();
+
+export const messageSchema = z.object({
+  id: z.string(),
+  role: z.enum(MESSAGE_ROLES),
+  text: z.string(),
+  gloss: z.string().optional(),
+  language: z.string().optional(),
+  sentAt: z.string(),
+});
+
+export const bookingSchema = z.object({
+  provider: z.string(),
+  slotIso: z.string(),
+  reason: z.string(),
+  status: z.enum(BOOKING_STATUSES),
+  revision: revisionSchema,
+});
+
+export const evalCaseTypeSchema = z.enum(EVAL_CASE_TYPES);
+
+export const evalCaseSourceSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal(EVAL_CASE_SOURCE_KINDS[0]),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal(EVAL_CASE_SOURCE_KINDS[1]),
+      conversationId: z.string().min(1),
+      messageIds: z.array(z.string().min(1)).min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal(EVAL_CASE_SOURCE_KINDS[2]),
+    })
+    .strict(),
+]);
