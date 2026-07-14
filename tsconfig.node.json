@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "strict": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "src/contracts/*.ts",
+    "src/domain/**/*.ts",
+    "src/shared/**/*.ts",
+    "server/**/*.ts",
+    "tests/fixtures/server-state.ts",
+    "tests/server/**/*.ts"
+  ]
+}

@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+dist-ssr/
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+*.tsbuildinfo
+*.tgz
+vite.config.*.timestamp-*
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and process state
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.pid.lock
+
+# Local certificates
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local caches and scratch work
+.cache/
+.vite/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
