@@ -1,0 +1,27 @@
+export {
+  apiErrorSchema,
+  outboundReconcileRequestSchema,
+  outboundReconcileResultSchema,
+  outboundSendRequestSchema,
+  outboundSendResultSchema,
+  resetDemoRequestSchema,
+  saveWorkspaceRequestSchema,
+  saveWorkspaceResultSchema,
+  workspaceEnvelopeSchema,
+  type ApiError,
+  type ApiErrorCode,
+  type OutboundReconcileRequest,
+  type OutboundReconcileResult,
+  type OutboundSendRequest,
+  type OutboundSendResult,
+  type ResetDemoRequest,
+  type SaveWorkspaceRequest,
+  type SaveWorkspaceResult,
+  type WorkspaceEnvelope,
+} from "../src/contracts/api";
+export {
+  inboundTranscriptionRequestSchema,
+  inboundTranscriptionResultSchema,
+  type InboundTranscriptionRequest,
+  type InboundTranscriptionResult,
+} from "../src/contracts/speech";
