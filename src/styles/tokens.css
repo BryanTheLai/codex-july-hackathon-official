@@ -1,0 +1,44 @@
+:root {
+  color-scheme: light;
+
+  --kaunter-paper: #fcfcfa;
+  --kaunter-raised: #ffffff;
+  --kaunter-quiet: #f3f5f2;
+  --kaunter-selected: #ddeee9;
+  --kaunter-hairline: #d8ddd8;
+  --kaunter-border-strong: #aeb8b1;
+  --kaunter-ink: #17211e;
+  --kaunter-muted: #5c6963;
+  --kaunter-accent: #0b6b5f;
+  --kaunter-accent-pressed: #084f47;
+  --kaunter-risk-fg: #9c3531;
+  --kaunter-risk-bg: #fbe9e7;
+  --kaunter-warning-fg: #7a5111;
+  --kaunter-warning-bg: #fff2cf;
+  --kaunter-success-fg: #2d6848;
+  --kaunter-success-bg: #e7f3ea;
+  --kaunter-info-fg: #285d85;
+  --kaunter-info-bg: #e8f1f7;
+
+  --kaunter-font-sans: "Instrument Sans", system-ui, sans-serif;
+  --kaunter-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --kaunter-text-base: 13px;
+  --kaunter-text-heading: 14px;
+  --kaunter-text-meta: 12px;
+  --kaunter-line-body: 1.45;
+  --kaunter-line-meta: 1.25;
+  --kaunter-line-editor: 22px;
+
+  --kaunter-space-1: 4px;
+  --kaunter-space-2: 8px;
+  --kaunter-space-3: 12px;
+  --kaunter-space-4: 16px;
+
+  --kaunter-radius-sm: 4px;
+  --kaunter-radius-md: 8px;
+  --kaunter-radius-lg: 10px;
+
+  --kaunter-shell-height: 54px;
+  --kaunter-focus-ring: 0 0 0 2px var(--kaunter-paper), 0 0 0 4px var(--kaunter-accent);
+}

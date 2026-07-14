@@ -1,0 +1,107 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--kaunter-paper);
+  color: var(--kaunter-ink);
+  font-family: var(--kaunter-font-sans);
+  font-size: var(--kaunter-text-base);
+  line-height: var(--kaunter-line-body);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--kaunter-focus-ring);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--kaunter-paper);
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-feedback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.route-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 var(--kaunter-space-4);
+  border-bottom: 1px solid var(--kaunter-hairline);
+}
+
+.route-toolbar h1 {
+  margin: 0;
+  font-size: var(--kaunter-text-heading);
+  font-weight: 600;
+  line-height: var(--kaunter-line-meta);
+}
+
+.route-workbench {
+  flex: 1;
+  min-height: 0;
+}
+
+.route-loading {
+  padding: var(--kaunter-space-4);
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
+}
