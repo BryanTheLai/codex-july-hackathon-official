@@ -1,0 +1,236 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  addCriterion,
+  addDataset,
+  createCanonicalSeed,
+  importHitlConversations,
+  importHitlFromConversation,
+  resolveConversation,
+  sendStaffReply,
+  type AppState,
+} from "../../src/domain";
+
+const SEED_DATASET_ID = "dataset-seed";
+
+function seedDataset(state: AppState) {
+  return state.evalDatasets.find((d) => d.id === SEED_DATASET_ID)!;
+}
+
+function selectedDataset(state: AppState) {
+  return state.evalDatasets.find((d) => d.id === state.selections.evalDatasetId)!;
+}
+
+describe("HITL import", () => {
+  it("rejects an unresolved conversation even when it has a staff reply", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((conversation) => conversation.id === "convo-booking")!;
+
+    expect(source.workflowStatus).toBe("in_progress");
+    expect(source.messages.some((message) => message.role === "staff")).toBe(true);
+
+    const result = importHitlFromConversation(seed, source.id);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/resolve/i);
+    expect(result.state).toEqual(seed);
+  });
+
+  it("imports multiple resolved conversations atomically with source lineage", () => {
+    const seed = createCanonicalSeed();
+    const resolvedBooking = resolveConversation(seed, "convo-booking");
+    expect(resolvedBooking.ok).toBe(true);
+    if (!resolvedBooking.ok) return;
+    const beforeCases = seedDataset(resolvedBooking.state).cases.length;
+
+    const result = importHitlConversations(resolvedBooking.state, [
+      "convo-resolved",
+      "convo-booking",
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const imported = seedDataset(result.state).cases.slice(beforeCases);
+    expect(imported).toHaveLength(2);
+    expect(imported.map((evalCase) => evalCase.sourceConversationId)).toEqual([
+      "convo-resolved",
+      "convo-booking",
+    ]);
+    expect(imported.map((evalCase) => evalCase.source)).toEqual([
+      {
+        kind: "hitl",
+        conversationId: "convo-resolved",
+        messageIds: ["rs-1", "rs-2"],
+      },
+      {
+        kind: "hitl",
+        conversationId: "convo-booking",
+        messageIds: ["bk-1", "bk-2"],
+      },
+    ]);
+  });
+
+  it("keeps a failed multi-import atomic", () => {
+    const seed = createCanonicalSeed();
+    const beforeCases = seedDataset(seed).cases;
+
+    const result = importHitlConversations(seed, ["convo-resolved", "convo-booking"]);
+
+    expect(result.ok).toBe(false);
+    expect(seedDataset(result.state).cases).toEqual(beforeCases);
+  });
+
+  it("imports latest staff reply into one train case with separate expected output", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((c) => c.id === "convo-resolved")!;
+    const staff = [...source.messages].reverse().find((m) => m.role === "staff")!;
+
+    const result = importHitlFromConversation(seed, source.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const dataset = seedDataset(result.state);
+    const imported = dataset.cases.find((c) => c.expectedHumanOutput === staff.text);
+    expect(imported).toBeDefined();
+    expect(imported?.split).toBe("train");
+    expect(imported?.inputConversation.messages.every((m) => m.role !== "system")).toBe(true);
+    expect(imported?.actualSyntheticOutput).toBeUndefined();
+    expect(imported?.grade).toBeUndefined();
+  });
+
+  it("uses latest staff text as expected output and excludes it from imported input", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((c) => c.id === "convo-booking")!;
+    const staff = [...source.messages].reverse().find((m) => m.role === "staff")!;
+    const preceding = source.messages.filter(
+      (message) => message.role !== "system" && message.id !== staff.id,
+    );
+    const resolved = resolveConversation(seed, source.id);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const result = importHitlFromConversation(resolved.state, source.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const imported = seedDataset(result.state).cases.find(
+      (c) => c.expectedHumanOutput === staff.text,
+    );
+    expect(imported).toBeDefined();
+    expect(imported?.inputConversation.messages).toEqual(preceding);
+    expect(imported?.inputConversation.messages.some((m) => m.id === staff.id)).toBe(false);
+  });
+
+  it("imports language from the latest staff message not patient preferred language", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((c) => c.id === "convo-booking")!;
+    expect(source.patient.preferredLanguage).toBe("Malay");
+
+    const replied = sendStaffReply(seed, {
+      conversationId: source.id,
+      text: "Please bring your IC to counter one.",
+      kind: "reply",
+    });
+    expect(replied.ok).toBe(true);
+    if (!replied.ok) return;
+
+    const staff = [...replied.state.conversations.find((c) => c.id === source.id)!.messages]
+      .reverse()
+      .find((m) => m.role === "staff")!;
+    staff.language = "English";
+    const resolved = resolveConversation(replied.state, source.id);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const imported = importHitlFromConversation(resolved.state, source.id);
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+
+    const evalCase = seedDataset(imported.state).cases.find(
+      (c) => c.expectedHumanOutput === staff.text,
+    );
+    expect(evalCase?.language).toBe("English");
+    expect(evalCase?.language).not.toBe(source.patient.preferredLanguage);
+  });
+
+  it("rejects duplicate fingerprint of input message ids plus expected staff text", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((c) => c.id === "convo-resolved")!;
+
+    const first = importHitlFromConversation(seed, source.id);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const second = importHitlFromConversation(first.state, source.id);
+    expect(second.ok).toBe(false);
+    if (second.ok) return;
+    expect(second.error).toMatch(/already imported/i);
+    expect(second.state.evalDatasets).toEqual(first.state.evalDatasets);
+  });
+
+  it("returns typed error when conversation has no staff reply", () => {
+    const seed = createCanonicalSeed();
+    const source = seed.conversations.find((c) => c.id === "convo-emergency")!;
+    expect(source.messages.some((message) => message.role === "staff")).toBe(false);
+    const resolved = resolveConversation(seed, source.id);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const result = importHitlFromConversation(resolved.state, source.id);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/staff/i);
+    expect(result.state).toEqual(resolved.state);
+  });
+});
+
+describe("HITL criterion assignment", () => {
+  it("auto-assigns only criteria whose caseTypes include the imported case type", () => {
+    const seed = createCanonicalSeed();
+    const created = addDataset(seed, { name: "Custom criteria set" });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const datasetId = created.state.selections.evalDatasetId!;
+    const withBookingCriterion = addCriterion(created.state, datasetId, {
+      label: "Custom booking offer",
+      instruction: "Offer the patient an appropriate appointment slot.",
+      required: false,
+      caseTypes: ["booking"],
+    });
+    expect(withBookingCriterion.ok).toBe(true);
+    if (!withBookingCriterion.ok) return;
+
+    const customCriterion = selectedDataset(withBookingCriterion.state).criteria.find(
+      (criterion) => criterion.label === "Custom booking offer",
+    );
+    expect(customCriterion).toBeDefined();
+
+    const resolvedBooking = resolveConversation(withBookingCriterion.state, "convo-booking");
+    expect(resolvedBooking.ok).toBe(true);
+    if (!resolvedBooking.ok) return;
+    const bookingImport = importHitlFromConversation(resolvedBooking.state, "convo-booking");
+    expect(bookingImport.ok).toBe(true);
+    if (!bookingImport.ok) return;
+
+    const importedBooking = selectedDataset(bookingImport.state).cases.find((evalCase) =>
+      evalCase.title.includes("Nurul Aisyah"),
+    );
+    expect(importedBooking?.criterionIds).toContain(customCriterion!.id);
+
+    const withEmergencyCriterion = addCriterion(bookingImport.state, datasetId, {
+      label: "Custom emergency services",
+      instruction: "Give the patient Malaysia's emergency number when urgent care is required.",
+      required: true,
+      caseTypes: ["emergency_triage"],
+    });
+    expect(withEmergencyCriterion.ok).toBe(true);
+    if (!withEmergencyCriterion.ok) return;
+
+    const emergencyCriterion = selectedDataset(withEmergencyCriterion.state).criteria.find(
+      (criterion) => criterion.label === "Custom emergency services",
+    );
+    expect(importedBooking?.criterionIds).not.toContain(emergencyCriterion!.id);
+  });
+});

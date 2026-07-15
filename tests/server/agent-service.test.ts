@@ -1,0 +1,301 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { AgentRunRequest } from "../../src/contracts/agent";
+import {
+  createAgentService,
+  AgentServiceError,
+} from "../../server/agent-service";
+import {
+  AGENT_INSTRUCTIONS,
+  AGENT_JSON_SCHEMA,
+  AGENT_PROMPT_VERSION,
+} from "../../server/agent-prompt";
+
+const hash = "c".repeat(64);
+const request = {
+  mode: "live",
+  conversation: {
+    id: "conversation-1",
+    revision: 2,
+    messages: [
+      {
+        id: "message-1",
+        role: "patient",
+        text: "Boleh saya buat temujanji?",
+        language: "Malay",
+        sentAt: "2026-07-13T12:00:00.000Z",
+      },
+    ],
+  },
+  patientContext: {
+    preferredLanguage: "Malay",
+  },
+  bookingContext: null,
+  playbookBundle: {
+    versions: [
+      {
+        fileId: "playbook-booking",
+        versionId: "playbook-version-1",
+        contentHash: hash,
+        content: "Confirm the requested date before booking.",
+      },
+    ],
+    bundleHash: hash,
+  },
+  agentConfigVersion: "agent-config-1",
+  promptVersion: AGENT_PROMPT_VERSION,
+  toolPolicyVersion: "demo-no-tools-v1",
+} satisfies AgentRunRequest;
+
+const providerResult = {
+  draft: {
+    englishText: "The clinic will contact you to confirm.",
+    patientLanguage: "Malay",
+    patientText: "Klinik akan menghubungi anda untuk pengesahan.",
+  },
+  proposedAction: "reply",
+  handoffReason: null,
+  evidence: [
+    {
+      fileId: "playbook-booking",
+      versionId: "playbook-version-1",
+      contentHash: hash,
+      excerpt: "Confirm the requested date before booking.",
+    },
+  ],
+} as const;
+
+describe("shared agent service", () => {
+  it("runs one no-tools turn and returns server-owned evidence", async () => {
+    const createResponse = vi.fn(async () => ({
+      model: "provider-model",
+      outputText: JSON.stringify(providerResult),
+      usage: {
+        inputTokens: 100,
+        outputTokens: 30,
+        totalTokens: 130,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-1",
+      now: vi
+        .fn()
+        .mockReturnValueOnce(1_000)
+        .mockReturnValueOnce(1_420),
+    });
+
+    const controller = new AbortController();
+    await expect(
+      runAgentTurn(request, controller.signal),
+    ).resolves.toEqual({
+      runId: "agent-run-1",
+      ...providerResult,
+      toolCalls: [],
+      stopReason: "completed",
+      usage: {
+        inputTokens: 100,
+        outputTokens: 30,
+        totalTokens: 130,
+      },
+      latencyMs: 420,
+    });
+    expect(createResponse).toHaveBeenCalledWith(
+      {
+        model: "agent-model",
+        instructions: AGENT_INSTRUCTIONS,
+        input: expect.stringContaining("<playbook_bundle>"),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "kaunter_agent_result",
+            strict: true,
+            schema: AGENT_JSON_SCHEMA,
+          },
+        },
+        tools: [],
+        toolChoice: "none",
+      },
+      controller.signal,
+    );
+  });
+
+  it("derives a handoff stop reason without exposing a tool call", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: JSON.stringify({
+        ...providerResult,
+        proposedAction: "staff_handoff",
+        handoffReason: "A clinician must review this request.",
+      }),
+      usage: {
+        inputTokens: 50,
+        outputTokens: 20,
+        totalTokens: 70,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-2",
+    });
+
+    await expect(runAgentTurn(request)).resolves.toMatchObject({
+      proposedAction: "staff_handoff",
+      handoffReason: "A clinician must review this request.",
+      stopReason: "handoff",
+      toolCalls: [],
+    });
+  });
+
+  it("rejects evidence not grounded in the pinned Dream bundle", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: JSON.stringify({
+        ...providerResult,
+        evidence: [
+          {
+            ...providerResult.evidence[0],
+            excerpt: "Text that is not in the pinned playbook.",
+          },
+        ],
+      }),
+      usage: {
+        inputTokens: 50,
+        outputTokens: 20,
+        totalTokens: 70,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-3",
+    });
+
+    await expect(runAgentTurn(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+      message: "Agent evidence is not present in the pinned playbook.",
+    });
+  });
+
+  it("rejects evidence with the wrong pinned identity", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: JSON.stringify({
+        ...providerResult,
+        evidence: [
+          {
+            ...providerResult.evidence[0],
+            versionId: "different-version",
+          },
+        ],
+      }),
+      usage: {
+        inputTokens: 50,
+        outputTokens: 20,
+        totalTokens: 70,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-identity",
+    });
+
+    await expect(runAgentTurn(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+      message: "Agent evidence is not present in the pinned playbook.",
+    });
+  });
+
+  it("blocks live runs when the live-agent kill switch is off", async () => {
+    const createResponse = vi.fn();
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: false,
+      model: "agent-model",
+      createRunId: () => "agent-run-disabled",
+    });
+
+    await expect(runAgentTurn(request)).rejects.toMatchObject({
+      code: "feature_disabled",
+      retryable: false,
+      message: "Live agent generation is disabled.",
+    });
+    expect(createResponse).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed output and missing usage without inventing evidence", async () => {
+    const malformed = createAgentService({
+      createResponse: async () => ({
+        outputText: '{"draft":',
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+        },
+      }),
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-4",
+    });
+    const missingUsage = createAgentService({
+      createResponse: async () => ({
+        outputText: JSON.stringify(providerResult),
+      }),
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-5",
+    });
+
+    await expect(malformed(request)).rejects.toBeInstanceOf(
+      AgentServiceError,
+    );
+    await expect(malformed(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+    });
+    await expect(missingUsage(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+      message: "Agent response did not include token usage.",
+    });
+  });
+
+  it("normalizes prompt-pin and result-evidence validation failures", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: JSON.stringify(providerResult),
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 999,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-invalid",
+    });
+
+    await expect(
+      runAgentTurn({
+        ...request,
+        promptVersion: "stale-agent-prompt",
+      }),
+    ).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: false,
+      message: "Agent prompt configuration is invalid.",
+    });
+    await expect(runAgentTurn(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+      message: "Agent run evidence is invalid.",
+    });
+  });
+});

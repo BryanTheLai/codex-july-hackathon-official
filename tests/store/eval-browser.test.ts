@@ -1,0 +1,505 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { EvalRunArtifact } from "../../src/contracts/eval";
+import {
+  createCanonicalServerState,
+  freezeEvalSuiteSnapshot,
+} from "../../src/domain";
+import type {
+  EvalClient,
+  WorkspaceClient,
+} from "../../src/services/api-client";
+import { createAppStore } from "../../src/store/use-app-store";
+
+class MemoryStorage implements Storage {
+  private readonly values = new Map<string, string>();
+
+  get length() {
+    return this.values.size;
+  }
+
+  clear() {
+    this.values.clear();
+  }
+
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+
+  key(index: number) {
+    return [...this.values.keys()][index] ?? null;
+  }
+
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+
+  setItem(key: string, value: string) {
+    this.values.set(key, value);
+  }
+}
+
+const agentConfig = {
+  modelId: "agent-model",
+  apiMode: "responses" as const,
+  agentConfigVersion: "agent-config-v1",
+  promptVersion: "agent-prompt-v1",
+  toolPolicyVersion: "demo-no-tools-v1" as const,
+};
+
+const judgeConfig = {
+  modelId: "judge-model",
+  promptVersion: "judge-prompt-v1",
+};
+
+function evalRun(
+  suiteId: string,
+  caseId: string,
+  attempt = 1,
+): EvalRunArtifact {
+  return {
+    id: `eval-run-${caseId}-${attempt}`,
+    suiteId,
+    caseId,
+    attempt,
+    candidateResponse: `Server candidate for ${caseId}`,
+    agentResult: {
+      runId: `agent-run-${caseId}-${attempt}`,
+      draft: {
+        englishText: `Server candidate for ${caseId}`,
+        patientLanguage: "English",
+        patientText: `Server candidate for ${caseId}`,
+      },
+      proposedAction: "reply",
+      handoffReason: null,
+      evidence: [],
+      toolCalls: [],
+      stopReason: "completed",
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+      },
+      latencyMs: 10,
+    },
+    judgeResult: {
+      overallVerdict: "pass",
+      judgeScore: 1,
+      rationale: "Pass",
+      criterionResults: [
+        {
+          criterionId: "crit-emergency",
+          verdict: "pass",
+          reason: "Pass",
+          evidence: `Server candidate for ${caseId}`,
+        },
+      ],
+      metadata: {
+        provider: "test",
+        model: judgeConfig.modelId,
+        promptVersion: judgeConfig.promptVersion,
+        rubricVersions: {
+          "crit-emergency": 1,
+        },
+        runId: `eval-run-${caseId}-${attempt}`,
+        latencyMs: 10,
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        simulated: true,
+      },
+    },
+    ranAt: "2026-07-13T12:00:00.000Z",
+  };
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+async function setup(options?: {
+  failCaseId?: string;
+  beforeRun?: () => Promise<void>;
+}) {
+  const storage = new MemoryStorage();
+  const serverState = await createCanonicalServerState();
+  let revision = 1;
+  const workspaceClient: WorkspaceClient = {
+    load: vi.fn(async () => ({
+      workspaceId: "demo",
+      revision,
+      state: structuredClone(serverState),
+    })),
+  };
+  const evalClient: EvalClient = {
+    createSuite: vi.fn(async (request) => {
+      const suite = await freezeEvalSuiteSnapshot({
+        state: serverState,
+        suiteId: "suite-browser",
+        datasetId: request.datasetId,
+        caseIds: request.caseIds,
+        playbookVersionId: request.playbookVersionId,
+        agentConfig,
+        judgeConfig,
+        baselineSuiteId: null,
+        createdAt: "2026-07-13T12:00:00.000Z",
+      });
+      serverState.evalArtifacts.suites.push(suite);
+      revision += 1;
+      return {
+        suiteId: suite.id,
+        manifestHash: suite.manifestHash,
+        workspaceRevision: revision,
+      };
+    }),
+    runCase: vi.fn(async (request) => {
+      await options?.beforeRun?.();
+      if (request.caseId === options?.failCaseId) {
+        throw new Error("Second case failed");
+      }
+      const artifact = evalRun(
+        request.suiteId,
+        request.caseId,
+      );
+      serverState.evalArtifacts.runs.push(artifact);
+      revision += 1;
+      return {
+        suiteId: request.suiteId,
+        caseId: request.caseId,
+        attempt: artifact.attempt,
+        status: "committed" as const,
+        evalRunId: artifact.id,
+        workspaceRevision: revision,
+      };
+    }),
+  };
+  const store = createAppStore(storage, {
+    evalClient,
+    workspaceClient,
+  });
+  return {
+    evalClient,
+    serverState,
+    storage,
+    store,
+    workspaceClient,
+  };
+}
+
+describe("server-backed Eval browser orchestration", () => {
+  it("freezes and runs one case through the shared server runner", async () => {
+    const { evalClient, store, workspaceClient } = await setup();
+
+    const result = await store
+      .getState()
+      .runEvalCase("case-emergency-train");
+
+    expect(result.ok).toBe(true);
+    expect(evalClient.createSuite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        datasetId: "dataset-seed",
+        caseIds: ["case-emergency-train"],
+        expectedWorkspaceRevision: 1,
+      }),
+      undefined,
+    );
+    expect(evalClient.runCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suiteId: "suite-browser",
+        caseId: "case-emergency-train",
+        expectedWorkspaceRevision: 2,
+      }),
+      undefined,
+    );
+    expect(workspaceClient.load).toHaveBeenCalledTimes(2);
+    expect(
+      store
+        .getState()
+        .state.evalDatasets[0]!.cases.find(
+          (evalCase) => evalCase.id === "case-emergency-train",
+        ),
+    ).toMatchObject({
+      actualSyntheticOutput:
+        "Server candidate for case-emergency-train",
+      grade: {
+        pass: true,
+      },
+    });
+  });
+
+  it("runs cases sequentially and keeps committed evidence after the first failure", async () => {
+    const { evalClient, store } = await setup({
+      failCaseId: "case-hours-holdout",
+    });
+
+    const result = await store
+      .getState()
+      .runEvalSuite("dataset-seed");
+
+    expect(result.ok).toBe(false);
+    expect(evalClient.runCase).toHaveBeenCalledTimes(4);
+    expect(
+      vi.mocked(evalClient.runCase).mock.calls.map(
+        ([request]) => request.caseId,
+      ),
+    ).toEqual([
+      "case-emergency-train",
+      "case-booking-train",
+      "case-prescription-train",
+      "case-hours-holdout",
+    ]);
+    const dataset = store.getState().state.evalDatasets[0]!;
+    expect(dataset.runHistory).toHaveLength(3);
+    expect(
+      dataset.cases.find(
+        (evalCase) => evalCase.id === "case-emergency-train",
+      )?.actualSyntheticOutput,
+    ).toContain("Server candidate");
+    expect(
+      dataset.cases.find(
+        (evalCase) => evalCase.id === "case-hours-holdout",
+      )?.actualSyntheticOutput,
+    ).toBeUndefined();
+  });
+
+  it("preserves newer Chat and Dream state when server evidence arrives", async () => {
+    let releaseRun: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseRun = resolve;
+    });
+    const { evalClient, store } = await setup({
+      beforeRun: () => gate,
+    });
+    const pending = store
+      .getState()
+      .runEvalCase("case-emergency-train");
+    await vi.waitFor(() =>
+      expect(evalClient.runCase).toHaveBeenCalled(),
+    );
+    const conversationId = store.getState().state.conversations[0]!.id;
+    store.getState().sendStaffReply({
+      conversationId,
+      text: "Newer Chat state",
+      kind: "reply",
+    });
+    store
+      .getState()
+      .setPlaybookDraft(
+        "file-triage",
+        "# Emergency triage\n\nNewer Dream state",
+      );
+    releaseRun?.();
+    await expect(pending).resolves.toMatchObject({ ok: true });
+
+    expect(
+      store
+        .getState()
+        .state.conversations[0]!.messages.at(-1)?.text,
+    ).toBe("Newer Chat state");
+    expect(
+      store
+        .getState()
+        .state.playbookFiles.find(
+          (file) => file.id === "file-triage",
+        )?.draft,
+    ).toContain("Newer Dream state");
+  });
+
+  it("rehydrates committed server attempts after a browser reload", async () => {
+    const { evalClient, serverState, store } = await setup();
+    const suite = await evalClient.createSuite({
+      datasetId: "dataset-seed",
+      caseIds: ["case-emergency-train"],
+      playbookVersionId: serverState.playbookHistory.activeVersionId,
+      expectedWorkspaceRevision: 1,
+    });
+    await evalClient.runCase({
+      suiteId: suite.suiteId,
+      caseId: "case-emergency-train",
+      expectedWorkspaceRevision: suite.workspaceRevision,
+    });
+
+    const result = await store
+      .getState()
+      .refreshEvalWorkspace();
+
+    expect(result.ok).toBe(true);
+    expect(
+      store.getState().state.evalDatasets[0]!.runHistory,
+    ).toHaveLength(1);
+    expect(
+      store.getState().state.evalDatasets[0]!.suiteSnapshots,
+    ).toHaveLength(0);
+  });
+
+  it("discards an older Eval refresh that finishes after a newer one", async () => {
+    const serverState = await createCanonicalServerState();
+    const suite = await freezeEvalSuiteSnapshot({
+      state: serverState,
+      suiteId: "suite-refresh-race",
+      datasetId: "dataset-seed",
+      caseIds: ["case-emergency-train"],
+      playbookVersionId: serverState.playbookHistory.activeVersionId,
+      agentConfig,
+      judgeConfig,
+      baselineSuiteId: null,
+      createdAt: "2026-07-13T12:00:00.000Z",
+    });
+    const oldState = structuredClone(serverState);
+    oldState.evalArtifacts.suites.push(suite);
+    oldState.evalArtifacts.runs.push(
+      evalRun(suite.id, "case-emergency-train", 1),
+    );
+    const newState = structuredClone(oldState);
+    newState.evalArtifacts.runs.push(
+      evalRun(suite.id, "case-emergency-train", 2),
+    );
+    const first = deferred<{
+      workspaceId: string;
+      revision: number;
+      state: typeof oldState;
+    }>();
+    const second = deferred<{
+      workspaceId: string;
+      revision: number;
+      state: typeof newState;
+    }>();
+    const workspaceClient: WorkspaceClient = {
+      load: vi
+        .fn()
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise),
+    };
+    const store = createAppStore(new MemoryStorage(), {
+      evalClient: {
+        createSuite: vi.fn(),
+        runCase: vi.fn(),
+      },
+      workspaceClient,
+    });
+
+    const older = store.getState().refreshEvalWorkspace();
+    const newer = store.getState().refreshEvalWorkspace();
+    second.resolve({
+      workspaceId: "demo",
+      revision: 3,
+      state: newState,
+    });
+    await expect(newer).resolves.toMatchObject({ ok: true });
+    first.resolve({
+      workspaceId: "demo",
+      revision: 2,
+      state: oldState,
+    });
+
+    await expect(older).resolves.toMatchObject({ ok: true });
+    expect(
+      store
+        .getState()
+        .state.evalDatasets[0]!.cases.find(
+          (evalCase) => evalCase.id === "case-emergency-train",
+        )?.actualSyntheticOutput,
+    ).toBe("Server candidate for case-emergency-train");
+    expect(
+      store.getState().state.evalDatasets[0]!.runHistory.map((run) => run.id),
+    ).toEqual([
+      "eval-run-case-emergency-train-1",
+      "eval-run-case-emergency-train-2",
+    ]);
+  });
+
+  it("propagates cancellation and leaves uncommitted local evidence empty", async () => {
+    const { evalClient, store } = await setup();
+    vi.mocked(evalClient.runCase).mockImplementationOnce(
+      (_request, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () =>
+              reject(
+                new DOMException(
+                  "Evaluation canceled",
+                  "AbortError",
+                ),
+              ),
+            { once: true },
+          );
+        }),
+    );
+    const controller = new AbortController();
+    const pending = store
+      .getState()
+      .runEvalCase("case-emergency-train", {
+        signal: controller.signal,
+      });
+    await vi.waitFor(() =>
+      expect(evalClient.runCase).toHaveBeenCalled(),
+    );
+
+    controller.abort();
+
+    await expect(pending).resolves.toMatchObject({ ok: false });
+    expect(
+      store.getState().state.evalDatasets[0]!.runHistory,
+    ).toHaveLength(0);
+  });
+
+  it("rejects stale server evidence when the local Eval dataset changes", async () => {
+    let releaseRun: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseRun = resolve;
+    });
+    const { evalClient, store } = await setup({
+      beforeRun: () => gate,
+    });
+    const pending = store
+      .getState()
+      .runEvalCase("case-emergency-train");
+    await vi.waitFor(() =>
+      expect(evalClient.runCase).toHaveBeenCalled(),
+    );
+    store.getState().editCase("case-emergency-train", {
+      title: "Newer local Eval definition",
+    });
+
+    releaseRun?.();
+    const result = await pending;
+
+    expect(result.ok).toBe(false);
+    expect(
+      store.getState().state.evalDatasets[0]!.cases[0]?.title,
+    ).toBe("Newer local Eval definition");
+    expect(
+      store.getState().state.evalDatasets[0]!.runHistory,
+    ).toHaveLength(0);
+  });
+
+  it("fails closed before a mixed local and server suite can run", async () => {
+    const { evalClient, store } = await setup();
+    const resolved = store
+      .getState()
+      .state.conversations.find(
+        (conversation) => conversation.workflowStatus === "resolved",
+      );
+    expect(resolved).toBeDefined();
+    if (!resolved) return;
+    store
+      .getState()
+      .importHitlFromConversation(resolved.id);
+
+    const result = await store
+      .getState()
+      .runEvalSuite("dataset-seed");
+
+    expect(result).toMatchObject({
+      ok: false,
+      error:
+        "Run Suite supports server-synced seed cases only. Run local HITL or manual cases individually.",
+    });
+    expect(evalClient.createSuite).not.toHaveBeenCalled();
+  });
+});
