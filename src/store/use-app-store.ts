@@ -16,16 +16,18 @@ import {
   createHttpAgentClient,
   createHttpEvalClient,
   createHttpTelegramOutboundClient,
+  createHttpWorkspaceCommandClient,
   createHttpWorkspaceClient,
   type AgentClient,
   type EvalClient,
   type TelegramOutboundClient,
+  type WorkspaceCommandClient,
   type WorkspaceClient,
 } from "../services/api-client";
 import { createAgentActions } from "./agent-slice";
 import { applyMutation } from "./apply-mutation";
 import { createChatActions } from "./chat-slice";
-import { createDreamActions } from "./dream-slice";
+import { createDreamActions, type DreamReleaseState } from "./dream-slice";
 import { createEvalActions } from "./eval-slice";
 import {
   createLocalAppStateRepository,
@@ -60,6 +62,7 @@ export type AppStoreState = {
   state: AppState;
   lastFeedback: string;
   resetVersion: number;
+  dreamRelease: DreamReleaseState | null;
   routeUi: RouteUiState;
   telegramWorkspace: TelegramWorkspaceState;
   resetDemo: () => MutationResult | Promise<MutationResult>;
@@ -82,6 +85,7 @@ export type AppStoreOptions = {
   outboundClient?: TelegramOutboundClient;
   stateRepository?: AppStateRepository;
   telegramWorkspaceRepository?: TelegramWorkspaceRepository;
+  workspaceCommandClient?: WorkspaceCommandClient;
   workspaceClient?: WorkspaceClient;
 };
 
@@ -97,6 +101,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
     options.outboundClient ?? createHttpTelegramOutboundClient();
   const workspaceClient =
     options.workspaceClient ?? createHttpWorkspaceClient();
+  const workspaceCommandClient = options.workspaceCommandClient;
   const telegramWorkspaceRepository =
     options.telegramWorkspaceRepository ??
     createTelegramWorkspaceRepository(storage);
@@ -108,6 +113,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
     const setPartial = (partial: {
       state?: AppState;
       lastFeedback?: string;
+      dreamRelease?: DreamReleaseState | null;
       telegramWorkspace?: TelegramWorkspaceState;
     }) => set(partial);
     const deps = { getState: getAppState, repository, set: setPartial };
@@ -127,11 +133,16 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
       telegramWorkspaceRepository,
       workspaceClient,
     });
-    const dream = createDreamActions(deps);
+    const dream = createDreamActions({
+      ...deps,
+      workspaceClient,
+      workspaceCommandClient,
+    });
     const evalActions = createEvalActions({
       ...deps,
       evalClient: options.evalClient,
       judgeClient,
+      workspaceCommandClient,
       workspaceClient,
     });
     const finishReset = (
@@ -154,6 +165,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
         set({
           resetVersion: get().resetVersion + 1,
           routeUi: { ...DEFAULT_ROUTE_UI },
+          dreamRelease: null,
           telegramWorkspace: telegramWorkspaceState,
         });
       }
@@ -164,6 +176,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
       state: loaded.state,
       lastFeedback: loaded.loadNotice,
       resetVersion: 0,
+      dreamRelease: null,
       routeUi: DEFAULT_ROUTE_UI,
       telegramWorkspace,
       resetDemo() {
@@ -276,6 +289,7 @@ export function getAppStore(storage: Storage = localStorage): AppStore {
   if (!defaultStore) {
     defaultStore = createAppStore(storage, {
       evalClient: createHttpEvalClient(),
+      workspaceCommandClient: createHttpWorkspaceCommandClient(),
     });
   }
   return defaultStore;

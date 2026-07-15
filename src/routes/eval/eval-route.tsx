@@ -423,7 +423,7 @@ export default function EvalRoute() {
           corrections={store.state.corrections}
           dataset={dataset}
           key={dataset.id}
-          onAnalyze={() => report(store.analyzeFailures(dataset.id))}
+          onAnalyze={() => store.proposeCorrections(dataset.id)}
           onClose={() => setDrawer(null)}
           onOpenDream={(correction) => navigate(`/dream?correction=${correction.id}`)}
           operationBlocked={operation !== null}

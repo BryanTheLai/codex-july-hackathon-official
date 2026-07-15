@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 
 import {
   agentRunCreateRequestSchema,
@@ -12,6 +12,10 @@ import {
   outboundReconcileResultSchema,
   outboundSendRequestSchema,
   outboundSendResultSchema,
+  outboundVoicePrepareRequestSchema,
+  outboundVoicePrepareResultSchema,
+  outboundVoiceRecordingResultSchema,
+  manualSpeechTranscriptRequestSchema,
   saveWorkspaceResultSchema,
   workspaceEnvelopeSchema,
   type ApiErrorCode,
@@ -19,9 +23,17 @@ import {
   type OutboundReconcileResult,
   type OutboundSendRequest,
   type OutboundSendResult,
+  type OutboundVoicePrepareRequest,
+  type OutboundVoicePrepareResult,
+  type OutboundVoiceRecordingResult,
+  type ManualSpeechTranscriptRequest,
   type SaveWorkspaceResult,
   type WorkspaceEnvelope,
 } from "../contracts/api";
+import {
+  inboundTranscriptionResultSchema,
+  type InboundTranscriptionResult,
+} from "../contracts/speech";
 import {
   evalCaseRunRequestSchema,
   evalCaseRunResultSchema,
@@ -32,6 +44,12 @@ import {
   type EvalSuiteCreateRequest,
   type EvalSuiteCreateResult,
 } from "../contracts/eval";
+import {
+  workspaceCommandRequestSchema,
+  workspaceCommandResultSchema,
+  type WorkspaceCommandRequest,
+  type WorkspaceCommandResult,
+} from "../contracts/workflow";
 import { isAbortError } from "../shared/errors";
 
 type Fetcher = (
@@ -59,6 +77,13 @@ export interface WorkspaceClient {
   ): Promise<SaveWorkspaceResult>;
 }
 
+export interface WorkspaceCommandClient {
+  execute(
+    request: WorkspaceCommandRequest,
+    signal?: AbortSignal,
+  ): Promise<WorkspaceCommandResult>;
+}
+
 export interface AgentClient {
   run(
     request: AgentRunCreateRequest,
@@ -78,6 +103,10 @@ export interface EvalClient {
 }
 
 export interface TelegramOutboundClient {
+  prepareVoice?(
+    request: OutboundVoicePrepareRequest,
+    signal?: AbortSignal,
+  ): Promise<OutboundVoicePrepareResult>;
   reconcile(
     deliveryId: string,
     request: OutboundReconcileRequest,
@@ -87,6 +116,24 @@ export interface TelegramOutboundClient {
     request: OutboundSendRequest,
     signal?: AbortSignal,
   ): Promise<OutboundSendResult>;
+  uploadRecordedVoice?(
+    deliveryId: string,
+    recording: Blob,
+    signal?: AbortSignal,
+  ): Promise<OutboundVoiceRecordingResult>;
+  retrySpeech?(
+    messageId: string,
+    signal?: AbortSignal,
+  ): Promise<InboundTranscriptionResult | { status: "failed" | "idle" }>;
+  saveManualTranscript?(
+    messageId: string,
+    request: ManualSpeechTranscriptRequest,
+    signal?: AbortSignal,
+  ): Promise<InboundTranscriptionResult>;
+  translate?(
+    request: { text: string; sourceLanguage?: string; targetLanguage: string },
+    signal?: AbortSignal,
+  ): Promise<{ translatedText: string; targetLanguage: string; model: string }>;
 }
 
 type JsonRequest<Result> = {
@@ -204,6 +251,30 @@ export function createHttpWorkspaceClient(
   };
 }
 
+export function createHttpWorkspaceCommandClient(
+  fetcher: Fetcher = fetch,
+): WorkspaceCommandClient {
+  return {
+    execute(input, signal) {
+      const request = workspaceCommandRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: "/api/workspace/commands",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: workspaceCommandResultSchema,
+        networkError: "The Dream release server could not be reached.",
+        invalidResponseError: "The Dream release server returned invalid state.",
+        requestError: "The Dream release request failed.",
+      });
+    },
+  };
+}
+
 export function createHttpAgentClient(
   fetcher: Fetcher = fetch,
 ): AgentClient {
@@ -277,6 +348,23 @@ export function createHttpTelegramOutboundClient(
   fetcher: Fetcher = fetch,
 ): TelegramOutboundClient {
   return {
+    prepareVoice(input, signal) {
+      const request = outboundVoicePrepareRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: "/api/outbound/voice/prepare",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: outboundVoicePrepareResultSchema,
+        networkError: "The Telegram voice preparation server could not be reached.",
+        invalidResponseError: "The Telegram voice preparation server returned an invalid response.",
+        requestError: "The Telegram voice preparation request failed.",
+      });
+    },
     reconcile(deliveryId, input, signal) {
       const request = outboundReconcileRequestSchema.parse(input);
       return requestJson({
@@ -313,6 +401,78 @@ export function createHttpTelegramOutboundClient(
         invalidResponseError:
           "The Telegram send server returned an invalid response.",
         requestError: "The Telegram send request failed.",
+      });
+    },
+
+    uploadRecordedVoice(deliveryId, recording, signal) {
+      return requestJson({
+        fetcher,
+        input: `/api/outbound/deliveries/${encodeURIComponent(deliveryId)}/voice/recording`,
+        init: {
+          method: "POST",
+          headers: { "content-type": recording.type || "audio/webm" },
+          body: recording,
+          signal,
+        },
+        schema: outboundVoiceRecordingResultSchema,
+        networkError: "The recorded voice upload server could not be reached.",
+        invalidResponseError: "The recorded voice upload server returned an invalid response.",
+        requestError: "The recorded voice upload failed.",
+      });
+    },
+
+    retrySpeech(messageId, signal) {
+      return requestJson({
+        fetcher,
+        input: `/api/telegram/speech/${encodeURIComponent(messageId)}/retry`,
+        init: { method: "POST", signal },
+        schema: inboundTranscriptionResultSchema.or(
+          z.object({ status: z.enum(["failed", "idle"]) }).strict(),
+        ),
+        networkError: "The speech retry server could not be reached.",
+        invalidResponseError: "The speech retry server returned an invalid response.",
+        requestError: "The speech retry failed.",
+      });
+    },
+
+    saveManualTranscript(messageId, input, signal) {
+      const request = manualSpeechTranscriptRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: `/api/telegram/speech/${encodeURIComponent(messageId)}/manual-transcript`,
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: inboundTranscriptionResultSchema,
+        networkError: "The manual transcript server could not be reached.",
+        invalidResponseError: "The manual transcript server returned an invalid response.",
+        requestError: "The manual transcript could not be saved.",
+      });
+    },
+
+    translate(input, signal) {
+      return requestJson({
+        fetcher,
+        input: "/api/translation",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
+          signal,
+        },
+        schema: z
+          .object({
+            translatedText: z.string().trim().min(1).max(4096),
+            targetLanguage: z.string().trim().min(1).max(64),
+            model: z.string().trim().min(1).max(256),
+          })
+          .strict(),
+        networkError: "The translation server could not be reached.",
+        invalidResponseError: "The translation server returned an invalid response.",
+        requestError: "The translation request failed.",
       });
     },
   };

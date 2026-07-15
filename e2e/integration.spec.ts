@@ -4,9 +4,11 @@ import {
   expectNoDocumentOverflow,
   installMockEval,
   installMockJudge,
+  resetE2eWorkspace,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await installMockJudge(page);
   await installMockEval(page);
   await page.addInitScript(() => {

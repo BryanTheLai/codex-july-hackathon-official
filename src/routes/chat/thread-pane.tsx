@@ -74,6 +74,11 @@ function RoleIcon({ message, size = 12 }: { message: Message; size?: number }) {
 
 type TranslationLanguage = "English" | "Malay" | "Mandarin";
 
+type SpeechArtifactView = {
+  status: "pending" | "transcribing" | "ready" | "failed";
+  error: string | null;
+};
+
 function preferredTranslationLanguage(language: string): TranslationLanguage {
   if (language === "Malay" || language === "Mandarin") {
     return language;
@@ -84,9 +89,26 @@ function preferredTranslationLanguage(language: string): TranslationLanguage {
 function MessageRow({
   message,
   channel,
+  speechArtifact,
+  onRetrySpeech,
+  onSaveManualTranscript,
 }: {
   message: Conversation["messages"][number];
   channel: string;
+  speechArtifact?: SpeechArtifactView;
+  onRetrySpeech?: (
+    messageId: string,
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
+  onSaveManualTranscript?: (
+    messageId: string,
+    input: {
+      detectedLanguage: string;
+      englishGloss?: string | null;
+      originalTranscript: string;
+    },
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
 }) {
   const internal = message.role === "system" && message.text.startsWith("Internal note:");
   const side = messageSide(message);
@@ -135,6 +157,14 @@ function MessageRow({
             <strong>English translation</strong>
             <span>{message.gloss}</span>
           </div>
+        ) : null}
+        {speechArtifact ? (
+          <SpeechMessageControls
+            artifact={speechArtifact}
+            message={message}
+            onRetrySpeech={onRetrySpeech}
+            onSaveManualTranscript={onSaveManualTranscript}
+          />
         ) : null}
         {message.role === "synthetic_agent" ? (
           <span className="message-bubble__boundary">No external contact. Synthetic output only.</span>
@@ -188,6 +218,7 @@ function Composer({
   conversation,
   onGenerateDraft,
   onSend,
+  onTranslate,
 }: {
   conversation: Conversation;
   onGenerateDraft: (
@@ -198,11 +229,17 @@ function Composer({
     input: SendVisitorReplyInput,
     signal?: AbortSignal,
   ) => MutationResult | Promise<MutationResult>;
+  onTranslate?: (
+    text: string,
+    targetLanguage: string,
+    signal?: AbortSignal,
+  ) => Promise<{ ok: true; text: string } | { ok: false; error: string }>;
 }) {
   const requestRef = useRef<{ key: string; id: string } | null>(null);
   const agentControllerRef = useRef<AbortController | null>(null);
   const sendControllerRef = useRef<AbortController | null>(null);
   const sendInFlightRef = useRef(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const generationRef = useRef(0);
   const [kind, setKind] = useState<SendVisitorReplyInput["kind"]>("reply");
   const [draft, setDraft] = useState("");
@@ -215,6 +252,12 @@ function Composer({
     "idle" | "running" | "ready" | "failed"
   >("idle");
   const [isSending, setIsSending] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [deliveryMode, setDeliveryMode] = useState<"text" | "voice" | "both">("text");
+  const [recording, setRecording] = useState<Blob | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording">("idle");
+  const [voiceSource, setVoiceSource] = useState<"tts" | "recorded">("tts");
   const [autoTranslate, setAutoTranslate] = useState(false);
   const [translationLanguage, setTranslationLanguage] = useState<TranslationLanguage>(
     preferredTranslationLanguage(conversation.patient.preferredLanguage),
@@ -246,7 +289,12 @@ function Composer({
     setAgentRun(null);
     setAgentStatus("idle");
     setIsSending(false);
+    setIsTranslating(false);
     setAutoTranslate(false);
+    setDeliveryMode("text");
+    setVoiceSource("tts");
+    setRecording(null);
+    setRecordingStatus("idle");
     setTranslationLanguage(preferredTranslationLanguage(conversation.patient.preferredLanguage));
     requestRef.current = null;
     return () => {
@@ -256,8 +304,20 @@ function Composer({
       sendControllerRef.current?.abort();
       sendControllerRef.current = null;
       sendInFlightRef.current = false;
+      recorderRef.current?.stop();
+      recorderRef.current = null;
     };
   }, [conversation.id]);
+
+  useEffect(() => {
+    if (!recording) {
+      setRecordingUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(recording);
+    setRecordingUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [recording]);
 
   const generate = async () => {
     if (generationBlocked) {
@@ -305,6 +365,68 @@ function Composer({
     requestRef.current = null;
   };
 
+  const translateLiveReply = async () => {
+    if (!liveTelegram || !onTranslate || empty || isTranslating || isSending) {
+      return;
+    }
+    setIsTranslating(true);
+    setError("");
+    try {
+      const result = await onTranslate(draft, translationLanguage);
+      if (result.ok) {
+        setDraft(result.text);
+        requestRef.current = null;
+      } else {
+        setError(result.error);
+      }
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (recordingStatus === "recording") {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("This browser cannot record a staff voice reply.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
+        setRecordingStatus("idle");
+        const completed = new Blob(chunks, { type: mimeType });
+        if (completed.size > 0) {
+          setRecording(completed);
+          requestRef.current = null;
+        } else {
+          setError("No audio was captured. Record the staff reply again.");
+        }
+      };
+      recorderRef.current = recorder;
+      setRecording(null);
+      setError("");
+      setRecordingStatus("recording");
+      recorder.start();
+    } catch {
+      setError("Microphone access was not granted. Use Text or TTS instead.");
+    }
+  };
+
   const submit = async () => {
     if (
       resolved ||
@@ -312,7 +434,10 @@ function Composer({
       isSending ||
       sendInFlightRef.current ||
       isGenerating ||
-      translationBlocked
+      translationBlocked ||
+      isTranslating ||
+      (liveTelegram && kind === "reply" && deliveryMode !== "text" &&
+        voiceSource === "recorded" && !recording)
     ) {
       return;
     }
@@ -327,6 +452,9 @@ function Composer({
       kind,
       text: draft,
       translation,
+      deliveryMode,
+      voiceSource,
+      recordingSize: recording?.size ?? null,
     });
     const requestId =
       requestRef.current?.key === requestKey
@@ -346,6 +474,15 @@ function Composer({
                   language: translation.language,
                   text: translation.text,
                 }
+              : undefined,
+          deliveryMode: liveTelegram && kind === "reply" ? deliveryMode : "text",
+          voiceRecording:
+            liveTelegram && kind === "reply" && voiceSource === "recorded"
+              ? recording ?? undefined
+              : undefined,
+          voiceSource:
+            liveTelegram && kind === "reply" && deliveryMode !== "text"
+              ? voiceSource
               : undefined,
         },
         controller.signal,
@@ -390,9 +527,12 @@ function Composer({
     ? "Conversation resolved. Reopen it to send."
     : empty
       ? "Enter a message before sending."
-      : translation?.ok === false
-        ? translation.error
-      : "";
+    : translation?.ok === false
+      ? translation.error
+      : liveTelegram && kind === "reply" && deliveryMode !== "text" &&
+          voiceSource === "recorded" && !recording
+        ? "Record a staff voice reply before sending."
+        : "";
 
   return (
     <section aria-label="Message composer" className="chat-composer">
@@ -411,6 +551,35 @@ function Composer({
         >
           Internal note
         </button>
+        {kind === "reply" && !liveTelegram ? (
+          <>
+            <button
+              aria-pressed={autoTranslate}
+              className="chat-composer__translate-toggle"
+              onClick={() => setAutoTranslate((current) => !current)}
+              type="button"
+            >
+              <Languages aria-hidden="true" size={14} />
+              <span>Auto-translate</span>
+            </button>
+            {autoTranslate ? (
+              <label className="chat-composer__language">
+                <span className="visually-hidden">Translation language</span>
+                <select
+                  aria-label="Translation language"
+                  onChange={(event) =>
+                    setTranslationLanguage(event.target.value as TranslationLanguage)
+                  }
+                  value={translationLanguage}
+                >
+                  <option value="English">English</option>
+                  <option value="Malay">Malay</option>
+                  <option value="Mandarin">Mandarin</option>
+                </select>
+              </label>
+            ) : null}
+          </>
+        ) : null}
         <span
           aria-live="polite"
           className={`chat-composer__agent-status chat-composer__agent-status--${agentStatus}`}
@@ -436,6 +605,79 @@ function Composer({
           {isGenerating ? "Generating draft" : "Generate draft"}
         </button>
       </div>
+      {kind === "reply" && liveTelegram ? (
+        <div className="chat-composer__live-controls">
+          <label className="chat-composer__language">
+            <span>Translate to</span>
+            <select
+              aria-label="Translation language"
+              onChange={(event) => setTranslationLanguage(event.target.value as TranslationLanguage)}
+              value={translationLanguage}
+            >
+              <option value="English">English</option>
+              <option value="Malay">Malay</option>
+              <option value="Mandarin">Mandarin</option>
+            </select>
+          </label>
+          <button
+            className="chat-composer__translate-toggle"
+            disabled={empty || isSending || isTranslating || !onTranslate}
+            onClick={() => void translateLiveReply()}
+            type="button"
+          >
+            <Languages aria-hidden="true" size={14} />
+            {isTranslating ? "Translating" : "Translate"}
+          </button>
+          <label className="chat-composer__language">
+            <span>Deliver</span>
+            <select
+              aria-label="Telegram delivery mode"
+              onChange={(event) =>
+                setDeliveryMode(event.target.value as "text" | "voice" | "both")
+              }
+              value={deliveryMode}
+            >
+              <option value="text">Text</option>
+              <option value="voice">Voice</option>
+              <option value="both">Text + voice</option>
+            </select>
+          </label>
+          {deliveryMode !== "text" ? (
+            <>
+              <label className="chat-composer__language">
+                <span>Voice source</span>
+                <select
+                  aria-label="Telegram voice source"
+                  onChange={(event) =>
+                    setVoiceSource(event.target.value as "tts" | "recorded")
+                  }
+                  value={voiceSource}
+                >
+                  <option value="tts">AI TTS</option>
+                  <option value="recorded">Staff recording</option>
+                </select>
+              </label>
+              {voiceSource === "recorded" ? (
+                <>
+                  <button
+                    className="chat-composer__record"
+                    onClick={() => void toggleRecording()}
+                    type="button"
+                  >
+                    <Mic aria-hidden="true" size={14} />
+                    {recordingStatus === "recording"
+                      ? "Stop recording"
+                      : "Record staff voice"}
+                  </button>
+                  {recordingUrl ? <audio controls src={recordingUrl} /> : null}
+                </>
+              ) : (
+                <span className="chat-composer__voice-disclosure">AI-generated voice</span>
+              )}
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {agentRun ? (
         <section
           aria-label="Agent draft review"
@@ -466,41 +708,6 @@ function Composer({
           </div>
         </section>
       ) : null}
-      {kind === "reply" && liveTelegram ? (
-        <div className="chat-composer__translation">
-          <span>
-            Live Telegram: enter the final {conversation.patient.preferredLanguage} text.
-          </span>
-        </div>
-      ) : kind === "reply" ? (
-        <div className="chat-composer__translation">
-          <button
-            aria-pressed={autoTranslate}
-            aria-label="Auto-translate"
-            onClick={() => setAutoTranslate((current) => !current)}
-            type="button"
-          >
-            <Languages aria-hidden="true" size={14} />
-                <span>Auto-translate</span>
-          </button>
-          <label>
-            <span className="visually-hidden">Translation language</span>
-            <select
-              aria-label="Translation language"
-              disabled={!autoTranslate}
-              onChange={(event) =>
-                setTranslationLanguage(event.target.value as TranslationLanguage)
-              }
-              value={translationLanguage}
-            >
-              <option value="English">English</option>
-              <option value="Malay">Malay</option>
-              <option value="Mandarin">Mandarin</option>
-            </select>
-          </label>
-          <span>{autoTranslate ? `Sends in ${translationLanguage}` : "Patient language"}</span>
-        </div>
-      ) : null}
       {translation ? (
         <div
           aria-label="Translation preview"
@@ -521,7 +728,9 @@ function Composer({
           onKeyDown={onKeyDown}
           placeholder={
             kind === "reply"
-              ? "Write a staff reply..."
+              ? liveTelegram
+                ? `Enter the final ${conversation.patient.preferredLanguage} Telegram reply...`
+                : "Write a staff reply..."
               : "Add a note visible only inside this demo..."
           }
           value={draft}
@@ -533,7 +742,10 @@ function Composer({
             empty ||
             isSending ||
             isGenerating ||
-            translationBlocked
+            translationBlocked ||
+            isTranslating ||
+            (liveTelegram && kind === "reply" && deliveryMode !== "text" &&
+              voiceSource === "recorded" && !recording)
           }
           onClick={() => {
             void submit();
@@ -554,6 +766,114 @@ function Composer({
   );
 }
 
+function SpeechMessageControls({
+  artifact,
+  message,
+  onRetrySpeech,
+  onSaveManualTranscript,
+}: {
+  artifact: SpeechArtifactView;
+  message: Conversation["messages"][number];
+  onRetrySpeech?: (
+    messageId: string,
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
+  onSaveManualTranscript?: (
+    messageId: string,
+    input: {
+      detectedLanguage: string;
+      englishGloss?: string | null;
+      originalTranscript: string;
+    },
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
+}) {
+  const [manualOpen, setManualOpen] = useState(false);
+  const [transcript, setTranscript] = useState(
+    message.text.startsWith("Voice note awaiting") ? "" : message.text,
+  );
+  const [language, setLanguage] = useState(message.language || "Malay");
+  const [gloss, setGloss] = useState(message.gloss ?? "");
+  const [isWorking, setIsWorking] = useState(false);
+  const [error, setError] = useState("");
+  const retry = async () => {
+    if (!onRetrySpeech || isWorking) {
+      return;
+    }
+    setIsWorking(true);
+    setError("");
+    const result = await onRetrySpeech(message.id);
+    if (!result.ok) {
+      setError(result.error);
+    }
+    setIsWorking(false);
+  };
+  const saveManual = async () => {
+    if (!onSaveManualTranscript || !transcript.trim() || !language.trim() || isWorking) {
+      return;
+    }
+    setIsWorking(true);
+    setError("");
+    const result = await onSaveManualTranscript(message.id, {
+      detectedLanguage: language,
+      originalTranscript: transcript,
+      englishGloss: gloss.trim() || null,
+    });
+    if (!result.ok) {
+      setError(result.error);
+    } else {
+      setManualOpen(false);
+    }
+    setIsWorking(false);
+  };
+  return (
+    <section aria-label="Voice message controls" className="message-voice-controls">
+      <div className="message-voice-controls__status">
+        <Mic aria-hidden="true" size={13} />
+        <span>Voice {artifact.status}</span>
+      </div>
+      <audio controls preload="none" src={`/api/telegram/speech/${encodeURIComponent(message.id)}/audio`}>
+        Voice playback is not available in this browser.
+      </audio>
+      {artifact.status === "failed" && onRetrySpeech ? (
+        <button disabled={isWorking} onClick={() => void retry()} type="button">
+          {isWorking ? "Retrying" : "Retry transcription"}
+        </button>
+      ) : null}
+      {onSaveManualTranscript ? (
+        <button
+          aria-expanded={manualOpen}
+          onClick={() => setManualOpen((current) => !current)}
+          type="button"
+        >
+          Manual transcript
+        </button>
+      ) : null}
+      {artifact.error ? <span className="message-voice-controls__error">{artifact.error}</span> : null}
+      {manualOpen ? (
+        <div className="message-voice-controls__manual">
+          <label>
+            <span>Original language</span>
+            <input onChange={(event) => setLanguage(event.target.value)} value={language} />
+          </label>
+          <label>
+            <span>Transcript</span>
+            <textarea onChange={(event) => setTranscript(event.target.value)} value={transcript} />
+          </label>
+          <label>
+            <span>English gloss (optional)</span>
+            <textarea onChange={(event) => setGloss(event.target.value)} value={gloss} />
+          </label>
+          <button disabled={isWorking || !transcript.trim()} onClick={() => void saveManual()} type="button">
+            Save transcript
+          </button>
+        </div>
+      ) : null}
+      {error ? <span className="message-voice-controls__error">{error}</span> : null}
+    </section>
+  );
+}
+
 export function ThreadPane({
   conversation,
   showBack,
@@ -565,6 +885,10 @@ export function ThreadPane({
   onResolve,
   onSend,
   onSetAgentMode,
+  onRetrySpeech,
+  onSaveManualTranscript,
+  onTranslate,
+  speechArtifacts = {},
 }: {
   conversation?: Conversation;
   showBack: boolean;
@@ -582,6 +906,25 @@ export function ThreadPane({
     signal?: AbortSignal,
   ) => MutationResult | Promise<MutationResult>;
   onSetAgentMode: (conversationId: string, mode: AgentMode) => MutationResult;
+  onRetrySpeech?: (
+    messageId: string,
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
+  onSaveManualTranscript?: (
+    messageId: string,
+    input: {
+      detectedLanguage: string;
+      englishGloss?: string | null;
+      originalTranscript: string;
+    },
+    signal?: AbortSignal,
+  ) => Promise<MutationResult>;
+  onTranslate?: (
+    text: string,
+    targetLanguage: string,
+    signal?: AbortSignal,
+  ) => Promise<{ ok: true; text: string } | { ok: false; error: string }>;
+  speechArtifacts?: Record<string, SpeechArtifactView>;
 }) {
   if (!conversation) {
     return (
@@ -675,7 +1018,14 @@ export function ThreadPane({
       <div aria-label="Conversation messages" className="thread-messages" tabIndex={0}>
         <div className="thread-transcript">
           {conversation.messages.map((message) => (
-            <MessageRow channel={conversation.channel} key={message.id} message={message} />
+            <MessageRow
+              channel={conversation.channel}
+              key={message.id}
+              message={message}
+              onRetrySpeech={onRetrySpeech}
+              onSaveManualTranscript={onSaveManualTranscript}
+              speechArtifact={speechArtifacts[message.id]}
+            />
           ))}
         </div>
       </div>
@@ -685,6 +1035,7 @@ export function ThreadPane({
         key={conversation.id}
         onGenerateDraft={onGenerateDraft}
         onSend={onSend}
+        onTranslate={onTranslate}
       />
     </section>
   );

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { MutationResult, PlaybookFile } from "../../domain";
 
+type MaybeAsyncMutationResult = MutationResult | Promise<MutationResult>;
+
 function parentLocation(path: string): string {
   const normalized = path.endsWith("/") ? path.slice(0, -1) : path;
   const separator = normalized.lastIndexOf("/");
@@ -36,15 +38,16 @@ export function FileDialog({
   file: PlaybookFile | null;
   initialPath: string;
   mode: "create" | "rename";
-  onCreate: (path: string, title: string) => MutationResult;
+  onCreate: (path: string, title: string) => MaybeAsyncMutationResult;
   onOpenChange: (open: boolean) => void;
-  onRename: (path: string, title: string) => MutationResult;
+  onRename: (path: string, title: string) => MaybeAsyncMutationResult;
   open: boolean;
 }) {
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [nameEdited, setNameEdited] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const location =
     mode === "rename" ? parentLocation(file?.path ?? initialPath) : initialPath;
 
@@ -60,13 +63,19 @@ export function FileDialog({
 
   const submit = () => {
     const path = `${location}${name}`;
-    const result =
-      mode === "create" ? onCreate(path, title) : onRename(path, title);
-    if (result.ok) {
-      onOpenChange(false);
-      return;
-    }
-    setError(result.error);
+    void (async () => {
+      setSubmitting(true);
+      try {
+        const result = await (mode === "create" ? onCreate(path, title) : onRename(path, title));
+        if (result.ok) {
+          onOpenChange(false);
+          return;
+        }
+        setError(result.error);
+      } finally {
+        setSubmitting(false);
+      }
+    })();
   };
 
   return (
@@ -113,11 +122,11 @@ export function FileDialog({
             </Dialog.Close>
             <button
               className="dream-button dream-button--primary"
-              disabled={!name.trim() || !title.trim()}
+              disabled={!name.trim() || !title.trim() || submitting}
               onClick={submit}
               type="button"
             >
-              {mode === "create" ? "Create file" : "Save file name"}
+              {submitting ? "Saving..." : mode === "create" ? "Create file" : "Save file name"}
             </button>
           </div>
         </Dialog.Content>
@@ -202,11 +211,12 @@ export function DeleteFileDialog({
   open,
 }: {
   file: PlaybookFile | null;
-  onDelete: () => MutationResult;
+  onDelete: () => MaybeAsyncMutationResult;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     if (open) {
       setError("");
@@ -231,16 +241,24 @@ export function DeleteFileDialog({
             <button
               className="dream-button dream-button--risk"
               onClick={() => {
-                const result = onDelete();
-                if (result.ok) {
-                  onOpenChange(false);
-                } else {
-                  setError(result.error);
-                }
+                void (async () => {
+                  setDeleting(true);
+                  try {
+                    const result = await onDelete();
+                    if (result.ok) {
+                      onOpenChange(false);
+                    } else {
+                      setError(result.error);
+                    }
+                  } finally {
+                    setDeleting(false);
+                  }
+                })();
               }}
               type="button"
+              disabled={deleting}
             >
-              Delete file
+              {deleting ? "Deleting..." : "Delete file"}
             </button>
           </div>
         </AlertDialog.Content>

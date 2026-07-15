@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  workers: 1,
   forbidOnly: true,
   retries: 0,
   reporter: [["list"]],
@@ -13,7 +14,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "npm run build && PORT=4173 npm start",
+    command: "npm run build && tsx tests/server/e2e-server.ts --port=4173",
+    env: { NODE_ENV: "test" },
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
     timeout: 120_000,

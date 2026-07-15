@@ -128,7 +128,7 @@ describe("Dream route", () => {
     await user.type(within(fileDialog).getByLabelText("File title"), "Follow Up Guide");
     expect(within(fileDialog).getByLabelText("File name")).toHaveValue("follow-up-guide.md");
     await user.click(within(fileDialog).getByRole("button", { name: "Create file" }));
-    expect(screen.getByRole("treeitem", { name: /follow up guide/i })).toHaveAttribute(
+    expect(await screen.findByRole("treeitem", { name: /follow up guide/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -296,6 +296,6 @@ describe("Dream route", () => {
     await user.clear(within(dialog).getByLabelText("File name"));
     await user.type(within(dialog).getByLabelText("File name"), "follow-up.md");
     await user.click(within(dialog).getByRole("button", { name: "Create file" }));
-    expect(screen.getAllByText("playbooks/follow-up.md")).not.toHaveLength(0);
+    expect(await screen.findAllByText("playbooks/follow-up.md")).not.toHaveLength(0);
   });
 });

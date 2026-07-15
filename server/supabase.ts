@@ -62,6 +62,12 @@ const telegramDeliveryRowSchema = z
     target_language: z.string(),
     approved_text: z.string(),
     approved_text_hash: z.string(),
+    voice_source: z.string().nullable(),
+    audio_object_path: z.string().nullable(),
+    audio_content_type: z.string().nullable(),
+    audio_sha256: z.string().nullable(),
+    tts_model: z.string().nullable(),
+    tts_voice: z.string().nullable(),
     status: z.string(),
     workspace_sync_status: z.string(),
     provider_message_id: z.string().nullable(),
@@ -172,6 +178,12 @@ function toTelegramDeliveryRecord(row: unknown): TelegramDeliveryRecord {
     targetLanguage: parsed.target_language,
     approvedText: parsed.approved_text,
     approvedTextHash: parsed.approved_text_hash,
+    voiceSource: parsed.voice_source,
+    audioObjectPath: parsed.audio_object_path,
+    audioContentType: parsed.audio_content_type,
+    audioSha256: parsed.audio_sha256,
+    ttsModel: parsed.tts_model,
+    ttsVoice: parsed.tts_voice,
     status: parsed.status,
     workspaceSyncStatus: parsed.workspace_sync_status,
     providerMessageId: parsed.provider_message_id,
@@ -191,6 +203,12 @@ function toTelegramDeliveryRow(record: TelegramDeliveryRecord) {
     target_language: record.targetLanguage,
     approved_text: record.approvedText,
     approved_text_hash: record.approvedTextHash,
+    voice_source: record.voiceSource,
+    audio_object_path: record.audioObjectPath,
+    audio_content_type: record.audioContentType,
+    audio_sha256: record.audioSha256,
+    tts_model: record.ttsModel,
+    tts_voice: record.ttsVoice,
     status: record.status,
     workspace_sync_status: record.workspaceSyncStatus,
     provider_message_id: record.providerMessageId,
@@ -214,7 +232,7 @@ const workspaceColumns = "workspace_id,schema_version,revision,state";
 const telegramEventColumns =
   "update_id,workspace_id,payload_hash,status,normalized_message_id,error,created_at,updated_at";
 const telegramDeliveryColumns =
-  "request_id,part,workspace_id,conversation_id,target_language,approved_text,approved_text_hash,status,workspace_sync_status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
+  "request_id,part,workspace_id,conversation_id,target_language,approved_text,approved_text_hash,voice_source,audio_object_path,audio_content_type,audio_sha256,tts_model,tts_voice,status,workspace_sync_status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
 
 export function createSupabaseWorkspaceDataSource(
   client: SupabaseClient,

@@ -60,6 +60,10 @@ type EvalServiceOptions = {
   now: () => string;
 };
 
+type CreateSuiteOptions = {
+  baselineSuiteId?: string | null;
+};
+
 export class EvalServiceError extends Error {
   constructor(
     readonly code: Extract<
@@ -303,6 +307,7 @@ export function createEvalService({
   return {
     async createSuite(
       input: EvalSuiteCreateRequest,
+      options: CreateSuiteOptions = {},
     ): Promise<EvalSuiteCreateResult> {
       const request = evalSuiteCreateRequestSchema.parse(input);
       const workspace = await loadAtRevision(
@@ -318,7 +323,7 @@ export function createEvalService({
           playbookVersionId: request.playbookVersionId,
           agentConfig: agent.config,
           judgeConfig: judge.config,
-          baselineSuiteId: null,
+          baselineSuiteId: options.baselineSuiteId ?? null,
           createdAt: now(),
         });
       } catch (error) {

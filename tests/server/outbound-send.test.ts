@@ -13,6 +13,9 @@ import {
 import { createTelegramDeliveryRepository } from "../../server/telegram-repository";
 import type { WorkspaceRepository } from "../../server/workspace-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
+import type { TtsProvider } from "../../server/openai-tts-provider";
+import type { VoiceArtifactStore } from "../../server/voice-artifact-store";
+import type { VoiceConverter } from "../../server/voice-converter";
 import { InMemoryTelegramDeliveryDataSource } from "./fixtures/telegram-data-source";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
@@ -61,6 +64,10 @@ function fakeAdapter(
   return {
     normalizeInbound: () => null,
     sendText,
+    sendVoice: vi.fn(async () => ({
+      providerMessageId: "9002",
+      acceptedAt: "2026-07-13T12:01:00.000Z",
+    })),
   };
 }
 
@@ -69,6 +76,11 @@ async function configuredOutbound(options?: {
   adapter?: ChannelAdapter;
   workspaceRepository?: WorkspaceRepository;
   maxCasAttempts?: number;
+  voice?: {
+    artifactStore: VoiceArtifactStore;
+    converter: VoiceConverter;
+    tts: TtsProvider;
+  };
 }) {
   const workspaceDataSource = new InMemoryWorkspaceDataSource();
   const defaultWorkspaceRepository = createWorkspaceRepository(
@@ -92,6 +104,7 @@ async function configuredOutbound(options?: {
     workspaceId: "demo",
     workspaceRepository,
     maxCasAttempts: options?.maxCasAttempts,
+    voice: options?.voice,
   });
   return {
     adapter,
@@ -318,6 +331,7 @@ describe("visitor-approved Telegram text", () => {
     await expect(failed.json()).resolves.toEqual({
       deliveryIds: ["send-42"],
       status: "failed",
+      failedParts: ["text"],
     });
     expect(
       await configured.deliveryRepository.read("send-42", "text"),
@@ -356,6 +370,7 @@ describe("visitor-approved Telegram text", () => {
     await expect(response.json()).resolves.toEqual({
       deliveryIds: ["send-42"],
       status: "failed",
+      failedParts: ["text"],
     });
     await expect(
       configured.deliveryRepository.read("send-42", "text"),
@@ -446,6 +461,74 @@ describe("visitor-approved Telegram text", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "invalid_request",
       retryable: false,
+    });
+  });
+
+  it("prepares AI voice once and sends only the requested voice part", async () => {
+    const artifacts = new Map<string, Uint8Array>();
+    const configured = await configuredOutbound({
+      voice: {
+        artifactStore: {
+          async download(path) {
+            return artifacts.get(path) ?? new Uint8Array();
+          },
+          async upload(path, bytes) {
+            artifacts.set(path, bytes);
+            return {
+              objectPath: path,
+              contentType: "audio/ogg",
+              sha256: "a".repeat(64),
+            };
+          },
+        },
+        converter: {
+          convertToWebm: vi.fn(),
+          convertToOgg: vi.fn(),
+        },
+        tts: {
+          synthesize: vi.fn().mockResolvedValue({
+            bytes: new Uint8Array([1, 2, 3]),
+            model: "gpt-4o-mini-tts",
+            voice: "coral",
+          }),
+        },
+      },
+    });
+    const request = {
+      ...sendRequest,
+      mode: "voice" as const,
+      voiceSource: "tts" as const,
+    };
+
+    await expect(
+      configured.outbound.prepareVoice({
+        requestId: request.requestId,
+        conversationId: request.conversationId,
+        expectedConversationRevision: request.expectedConversationRevision,
+        targetLanguage: request.targetLanguage,
+        approvedPatientText: request.approvedPatientText,
+        source: "tts",
+      }),
+    ).resolves.toEqual({
+      requestId: "send-42",
+      source: "tts",
+      status: "ready",
+    });
+    await expect(configured.outbound.send(request)).resolves.toMatchObject({
+      status: "sent",
+      voice: { providerMessageId: "9002" },
+    });
+    await expect(configured.outbound.send(request)).resolves.toMatchObject({
+      status: "sent",
+      voice: { providerMessageId: "9002" },
+    });
+    expect(configured.adapter.sendText).not.toHaveBeenCalled();
+    expect(configured.adapter.sendVoice).toHaveBeenCalledTimes(1);
+    expect(await configured.deliveryRepository.read("send-42", "voice")).toMatchObject({
+      status: "sent",
+      voiceSource: "tts",
+      ttsModel: "gpt-4o-mini-tts",
+      ttsVoice: "coral",
     });
   });
 });

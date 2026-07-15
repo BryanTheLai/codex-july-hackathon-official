@@ -13,6 +13,15 @@ const telegramWorkspaceStateSchema = z
       z.string(),
       revisionSchema,
     ),
+    speechArtifacts: z.record(
+      z.string(),
+      z
+        .object({
+          status: z.enum(["pending", "transcribing", "ready", "failed"]),
+          error: z.string().nullable(),
+        })
+        .strict(),
+    ),
     pendingDelivery: z
       .object({
         conversationId: z.string().min(1),
@@ -37,7 +46,8 @@ export type TelegramWorkspaceState = z.infer<
 export const INITIAL_TELEGRAM_WORKSPACE: TelegramWorkspaceState = {
   status: "local",
   workspaceRevision: null,
-  conversationRevisions: {},
+    conversationRevisions: {},
+  speechArtifacts: {},
   pendingDelivery: null,
 };
 

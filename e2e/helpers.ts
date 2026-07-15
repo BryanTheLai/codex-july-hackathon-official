@@ -7,12 +7,21 @@ import type {
   EvalSuiteCreateRequest,
 } from "../src/contracts/eval";
 import type { JudgeRequest, JudgeResponse } from "../src/contracts/judge";
+import type { WorkspaceCommandRequest } from "../src/contracts/workflow";
 import {
+  analyzeFailures,
+  createCandidateFromCorrection,
   createCanonicalSeed,
   createCanonicalServerState,
   freezeEvalSuiteSnapshot,
   generateSyntheticOutput,
 } from "../src/domain";
+import type { AppState } from "../src/domain";
+
+export async function resetE2eWorkspace(page: Page) {
+  const response = await page.request.post("/api/e2e/reset");
+  expect(response.status()).toBe(204);
+}
 
 export async function installMockJudge(page: Page) {
   await page.route("**/api/judge", async (route) => {
@@ -56,7 +65,7 @@ export async function installMockJudge(page: Page) {
 
 export async function installMockEval(page: Page) {
   const local = createCanonicalSeed();
-  const server = await createCanonicalServerState();
+  let server = await createCanonicalServerState();
   let revision = 1;
   let suiteSequence = 0;
 
@@ -68,6 +77,63 @@ export async function installMockEval(page: Page) {
         workspaceId: "demo",
         revision,
         state: server,
+      }),
+    });
+  });
+  await page.route(/\/api\/workspace\/commands$/, async (route) => {
+    const request = route.request().postDataJSON() as WorkspaceCommandRequest;
+    if (
+      request.kind !== "sync_eval_dataset" &&
+      request.kind !== "propose_correction" &&
+      request.kind !== "create_candidate_from_correction"
+    ) {
+      await route.continue();
+      return;
+    }
+    if (request.expectedWorkspaceRevision !== revision) {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "revision_conflict",
+          error: "Workspace revision is stale.",
+          retryable: true,
+        }),
+      });
+      return;
+    }
+    if (request.kind === "sync_eval_dataset") {
+      server.evalDatasets = server.evalDatasets.map((dataset) =>
+        dataset.id === request.dataset.id ? request.dataset : dataset,
+      );
+    } else if (request.kind === "propose_correction") {
+      const proposed = analyzeFailures(
+        server as unknown as AppState,
+        request.datasetId,
+      );
+      if (!proposed.ok) {
+        throw new Error(proposed.error);
+      }
+      server.corrections = proposed.state.corrections;
+    } else {
+      server = await createCandidateFromCorrection({
+        state: server,
+        candidateVersionId: `candidate-e2e-${revision + 1}`,
+        correctionId: request.correctionId,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    revision += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        workspace: {
+          workspaceId: "demo",
+          revision,
+          state: server,
+        },
+        replay: null,
       }),
     });
   });
@@ -100,9 +166,9 @@ export async function installMockEval(page: Page) {
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
       const generated = generateSyntheticOutput(local, request.caseId);
-      if (!generated.ok) {
-        throw new Error(generated.error);
-      }
+      const candidateResponse = generated.ok
+        ? generated.output
+        : "Synthetic demo response for imported human-reviewed evidence.";
       const rubricIds = new Set(
         frozenCase.judgeBundle.rubricRefs.map(
           (rubric) => rubric.id,
@@ -119,13 +185,13 @@ export async function installMockEval(page: Page) {
         suiteId: suite.id,
         caseId: request.caseId,
         attempt: 1,
-        candidateResponse: generated.output,
+        candidateResponse,
         agentResult: {
           runId: `agent-run-e2e-${suite.id}-${request.caseId}`,
           draft: {
-            englishText: generated.output,
+            englishText: candidateResponse,
             patientLanguage: "English",
-            patientText: generated.output,
+            patientText: candidateResponse,
           },
           proposedAction: "reply",
           handoffReason: null,
@@ -157,7 +223,7 @@ export async function installMockEval(page: Page) {
               evidence:
                 requiredFailure && rubric.required
                   ? null
-                  : generated.output,
+                  : candidateResponse,
             }),
           ),
           metadata: {
@@ -181,6 +247,42 @@ export async function installMockEval(page: Page) {
         ranAt: new Date().toISOString(),
       };
       server.evalArtifacts.runs.push(artifact);
+      server.evalDatasets = server.evalDatasets.map((dataset) =>
+        dataset.id !== suite.datasetId
+          ? dataset
+          : {
+              ...dataset,
+              cases: dataset.cases.map((evalCase) =>
+                evalCase.id !== request.caseId
+                  ? evalCase
+                  : {
+                      ...evalCase,
+                      actualSyntheticOutput: candidateResponse,
+                      grade: {
+                        pass: artifact.judgeResult.overallVerdict === "pass",
+                        verdict: artifact.judgeResult.overallVerdict,
+                        judgeScore: artifact.judgeResult.judgeScore,
+                        rationale: artifact.judgeResult.rationale,
+                        criterionResults: artifact.judgeResult.criterionResults,
+                        metadata: artifact.judgeResult.metadata,
+                      },
+                    },
+              ),
+              runHistory: [
+                ...dataset.runHistory,
+                {
+                  id: artifact.id,
+                  caseId: artifact.caseId,
+                  datasetId: dataset.id,
+                  ranAt: artifact.ranAt,
+                  candidateVersion: dataset.candidateVersion,
+                  pass: artifact.judgeResult.overallVerdict === "pass",
+                  verdict: artifact.judgeResult.overallVerdict,
+                  judgeScore: artifact.judgeResult.judgeScore,
+                },
+              ],
+            },
+      );
       revision += 1;
       await route.fulfill({
         status: 200,

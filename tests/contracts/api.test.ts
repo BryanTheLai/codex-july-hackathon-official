@@ -7,6 +7,8 @@ import {
   outboundReconcileResultSchema,
   outboundSendRequestSchema,
   outboundSendResultSchema,
+  outboundVoicePrepareRequestSchema,
+  translationRequestSchema,
   requestIdSchema,
   resetDemoRequestSchema,
   saveWorkspaceRequestSchema,
@@ -114,7 +116,7 @@ describe("shared API contracts", () => {
     ).toBe(false);
   });
 
-  it("validates text-only outbound send and reconciliation contracts", () => {
+  it("validates text, voice, and reconciliation outbound contracts", () => {
     const sendRequest = {
       requestId: "send-42",
       conversationId: "conversation-telegram-42",
@@ -129,6 +131,33 @@ describe("shared API contracts", () => {
     };
 
     expect(outboundSendRequestSchema.parse(sendRequest)).toEqual(sendRequest);
+    expect(
+      outboundSendRequestSchema.parse({
+        ...sendRequest,
+        mode: "both",
+        voiceSource: "tts",
+      }),
+    ).toEqual({
+      ...sendRequest,
+      mode: "both",
+      voiceSource: "tts",
+    });
+    expect(
+      outboundVoicePrepareRequestSchema.parse({
+        requestId: "send-42",
+        conversationId: "conversation-telegram-42",
+        expectedConversationRevision: 3,
+        targetLanguage: "Malay",
+        approvedPatientText: "Klinik akan menghubungi anda.",
+        source: "recorded",
+      }),
+    ).toMatchObject({ source: "recorded" });
+    expect(
+      translationRequestSchema.parse({
+        text: "We will call you shortly.",
+        targetLanguage: "Malay",
+      }),
+    ).toMatchObject({ targetLanguage: "Malay" });
     expect(
       outboundSendResultSchema.parse({
         deliveryIds: ["send-42"],
@@ -160,7 +189,7 @@ describe("shared API contracts", () => {
     });
   });
 
-  it("rejects unapproved outbound modes, stale revisions, and invalid sent results", () => {
+  it("rejects incomplete voice sends, stale revisions, and invalid sent results", () => {
     const request = {
       requestId: "send-42",
       conversationId: "conversation-telegram-42",
@@ -176,6 +205,13 @@ describe("shared API contracts", () => {
         mode: "voice",
       }).success,
     ).toBe(false);
+    expect(
+      outboundSendRequestSchema.safeParse({
+        ...request,
+        mode: "voice",
+        voiceSource: "recorded",
+      }).success,
+    ).toBe(true);
     expect(
       outboundSendRequestSchema.safeParse({
         ...request,

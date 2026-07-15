@@ -5,17 +5,16 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; local synthetic baseline, deterministic Analyze failures fallback, shared platform contracts, shared no-tools Chat and server Eval agent execution, Chat draft review, frozen Eval artifact state, server-side Supabase persistence, Telegram text transport, inbound voice persistence, and transcription contracts are verified; Markdown SOP import, the LLM proposer, behavioral replay, candidate activation, and rollback remain design-only."
-implementation_scope: "Booking notifications, same-origin LLM judging, conflict-safe async Eval commits, deterministic Analyze failures proposals, shared platform contracts, strict live/sandbox agent contracts, server-owned no-tools prompt assembly, configurable Responses or Chat Completions provider execution, live-generation kill switch, structured-output and exact Dream evidence validation, rate-limited workspace-backed live agent routing, visitor-triggered editable Chat draft review, strict frozen Eval generation, judge, suite, run, review, and aggregate contracts, legacy aggregate migration, deterministic catalog-to-suite freezing, revisioned suite creation, atomic server case execution through the shared sandbox agent and internal judge, sequential five-seed browser execution, progress, cancellation, partial-failure retention, reload recovery, Eval artifact JSONB round trips and synthetic reset boundaries, the exact five-case seed, the three-table Supabase migration, fixed-workspace CAS APIs, idempotent bootstrap, synthetic-only reset, secret-verified Telegram text and voice ingest, exact visitor-approved text send, reconciliation, Chat refresh, bounded voice metadata persistence without audio download, one pending speech artifact per voice message, partial-durability repair, strict pending, transcribing, ready, and failed speech artifacts, legacy speech-state compatibility, and revisioned transcription request/result contracts are built. STT execution, browser transcription recovery, TTS, outbound voice, Vercel deployment, live Supabase and Telegram configuration, server import for HITL and manual Eval cases, LLM-generated Dream proposals, and Dream bundle activation with one-step rollback remain design-only."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, Telegram text, and the direct-OpenAI inbound voice bridge have mocked-provider proof. The complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle is implemented. Live credentials, public deployment, authentication, and live-provider quality proof remain outside the local demo."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, and an automatic Telegram OGG/Opus-to-WebM-to-Whisper transcription plus English-gloss bridge. It retains the existing no-provider deterministic Analyze fallback. Browser transcription recovery, TTS, outbound voice, public deployment, live Supabase and Telegram configuration, authentication, and live-provider quality proof remain unbuilt."
 created: "2026-07-08"
 last_updated: "2026-07-14"
 last_verified: "2026-07-14"
-last_verified_scope: "Local synthetic implementation, mocked Telegram text round trip, automated behavior, static checks, production build, route delivery, browser matrix, accessibility, responsive containment, and cross-route flows."
+last_verified_scope: "Local synthetic implementation, mocked Telegram text and voice workflows, mocked OpenAI speech and release controls, lint, typecheck, full Vitest suite, and production build. Browser matrix, accessibility, responsive containment, live credentials, and cross-route provider proof remain pending."
 verification_method:
-  - "Complete local verification gate"
-  - "Browser matrix at 1440 by 900, 390 by 844, and 320 by 568 CSS pixels"
-  - "Automated accessibility, overflow, touch-target, console, page-error, and route-delivery checks"
-  - "Manual visual inspection of conversation import and Dream Test Changes evidence"
+  - "npm run lint, npm run typecheck, npm test, and npm run build"
+  - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
+  - "Browser and live-provider verification are deliberately recorded as pending"
   - "Independent cold-read design, behavior, and causal-honesty audit"
 routes:
   chat_control: "/"
@@ -187,9 +186,10 @@ A point-in-time record of overall, train, and holdout results after a suite run.
 
 ### Saved-text verification
 
-The current local Dream Test Changes check verifies an approved correction's new text exists in
-saved playbook content. The approved POC replaces that check with affected train-case replay
-against an inactive candidate. Neither path changes the active playbook.
+Dream Test Changes remains a local saved-text check. With the server release workflow configured,
+Dream save, Markdown import, or correction acceptance creates an inactive version instead; only
+affected replay followed by a complete passing train-and-holdout suite can make it Ready. Neither
+path changes the active playbook until a human activates it.
 
 ### Deep link
 
@@ -202,18 +202,18 @@ is already open.
 Deferred table, binding MVP build order, capability matrix, and activation contracts: section 16.
 POC access and deploy topology: `README.md`.
 
-The built baseline demonstrates the first five steps of one human-supervision loop:
+The built baseline demonstrates this human-supervision loop:
 
 1. Staff handle multilingual clinic conversations in Chat Control.
 2. A staff reply can become the expected response for a train evaluation case.
-3. The five server-synced Evaluation Lab seed cases run the shared Dream-grounded agent in sandbox
-   mode, then send its candidate to the separate server-side LLM judge. Local HITL and manual cases
-   use the deterministic fallback until server import exists.
-4. Failed train cases can create pending Dream corrections.
-5. A human accepts or rejects each correction.
-
-Steps 6 through 11 of the remaining MVP (Markdown SOP import, LLM proposer, inactive candidate,
-behavioral replay, Activate, one-step rollback): binding order in section 16.
+3. The server synchronizes the selected existing dataset before freezing a suite, so imported and
+   manual cases run through the shared sandbox agent and judge when the release workflow is enabled.
+4. A failed train case can create one pending LLM-generated exact Dream correction.
+5. A human accepts that correction, a draft, or Markdown import into an inactive playbook candidate.
+6. Affected train cases must pass before the candidate can run the full train and holdout suite.
+7. Only a complete passing full suite marks the candidate Ready.
+8. A human activates the Ready candidate; subsequent Chat requests resolve the new active bundle.
+9. Roll back creates a new immutable version from the immediately prior active SOP.
 
 The product is intentionally small:
 
@@ -1003,7 +1003,7 @@ Simulation:
 ## 8. Evaluation Lab contract
 
 This section owns observable Eval UI, case types, generation boundary, and staff behavior.
-Candidate Ready gates and activation prerequisites for the remaining MVP live in section 16.
+Candidate Ready gates and activation prerequisites live in section 16.
 
 ### 8.1 Purpose
 
@@ -1654,17 +1654,16 @@ A conforming implementation below 900px:
 ## 9. Dream contract
 
 This section owns observable Dream UI, spatial frames, and staff behavior. Inactive candidate,
-replay, Activate, and one-step Rollback contracts for the remaining MVP live in section 16.
+replay, Activate, and one-step Rollback contracts live in section 16.
 
 ### Build-state boundary
 
 | State | Correction decision | Test Changes | Active playbook |
 |---|---|---|---|
-| `BUILT` local synthetic baseline | Approve replaces saved text | Checks saved-text presence | No version pointer |
-| `DESIGN` approved POC | Accept creates an inactive immutable candidate | Replays affected train cases | Separate Activate after Ready; one Rollback returns to the immediately previous active bundle |
+| `BUILT` local fallback | Approve replaces saved text when no release server is configured | Checks saved-text presence | No version pointer |
+| `BUILT` release workflow | Accept, save, or import creates an inactive immutable candidate | Replays affected cases, then full suite | Separate Activate after Ready; Rollback restores a prior immutable SOP |
 
-Sections 9.2 through 9.9 describe the built local baseline UI and its existing tests. POC
-implementation keeps the spatial contract but applies the design row above. Accept never changes
+Sections 9.2 through 9.9 describe the spatial contract used by both paths. Accept never changes
 the active playbook directly.
 
 ### 9.1 Purpose
@@ -1831,8 +1830,8 @@ Below 1000px:
 
 1. Save and Test Changes remain direct.
 2. Rename, Delete, and Discard move to More. New File and New Folder remain in the Files pane.
-3. No autonomous Dream Cycle control appears; corrections, Test Changes, and activation remain
-   explicit visitor actions.
+3. No autonomous Dream Cycle control appears; corrections, Test Changes, activation, and rollback
+   remain explicit visitor actions.
 
 #### File-explorer anatomy
 
@@ -2635,10 +2634,10 @@ Capability matrix (BUILT / PARTIAL / DESIGN): section 16. This section is the na
 the local verify gate has proven.
 
 The local synthetic implementation, server persistence wedge, mocked Telegram text round trip,
-shared Chat and five-seed Eval runner, immutable server Eval evidence, and browser-triggered
-synthetic reset pass the built-baseline acceptance gates in section 14 as of 2026-07-14.
-POC-specific gates for live Supabase and Telegram configuration, Telegram voice execution,
-LLM-generated failure proposals, candidate replay, and activation remain design-only:
+shared Chat and Eval runner, immutable server Eval evidence, release command service, and
+browser-triggered synthetic reset pass the built-baseline acceptance gates in section 14 as of
+2026-07-14. Live Supabase and Telegram configuration, Telegram voice execution, real STT/TTS, and
+live-provider quality remain outside those local gates:
 
 - The complete automated contract, domain, server, store, component, route, and regression suite
   passes.
@@ -2657,9 +2656,9 @@ LLM-generated failure proposals, candidate replay, and activation remain design-
   conversation states at 1440px, 390px, and 320px.
 - Completed async Eval actions preserve newer Chat and Dream changes. A concurrent change to the
   same top-level Eval field returns a retry error instead of replacing newer state.
-- Analyze failures reads only latest committed `fail` verdicts from train cases, creates unique
-  pending deterministic Dream corrections, and leaves candidate output, cases, scores, attempts,
-  suite snapshots, playbooks, and activation unchanged.
+- Analyze failures reads latest failed active-bundle train evidence and, with an LLM configured,
+  persists one exact pending Dream correction without activating it. The no-provider path remains
+  deterministic.
 - Shared schemas validate the approved API error body, backend-owned state without client route
   selections, workspace compare-and-swap success and conflict results, positive revisions, inbound
   speech artifacts, and playbook bundle pointers. The judge endpoint uses the shared API error
@@ -2688,31 +2687,36 @@ LLM-generated failure proposals, candidate replay, and activation remain design-
 - Manual visual inspection covers the Eval import dialog at desktop and mobile widths and the
   Dream Before, After, line, and Why result at desktop width.
 - Chat Control does not request Dream editor or Evaluation Lab delivery assets.
-- The built staff reply to Eval evidence to Dream approval to saved-text Test Changes flow passes
-  with browser API fixtures.
+- Domain and service tests cover correction to inactive candidate, affected replay, full Ready gate,
+  activation changing the Chat pin, rollback, dataset synchronization, and redacted LLM proposal
+  input.
 - Mobile route handoffs restore the last valid pane and selection.
 - Independent behavior, design-specificity, causal-honesty, and code-quality review has no open
   blocker or important finding.
 
-No known built-baseline acceptance failure remains. The remaining approved POC additions are not
-verified until implemented. Section 16 separates post-POC complete-target work from the browser
-baseline and approved POC.
+No known local static, unit, server, or production-build acceptance failure remains. Section 16
+separates runtime configuration and post-POC work from the completed release workflow.
 
-## 16. Unbuilt surfaces
+## 16. Remaining demo-runtime work
 
-### Approved POC, design-only
+### Built supervision release loop
 
-- Markdown-only SOP import into Dream. PDF and other source formats remain deferred.
+- Markdown-only SOP import into Dream; PDF and other source formats remain deferred.
+- Server-backed LLM proposal of one exact, pending Dream diff from failed active-bundle train evidence.
+- Inactive whole-playbook candidates from an accepted correction, a Dream draft, or imported Markdown.
+- Affected train replay, then full train-plus-holdout replay, Ready gating, human activation, and
+  immutable one-click rollback to the immediately prior SOP.
+- Server dataset synchronization before frozen runs, allowing imported and manual cases in an existing
+  Eval dataset to participate in the server replay.
+
+### Still unbuilt
+
 - Live Telegram and Supabase configuration, browser-triggered STT with English gloss, and
   idempotent Voice and Both delivery.
 - Real translation plus separate STT and TTS adapters.
-- Broader browser transport for Dream, Eval, booking, and playbook state beyond the built Telegram
-  text projection.
-- Server import and frozen execution for local HITL and manual Eval cases.
-- Analyze failures with pending LLM-generated exact-anchor Dream proposals, deterministic fallback,
-  human review, and no optimization loop.
-- Inactive whole-playbook candidates, affected-case replay, full-suite readiness, activation, and
-  one-step rollback to the immediately previous active bundle.
+- Live-provider quality, latency, and availability proof; mocked providers remain the automated-test
+  source of truth.
+- DigitalOcean App Platform deployment, authentication, and multi-user authorization.
 
 ### MVP completion order
 
@@ -2720,17 +2724,15 @@ Distilled from the former `docs/DEMO-DAY-IMPLEMENTATION-SPEC.md` (2026-07-14 fol
 API shapes, Telegram sequence diagrams, and timeboxes remain recoverable from git history.
 
 ```text
-0. Verified closed loop
-  -> 1. Markdown SOP import
-    -> 2. real LLM correction proposer
-      -> 3. affected-case + full-suite behavioral replay
-        -> 4. human activation + one-step rollback
-          -> 5. optional channel, voice, hosting, and demo-polish slices
+0. Completed core supervision loop
+  -> 1. configure Supabase and an LLM provider
+    -> 2. prove Telegram text, then STT with English gloss
+      -> 3. deploy the fixed workspace
+        -> 4. optional voice, hosting, and demo-polish slices
 ```
 
-The order is binding. Chat and Eval already share the runner for the five seed cases. Dream
-activation remains invalid before Eval preserves immutable candidate evidence and the full suite
-is Ready.
+The order is binding. Chat and Eval share the runner, and activation remains invalid before the
+candidate's immutable full-suite evidence is Ready.
 
 ### Capability matrix
 
@@ -2740,20 +2742,20 @@ is Ready.
 | Booking changes and in-thread patient copy | `BUILT` | Append to synthetic conversation only; no provider delivery |
 | Natural-language rubric editor and judge boundary | `BUILT` | Live judge needs API key; automated tests use simulated judge |
 | Shared platform contracts | `BUILT` | API error body, aggregate CAS, Telegram voice/speech contracts, playbook pins |
-| Analyze failures | `PARTIAL` | Deterministic taxonomy fallback only; real LLM proposer unbuilt |
+| Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
 | Conversation source | `SIMULATED` | Seed data and local patient simulation |
 | Translation | `SIMULATED` | Fixed fixture phrases, not a translation service |
-| Telegram | `PARTIAL` text and inbound voice-metadata transport | Live provider configuration, media download, STT, and outbound voice remain |
+| Telegram | `PARTIAL` text plus automatic inbound voice download, conversion, transcription, and English gloss | Live credentials, public webhook deployment, browser retry controls, and outbound voice remain |
 | Candidate reply generation | `BUILT` Chat and five-seed Eval paths with mocked-provider proof | Live-provider proof remains; Chat drafts stay unsent until approval |
 | Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked-provider proof | Live-provider proof and immutable persistence remain |
-| Dream playbook influence | `BUILT` Chat and five-seed Eval pins with mocked-provider proof | Local HITL/manual cases keep deterministic fallback until server import |
+| Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |
 | Shared server data | `PARTIAL` | Fixed-workspace APIs exist; no live Supabase project configured |
-| Test Changes | `PARTIAL` | Saved-text validation exists; candidate behavioral replay remains |
-| Dream changes | `PARTIAL` in-place correction review and saved-text Test Changes | Markdown import, inactive candidate, replay, activation, one-step rollback |
-| Eval runs / production-path Eval | `BUILT` five-seed frozen server path with mocked-provider proof | Imported cases, candidate replay, and live-provider proof remain |
-| Vercel demo runtime | `DESIGN` | Topology selected; no Vercel adapter or live deployment yet |
+| Test Changes | `PARTIAL` local saved-text check | Candidate behavioral replay is available through the release controls |
+| Dream changes | `BUILT` server-authoritative candidates, replay, activation, rollback | Live provider and shared-user authorization proof remain |
+| Eval runs / production-path Eval | `BUILT` frozen server path with mocked-provider proof | Imported/manual cases synchronize into an existing dataset before server replay; live-provider proof remains |
+| DigitalOcean App Platform runtime | `PARTIAL` | Root Dockerfile packages Node 22 and ffmpeg; no live deployment yet |
 
 ### Explicitly deferred
 
@@ -2779,11 +2781,11 @@ is Ready.
 
 ### Proposer, replay, activation, and rollback
 
-The current deterministic Analyze failures path is the invalid-output fallback, not the target
-proposer. It selects failed train evidence and creates one bounded pending edit without calling an
-LLM. The target proposer receives failed train evidence, the actual agent output, failed criteria,
-and the pinned SOP version. It never receives holdout cases, hidden expected responses, or patient
-identifiers.
+Without an LLM provider, deterministic Analyze failures remains the fallback. With one configured,
+the server-side structured-output proposer receives the active pinned SOP files, the selected failed
+train case identifier, failed criteria, and a generic redacted candidate summary. It never receives
+holdout cases, hidden expected responses, or patient identifiers. The returned old text must occur
+exactly once in the selected active file before a pending correction is stored.
 
 Behavioral replay runs the shared sandbox agent against an inactive candidate. It starts with
 affected train cases, then runs the full train and holdout suite. A passing replay keeps every case
@@ -2801,14 +2803,14 @@ active version
   -> prior active becomes the one rollback target
 ```
 
-Activation requires matching workspace, expected current active version, candidate content hash
-matching the Eval suite pin, Ready release status, and no unresolved review. Activation performs
+Activation requires a matching workspace revision, the current candidate pointer, a candidate-pinned
+full-suite snapshot, and Ready release status. Activation performs
 one atomic write: the current active version becomes `rollbackTargetVersionId`, the ready candidate
 becomes active, and the candidate pointer clears.
 
-Rollback requires explicit confirmation and has no target picker. It can only use the current
-`rollbackTargetVersionId`. It rejects a missing or stale target, invalid hashes, a dirty editor
-draft, a current candidate, and an in-progress Eval replay.
+Rollback has no target picker. It can only use the current `rollbackTargetVersionId`; the Dream UI
+disables it while a draft is dirty or a release request is in flight, and the server rejects a
+current candidate or missing target.
 
 ```text
 validate the one rollback target
@@ -2817,19 +2819,18 @@ validate the one rollback target
   -> restoredFromVersionId = rollback target
   -> kind = restore
   -> activate the new version
-  -> clear rollbackTargetVersionId
+  -> set the prior active version as the next rollback target
   -> increment workspace revision
 ```
 
-All versions remain in internal history. The visitor cannot roll back again until another candidate
-is activated. Existing conversations, sent messages, bookings, and committed Eval evidence never
-change. An in-flight agent request finishes with its pinned version; the next request loads the new
-active version.
+All versions remain in internal history. Existing conversations, sent messages, bookings, and
+committed Eval evidence never change. An in-flight agent request finishes with its pinned version;
+the next request loads the new active version.
 
 | Situation | Required behavior |
 |---|---|
 | No rollback target exists | Hide or disable Rollback |
-| Dirty draft exists | Block until Save or Discard |
+| Dirty draft exists | Dream UI disables rollback until Save or Discard |
 | Candidate exists | Block until Activate or Discard |
 | Eval replay is running | Block until completion or cancellation |
 | Server write fails | Commit nothing |
@@ -2872,8 +2873,8 @@ These are future product considerations, not committed hackathon work:
 ## 17. Post-POC channel, hosting, and complete-target path
 
 Distilled from the former `PRODUCTION-ROADMAP.md` (2026-07-14 fold). Option-space matrices and
-full Meta comparison tables remain recoverable from git history. Deploy topology, env vars, and
-Hobby eligibility live in `README.md`.
+full Meta comparison tables remain recoverable from git history. Deploy topology and env vars live
+in `README.md`.
 
 This path is reference material only. It is not the hackathon backlog. Section 16 owns the locked
 MVP sequence and the first post-MVP item.
@@ -2897,7 +2898,7 @@ before the MVP. Do not start WhatsApp until the Telegram path in this table pass
 
 Telegram is the first channel because its Bot API supports webhooks, text, voice, and documents. A
 bot cannot start a private conversation; the test patient must message or open the bot first. Use
-long polling for local smoke tests, a Vercel webhook with secret for deploy, `update_id`
+long polling for local smoke tests, an HTTPS App Platform webhook with secret for deploy, `update_id`
 uniqueness for duplicates, `sendVoice` for voice, and `sendDocument` for `.ics`.
 
 If a process crashes while delivery is `sending`, fail closed. Do not auto-resend. Telegram Bot API

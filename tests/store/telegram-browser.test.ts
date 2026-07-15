@@ -101,6 +101,7 @@ describe("Telegram browser store", () => {
       conversationRevisions: {
         "telegram-conversation:-10042": 1,
       },
+      speechArtifacts: {},
       pendingDelivery: null,
     });
   });

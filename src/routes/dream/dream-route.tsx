@@ -5,12 +5,19 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { useMediaQuery } from "../../app/use-media-query";
-import type { Correction, MutationResult } from "../../domain";
+import {
+  createPlaybookFile,
+  deletePlaybookFile,
+  renamePlaybookFile,
+  type Correction,
+  type MutationResult,
+} from "../../domain";
 import { useAppStore } from "../../store/app-store-context";
 import { ChangesPane } from "./changes-pane";
 import {
@@ -62,11 +69,13 @@ export default function DreamRoute() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [releaseBusy, setReleaseBusy] = useState(false);
   const [testDock, setTestDock] = useState<TestDockState>({ status: "closed" });
   const testToken = useRef(0);
   const testTimer = useRef<number | null>(null);
   const progressTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const markdownImportRef = useRef<HTMLInputElement | null>(null);
 
   const selectedFile =
     store.state.playbookFiles.find(
@@ -86,6 +95,7 @@ export default function DreamRoute() {
       ),
     )?.id ?? null;
   const query = searchParams.toString();
+  const release = store.dreamRelease;
 
   const clearTestTimers = () => {
     if (testTimer.current !== null) {
@@ -104,6 +114,10 @@ export default function DreamRoute() {
       dreamPane: pane,
     });
   }, [focusedCorrectionId, pane, store.updateRouteUi]);
+
+  useEffect(() => {
+    void store.refreshDreamWorkspace();
+  }, [store.refreshDreamWorkspace]);
 
   useEffect(() => {
     if (store.resetVersion === 0) {
@@ -168,6 +182,33 @@ export default function DreamRoute() {
     return result;
   };
 
+  const releaseFallback = (message: string) =>
+    /not configured|could not be reached|request failed/i.test(message);
+
+  const stageDreamFile = async (
+    local: MutationResult,
+    fileId: string,
+    applyLocal: () => MutationResult,
+  ): Promise<MutationResult> => {
+    if (!local.ok) return local;
+    const file = local.state.playbookFiles.find((candidate) => candidate.id === fileId);
+    if (!file) return { ok: false, state: store.state, error: "Dream file was not found" };
+    const remote = await store.stageDreamFile(file);
+    if (remote.ok) return remote;
+    return releaseFallback(remote.error) ? report(applyLocal()) : remote;
+  };
+
+  const stageDreamFileDeletion = async (
+    local: MutationResult,
+    fileId: string,
+    applyLocal: () => MutationResult,
+  ): Promise<MutationResult> => {
+    if (!local.ok) return local;
+    const remote = await store.stageDreamFileDeletion(fileId);
+    if (remote.ok) return remote;
+    return releaseFallback(remote.error) ? report(applyLocal()) : remote;
+  };
+
   const cancelTest = () => {
     testToken.current += 1;
     clearTestTimers();
@@ -191,7 +232,7 @@ export default function DreamRoute() {
     progressTimer.current = window.setInterval(() => {
       completed = Math.min(completed + 1, total);
       setTestDock({ completed, status: "running", total });
-    }, 70);
+    }, 200);
     testTimer.current = window.setTimeout(() => {
       if (token !== testToken.current) {
         return;
@@ -203,7 +244,7 @@ export default function DreamRoute() {
         return;
       }
       setTestDock({ result: result.result, stale: false, status: "complete" });
-    }, 220 + total * 70);
+    }, 220 + total * 200);
   };
 
   const save = () => {
@@ -219,9 +260,26 @@ export default function DreamRoute() {
     }
     const fileId = selectedFile.id;
     saveTimer.current = window.setTimeout(() => {
-      const result = report(store.savePlaybookDraft(fileId));
-      setSaving(false);
-      if (result.ok) {
+      void (async () => {
+        const draft = selectedFile.draft;
+        if (draft === undefined) {
+          setSaving(false);
+          return;
+        }
+        const remote = await store.createDreamCandidateFromDraft(fileId, draft);
+        const fallback = releaseFallback(remote.ok ? "" : remote.error);
+        const result = remote.ok
+          ? remote
+          : fallback
+            ? report(store.savePlaybookDraft(fileId))
+            : remote;
+        setSaving(false);
+        if (result.ok) {
+        setFeedback(
+          remote.ok
+            ? "Inactive candidate created. Replay affected Eval cases next."
+            : "Draft saved locally; configure the release server to create a candidate.",
+        );
         cancelTest();
         setTestDock((current) =>
           current.status === "complete"
@@ -230,7 +288,10 @@ export default function DreamRoute() {
               ? current
               : { message: "Saved text changed. Run Test Changes again.", status: "error" },
         );
-      }
+        } else {
+          setFeedback(result.error);
+        }
+      })();
     }, 140);
   };
 
@@ -271,6 +332,130 @@ export default function DreamRoute() {
         ? { ...current, stale: true }
         : { message: "Correction state changed. Run Test Changes again.", status: "error" },
     );
+  };
+
+  const approveCorrection = (correction: Correction) => {
+    void (async () => {
+      const remote = await store.acceptDreamCorrection(correction.id);
+      const fallback = releaseFallback(remote.ok ? "" : remote.error);
+      if (remote.ok) {
+        setFeedback("Inactive candidate created from the approved correction.");
+        cancelTest();
+        return;
+      }
+      if (fallback) {
+        decideCorrection(correction, store.approveCorrection);
+        return;
+      }
+      setFeedback(remote.error);
+    })();
+  };
+
+  const runReleaseReplay = (scope: "affected" | "full") => {
+    if (!release?.candidateVersionId || !linkedDatasetId) {
+      setFeedback("Link a Dream correction to an Eval dataset before replaying it.");
+      return;
+    }
+    const candidateVersionId = release.candidateVersionId;
+    const datasetId = linkedDatasetId;
+    void (async () => {
+      setReleaseBusy(true);
+      try {
+        const result = await store.replayDreamCandidate(
+          candidateVersionId,
+          datasetId,
+          scope,
+        );
+        if (!result.ok) {
+          setFeedback(result.error);
+          return;
+        }
+        setFeedback(
+          result.replay?.ready
+            ? `Full train and holdout replay: ${result.replay.passedCases}/${result.replay.totalCases} passed${
+                result.replay.beforeFailedCases > 0
+                  ? `; ${result.replay.beforeFailedCases} previously failed active SOP.`
+                  : "."
+              } Candidate is Ready.`
+            : result.replay?.passed
+              ? `${scope === "affected" ? "Affected" : "Full"} replay: ${result.replay.passedCases}/${result.replay.totalCases} passed${
+                  result.replay.beforeFailedCases > 0
+                    ? `; ${result.replay.beforeFailedCases} previously failed active SOP.`
+                    : "."
+                }`
+              : `${scope === "affected" ? "Affected" : "Full"} replay: ${result.replay?.passedCases ?? 0}/${result.replay?.totalCases ?? 0} passed.`,
+        );
+      } finally {
+        setReleaseBusy(false);
+      }
+    })();
+  };
+
+  const activateRelease = () => {
+    if (!release?.candidateVersionId) return;
+    const candidateVersionId = release.candidateVersionId;
+    void (async () => {
+      setReleaseBusy(true);
+      try {
+        const result = await store.activateDreamCandidate(candidateVersionId);
+        setFeedback(result.ok ? "Candidate activated. New Chat drafts use this SOP." : result.error);
+      } finally {
+        setReleaseBusy(false);
+      }
+    })();
+  };
+
+  const discardRelease = () => {
+    if (!release?.candidateVersionId) return;
+    const candidateVersionId = release.candidateVersionId;
+    void (async () => {
+      setReleaseBusy(true);
+      try {
+        const result = await store.discardDreamCandidate(candidateVersionId);
+        setFeedback(result.ok ? "Candidate discarded. Active SOP remains unchanged." : result.error);
+      } finally {
+        setReleaseBusy(false);
+      }
+    })();
+  };
+
+  const rollbackRelease = () => {
+    void (async () => {
+      setReleaseBusy(true);
+      try {
+        const result = await store.rollbackDreamPlaybook();
+        setFeedback(result.ok ? "Prior SOP restored as a new immutable version." : result.error);
+      } finally {
+        setReleaseBusy(false);
+      }
+    })();
+  };
+
+  const importMarkdown = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".md")) {
+      setFeedback("Choose a Markdown (.md) SOP file.");
+      return;
+    }
+    void (async () => {
+      const base = file.name
+        .replace(/\.md$/i, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "imported-sop";
+      const result = await store.importDreamMarkdown(
+        `playbooks/imported/${base}.md`,
+        file.name.replace(/\.md$/i, ""),
+        await file.text(),
+      );
+      setFeedback(
+        result.ok
+          ? "Markdown imported as an inactive candidate. Replay affected Eval cases next."
+          : result.error,
+      );
+    })();
   };
 
   const tabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: DreamPane) => {
@@ -347,7 +532,7 @@ export default function DreamRoute() {
       file={selectedFile}
       focusedCorrectionId={focusedCorrectionId}
       onApprove={(correction) =>
-        decideCorrection(correction, store.approveCorrection)
+        approveCorrection(correction)
       }
       onFocus={focusCorrection}
       onOpenEval={(caseId) => navigate(`/eval?case=${caseId}`)}
@@ -359,15 +544,31 @@ export default function DreamRoute() {
 
   return (
     <section aria-labelledby="dream-route-title" className="route-root dream-route">
+      <input
+        accept=".md,text/markdown"
+        aria-label="Import Markdown SOP"
+        hidden
+        onChange={importMarkdown}
+        ref={markdownImportRef}
+        type="file"
+      />
       <DreamToolbar
         file={selectedFile}
         onDelete={() => setDeleteOpen(true)}
         onDiscard={() => setDiscardOpen(true)}
+        onImport={() => markdownImportRef.current?.click()}
         onNew={() => setFileDialog("create")}
         onRename={() => setFileDialog("rename")}
+        onReplayAffected={() => runReleaseReplay("affected")}
+        onReplayFull={() => runReleaseReplay("full")}
+        onActivate={activateRelease}
+        onDiscardCandidate={discardRelease}
+        onRollback={rollbackRelease}
         onSave={save}
         onTest={runTest}
         pending={pendingCount(store.state.corrections, selectedFile?.id)}
+        release={release}
+        releaseBusy={releaseBusy}
         saving={saving}
       />
       {feedback ? <p className="dream-feedback" role="alert">{feedback}</p> : null}
@@ -420,9 +621,14 @@ export default function DreamRoute() {
         file={selectedFile}
         initialPath={`${selectedFolderPath}/`}
         mode={fileDialog ?? "create"}
-        onCreate={(path, title) => {
-          const result = report(store.createPlaybookFile({ path, title }));
+        onCreate={async (path, title) => {
+          const local = createPlaybookFile(store.state, { path, title });
+          const fileId = local.ok ? local.state.selections.playbookFileId : null;
+          const result = fileId
+            ? await stageDreamFile(local, fileId, () => store.createPlaybookFile({ path, title }))
+            : local;
           if (result.ok) {
+            if (fileId) store.selectPlaybookFile(fileId);
             setSelectedFolderPath(fileParentPath(path));
             setRevealPath(path);
           }
@@ -432,11 +638,14 @@ export default function DreamRoute() {
           return result;
         }}
         onOpenChange={(open) => !open && setFileDialog(null)}
-        onRename={(path, title) =>
-          selectedFile
-            ? report(store.renamePlaybookFile({ fileId: selectedFile.id, path, title }))
-            : ({ error: "No file selected", ok: false, state: store.state })
-        }
+        onRename={async (path, title) => {
+          if (!selectedFile) return { error: "No file selected", ok: false, state: store.state };
+          return stageDreamFile(
+            renamePlaybookFile(store.state, { fileId: selectedFile.id, path, title }),
+            selectedFile.id,
+            () => store.renamePlaybookFile({ fileId: selectedFile.id, path, title }),
+          );
+        }}
         open={fileDialog !== null}
       />
       <FolderDialog
@@ -454,11 +663,14 @@ export default function DreamRoute() {
       />
       <DeleteFileDialog
         file={selectedFile}
-        onDelete={() =>
-          selectedFile
-            ? report(store.deletePlaybookFile({ confirmed: true, fileId: selectedFile.id }))
-            : ({ error: "No file selected", ok: false, state: store.state })
-        }
+        onDelete={async () => {
+          if (!selectedFile) return { error: "No file selected", ok: false, state: store.state };
+          return stageDreamFileDeletion(
+            deletePlaybookFile(store.state, { confirmed: true, fileId: selectedFile.id }),
+            selectedFile.id,
+            () => store.deletePlaybookFile({ confirmed: true, fileId: selectedFile.id }),
+          );
+        }}
         onOpenChange={setDeleteOpen}
         open={deleteOpen}
       />

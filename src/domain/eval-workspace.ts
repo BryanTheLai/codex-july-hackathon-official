@@ -1,4 +1,5 @@
 import {
+  domainStateSchema,
   serverDomainStateSchema,
   type ServerDomainStatePayload,
 } from "../contracts/app-state";
@@ -15,6 +16,27 @@ import type {
   EvalDatasetId,
   MutationResult,
 } from "./types";
+
+export function projectServerWorkspace(
+  state: AppState,
+  input: ServerDomainStatePayload,
+): MutationResult {
+  const server = serverDomainStateSchema.parse(input);
+  const domain = domainStateSchema.parse(server);
+  const selectedPlaybookFileId = domain.playbookFiles.some(
+    (file) => file.id === state.selections.playbookFileId,
+  )
+    ? state.selections.playbookFileId
+    : domain.playbookFiles[0]?.id ?? null;
+  return projectEvalWorkspaceArtifacts(
+    {
+      ...state,
+      ...domain,
+      selections: { ...state.selections, playbookFileId: selectedPlaybookFileId },
+    },
+    server,
+  );
+}
 
 export function projectEvalSuiteArtifacts(
   state: AppState,

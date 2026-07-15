@@ -19,12 +19,12 @@ export function AnalyzeFailuresDrawer({
 }: {
   corrections: Correction[];
   dataset: EvalDataset;
-  onAnalyze: () => MutationResult;
+  onAnalyze: () => MutationResult | Promise<MutationResult>;
   onClose: () => void;
   onOpenDream: (correction: Correction) => void;
   operationBlocked: boolean;
 }) {
-  const [status, setStatus] = useState<"idle" | "complete" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "running" | "complete" | "error">("idle");
   const [error, setError] = useState("");
   const failedCases = committedFailedTrainCases(dataset);
   const failedCaseIds = new Set(failedCases.map((evalCase) => evalCase.id));
@@ -43,8 +43,8 @@ export function AnalyzeFailuresDrawer({
         <div>
           <strong>Analyze failures</strong>
           <span>
-            Analysis creates review proposals from committed train failures. It does not rerun or
-            improve the agent.
+            A configured LLM proposes one reviewable SOP diff from committed train failures. It
+            never reruns, activates, or improves the agent on its own.
           </span>
         </div>
         <button
@@ -118,25 +118,34 @@ export function AnalyzeFailuresDrawer({
       </div>
       <footer className="eval-drawer__footer analyze-drawer__footer">
         <span aria-live="polite" role="status">
-          {status === "complete" ? "Analysis complete." : status === "error" ? error : ""}
+          {status === "running"
+            ? "Asking the SOP proposer..."
+            : status === "complete"
+              ? "Analysis complete."
+              : status === "error"
+                ? error
+                : ""}
         </span>
         <button
           className="eval-button eval-button--primary"
-          disabled={failedCases.length === 0 || operationBlocked}
+          disabled={failedCases.length === 0 || operationBlocked || status === "running"}
           onClick={() => {
-            const result = onAnalyze();
-            if (result.ok) {
-              setError("");
-              setStatus("complete");
-              return;
-            }
-            setError(result.error);
-            setStatus("error");
+            void (async () => {
+              setStatus("running");
+              const result = await onAnalyze();
+              if (result.ok) {
+                setError("");
+                setStatus("complete");
+                return;
+              }
+              setError(result.error);
+              setStatus("error");
+            })();
           }}
           type="button"
         >
           <Search aria-hidden="true" size={14} />
-          Start analysis
+          {status === "running" ? "Analyzing..." : "Start analysis"}
         </button>
       </footer>
     </aside>

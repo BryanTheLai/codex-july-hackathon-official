@@ -1,6 +1,19 @@
 export * from "./types";
 export { createCanonicalSeed, resetDemo } from "./seed";
 export { createCanonicalServerState } from "./server-seed";
+export {
+  PlaybookReleaseError,
+  activatePlaybookCandidate,
+  createCandidateFromFile,
+  createCandidateFromFileDeletion,
+  createCandidateFromCorrection,
+  createCandidateFromDraft,
+  createCandidateFromMarkdownImport,
+  createPlaybookCandidate,
+  discardPlaybookCandidate,
+  markCandidateReady,
+  rollbackPlaybook,
+} from "./playbook-release";
 export { mergeSyntheticReset } from "./reset-merge";
 export {
   EvalSuiteFreezeError,
@@ -15,6 +28,13 @@ export {
   telegramInboundMessageId,
   type AppendTelegramOutboundTextInput,
 } from "./telegram";
+export {
+  TelegramSpeechDomainError,
+  beginTelegramSpeechTranscription,
+  completeTelegramSpeechManualTranscription,
+  completeTelegramSpeechTranscription,
+  failTelegramSpeechTranscription,
+} from "./telegram-speech";
 export {
   sendStaffReply,
   resolveConversation,
@@ -54,6 +74,7 @@ export {
 } from "./eval-runs";
 export {
   projectEvalSuiteArtifacts,
+  projectServerWorkspace,
   projectEvalWorkspaceArtifacts,
 } from "./eval-workspace";
 export {

@@ -4,9 +4,11 @@ import {
   expectMobileTargets,
   expectNoDocumentOverflow,
   expectNoSeriousAxeViolations,
+  resetE2eWorkspace,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await page.addInitScript(() => {
     localStorage.clear();
   });
@@ -82,6 +84,9 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   }
 
   await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Inactive candidate", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Discard candidate" }).click();
+  await expect(page.getByText("Inactive candidate", { exact: true })).toHaveCount(0);
   await expect(changes.getByRole("button", { name: "Approve correction" })).toBeEnabled();
   await changes.getByRole("button", { name: "Approve correction" }).click();
   await expect(changes).toContainText("approved");

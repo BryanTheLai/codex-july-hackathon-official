@@ -8,6 +8,7 @@ import {
 } from "../src/contracts/api";
 import {
   deliveryReceiptSchema,
+  telegramVoiceSourceSchema,
   type DeliveryReceipt,
 } from "../src/contracts/channel";
 
@@ -18,6 +19,8 @@ const storedErrorSchema = z
     code: apiErrorCodeSchema,
   })
   .strict();
+const audioObjectPathSchema = z.string().trim().min(1).max(1024);
+const audioContentTypeSchema = z.literal("audio/ogg");
 
 export const TELEGRAM_EVENT_STATUSES = [
   "received",
@@ -72,6 +75,12 @@ export const telegramDeliveryRecordSchema = z
     targetLanguage: z.string().trim().min(1).max(64),
     approvedText: z.string().trim().min(1).max(4096),
     approvedTextHash: hashSchema,
+    voiceSource: telegramVoiceSourceSchema.nullable(),
+    audioObjectPath: audioObjectPathSchema.nullable(),
+    audioContentType: audioContentTypeSchema.nullable(),
+    audioSha256: hashSchema.nullable(),
+    ttsModel: z.string().trim().min(1).max(256).nullable(),
+    ttsVoice: z.string().trim().min(1).max(128).nullable(),
     status: telegramDeliveryStatusSchema,
     workspaceSyncStatus: telegramWorkspaceSyncStatusSchema,
     providerMessageId: z.string().min(1).max(128).nullable(),
@@ -120,6 +129,7 @@ const createDeliveryInputSchema = z
     targetLanguage: z.string().trim().min(1).max(64),
     approvedText: z.string().trim().min(1).max(4096),
     approvedTextHash: hashSchema,
+    voiceSource: telegramVoiceSourceSchema.nullable().optional(),
   })
   .strict();
 
@@ -140,6 +150,15 @@ export type RegisterTelegramEventInput = z.infer<
 export type CreateTelegramDeliveryInput = z.infer<
   typeof createDeliveryInputSchema
 >;
+
+export type AttachTelegramVoiceArtifactInput = {
+  requestId: string;
+  objectPath: string;
+  contentType: "audio/ogg";
+  sha256: string;
+  ttsModel?: string;
+  ttsVoice?: string;
+};
 
 export interface TelegramEventDataSource {
   read(updateId: number): Promise<TelegramEventRecord | null>;
@@ -216,6 +235,9 @@ export interface TelegramDeliveryRepository {
   markSynced(
     requestId: string,
     part: TelegramDeliveryRecord["part"],
+  ): Promise<TelegramDeliveryRecord>;
+  attachVoiceArtifact(
+    input: AttachTelegramVoiceArtifactInput,
   ): Promise<TelegramDeliveryRecord>;
 }
 
@@ -332,6 +354,12 @@ export function createTelegramDeliveryRepository(
         workspaceSyncStatus: "pending",
         providerMessageId: null,
         providerAcceptedAt: null,
+        voiceSource: parsed.voiceSource ?? null,
+        audioObjectPath: null,
+        audioContentType: null,
+        audioSha256: null,
+        ttsModel: null,
+        ttsVoice: null,
         error: null,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -436,6 +464,35 @@ export function createTelegramDeliveryRepository(
         return requireDelivery(dataSource, requestId, part);
       }
       return telegramDeliveryRecordSchema.parse(updated);
+    },
+
+    async attachVoiceArtifact(input) {
+      const requestId = requestIdSchema.parse(input.requestId);
+      const current = await requireDelivery(dataSource, requestId, "voice");
+      if (current.status === "sent" || current.status === "sending") {
+        throw new TelegramRepositoryError(
+          "Voice audio cannot change after delivery begins",
+        );
+      }
+      const next = telegramDeliveryRecordSchema.parse({
+        ...current,
+        status: "pending",
+        error: null,
+        audioObjectPath: audioObjectPathSchema.parse(input.objectPath),
+        audioContentType: audioContentTypeSchema.parse(input.contentType),
+        audioSha256: hashSchema.parse(input.sha256),
+        ttsModel: input.ttsModel
+          ? z.string().trim().min(1).max(256).parse(input.ttsModel)
+          : null,
+        ttsVoice: input.ttsVoice
+          ? z.string().trim().min(1).max(128).parse(input.ttsVoice)
+          : null,
+        updatedAt: now(),
+      });
+      const updated = await dataSource.updateIfStatus(next, current.status);
+      return updated
+        ? telegramDeliveryRecordSchema.parse(updated)
+        : requireDelivery(dataSource, requestId, "voice");
     },
   };
 }

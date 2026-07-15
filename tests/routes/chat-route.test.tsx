@@ -167,11 +167,6 @@ describe("Chat Control route", () => {
     const user = userEvent.setup();
     renderChat();
 
-    expect(
-      within(screen.getByRole("region", { name: "Selected conversation" })).getByRole("combobox", {
-        name: "Translation language",
-      }),
-    ).toHaveValue("English");
     await user.click(screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }));
     const selected = screen.getByRole("region", { name: "Selected conversation" });
     expect(within(selected).getAllByText("English translation")).toHaveLength(2);
@@ -184,10 +179,10 @@ describe("Chat Control route", () => {
 
     const autoTranslate = within(selected).getByRole("button", { name: "Auto-translate" });
     expect(autoTranslate).toHaveAttribute("aria-pressed", "false");
+    await user.click(autoTranslate);
     expect(within(selected).getByRole("combobox", { name: "Translation language" })).toHaveValue(
       "Malay",
     );
-    await user.click(autoTranslate);
     await user.type(
       within(selected).getByRole("textbox", { name: "Message" }),
       "Please bring your identity card fifteen minutes before arrival.",
@@ -420,7 +415,7 @@ describe("Chat Control route", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("refreshes real Telegram text into Chat without replacing synthetic threads", async () => {
+  it("loads real Telegram text into Chat on entry without replacing synthetic threads", async () => {
     const workspaceClient: WorkspaceClient = {
       load: vi.fn().mockResolvedValue({
         workspaceId: "demo",
@@ -431,10 +426,6 @@ describe("Chat Control route", () => {
     const store = createAppStore(new MemoryStorage(), { workspaceClient });
     const user = userEvent.setup();
     renderChat({ store });
-
-    await user.click(
-      screen.getByRole("button", { name: "Refresh Telegram inbox" }),
-    );
 
     await user.click(
       await screen.findByRole("button", {
@@ -452,6 +443,9 @@ describe("Chat Control route", () => {
     expect(
       within(selected).getByLabelText("Live Telegram handling"),
     ).toBeInTheDocument();
+    expect(
+      within(selected).getByRole("button", { name: "Generate draft" }),
+    ).toBeEnabled();
     expect(
       screen.getByRole("button", {
         name: "Open conversation with Ahmad bin Hassan",
@@ -502,9 +496,6 @@ describe("Chat Control route", () => {
     });
     const user = userEvent.setup();
     renderChat({ store });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh Telegram inbox" }),
-    );
     await user.click(
       await screen.findByRole("button", {
         name: "Open conversation with Aina Zulkifli",
@@ -588,9 +579,6 @@ describe("Chat Control route", () => {
     });
     const user = userEvent.setup();
     renderChat({ store });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh Telegram inbox" }),
-    );
     await user.click(
       await screen.findByRole("button", {
         name: "Open conversation with Aina Zulkifli",

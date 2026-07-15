@@ -16,6 +16,7 @@ import {
   playbookIdForConversation,
   projectEvalSuiteArtifacts,
   projectEvalWorkspaceArtifacts,
+  projectServerWorkspace,
   renameDataset,
   runEvalCase,
   runEvalSuite,
@@ -41,6 +42,7 @@ import {
 import type { JudgeClient } from "../contracts/judge";
 import type {
   EvalClient,
+  WorkspaceCommandClient,
   WorkspaceClient,
 } from "../services/api-client";
 import { applyMutation, rebaseAsyncMutationResult } from "./apply-mutation";
@@ -52,6 +54,7 @@ type EvalSliceDeps = {
   repository: AppStateRepository;
   judgeClient: JudgeClient;
   evalClient?: EvalClient;
+  workspaceCommandClient?: WorkspaceCommandClient;
   workspaceClient?: WorkspaceClient;
 };
 
@@ -61,6 +64,7 @@ export function createEvalActions({
   repository,
   judgeClient,
   evalClient,
+  workspaceCommandClient,
   workspaceClient,
 }: EvalSliceDeps) {
   let latestWorkspaceRefresh = 0;
@@ -93,7 +97,26 @@ export function createEvalActions({
     }
     onProgress?.(0, caseIds.length);
     try {
-      const initial = await workspaceClient.load(signal);
+      let initial = await workspaceClient.load(signal);
+      const localDataset = getState().evalDatasets.find((candidate) => candidate.id === datasetId);
+      if (!localDataset) {
+        return {
+          ok: false,
+          state: getState(),
+          error: "Eval dataset was not found",
+        };
+      }
+      if (workspaceCommandClient) {
+        const synced = await workspaceCommandClient.execute(
+          {
+            kind: "sync_eval_dataset",
+            dataset: localDataset,
+            expectedWorkspaceRevision: initial.revision,
+          },
+          signal,
+        );
+        initial = synced.workspace;
+      }
       const suite = await evalClient.createSuite(
         {
           datasetId,
@@ -291,7 +314,7 @@ export function createEvalActions({
       if (
         evalClient &&
         workspaceClient &&
-        evalCase?.source.kind === "seed"
+        (evalCase?.source.kind === "seed" || workspaceCommandClient)
       ) {
         const serverDataset = getState().evalDatasets.find((candidate) =>
           candidate.cases.some(
@@ -329,11 +352,7 @@ export function createEvalActions({
             error: "Eval dataset was not found",
           };
         }
-        if (
-          dataset.cases.some(
-            (evalCase) => evalCase.source.kind !== "seed",
-          )
-        ) {
+        if (dataset.cases.some((evalCase) => evalCase.source.kind !== "seed") && !workspaceCommandClient) {
           return {
             ok: false as const,
             state: getState(),
@@ -356,6 +375,27 @@ export function createEvalActions({
 
     analyzeFailures(datasetId: EvalDatasetId) {
       return run(analyzeDatasetFailures(getState(), datasetId), null);
+    },
+
+    async proposeCorrections(datasetId: EvalDatasetId) {
+      if (!workspaceClient || !workspaceCommandClient) {
+        return run(analyzeDatasetFailures(getState(), datasetId), null);
+      }
+      const base = getState();
+      try {
+        const workspace = await workspaceClient.load();
+        const result = await workspaceCommandClient.execute({
+          kind: "propose_correction",
+          datasetId,
+          expectedWorkspaceRevision: workspace.revision,
+        });
+        const projected = projectServerWorkspace(base, result.workspace.state);
+        return run(projected, "LLM SOP proposal created for human review.");
+      } catch (failure) {
+        const error = failureMessage(failure);
+        set({ lastFeedback: error });
+        return { ok: false as const, state: getState(), error };
+      }
     },
 
     buildGenerationInput(caseId: EvalCaseId): GenerationInputResult {

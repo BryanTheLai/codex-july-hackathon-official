@@ -5,8 +5,10 @@ import {
   linkAcceptedTelegramOutboundText,
   mergeTelegramInboundText,
 } from "../src/domain";
+import { resetE2eWorkspace } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await page.addInitScript(() => {
     localStorage.clear();
   });
@@ -53,6 +55,7 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
 
   let workspaceLoads = 0;
   let outboundRequest: unknown;
+  let outboundAccepted = false;
   await page.route("**/api/workspace/state", async (route) => {
     workspaceLoads += 1;
     await route.fulfill({
@@ -60,16 +63,14 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
       status: 200,
       body: JSON.stringify({
         workspaceId: "demo",
-        revision: workspaceLoads,
-        state:
-          workspaceLoads === 1
-            ? inboundResult.state
-            : linkedResult.state,
+        revision: outboundAccepted ? 2 : 1,
+        state: outboundAccepted ? linkedResult.state : inboundResult.state,
       }),
     });
   });
   await page.route("**/api/outbound/send", async (route) => {
     outboundRequest = route.request().postDataJSON();
+    outboundAccepted = true;
     await route.fulfill({
       contentType: "application/json",
       status: 200,
@@ -85,9 +86,6 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
   });
 
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Refresh Telegram inbox" })
-    .click();
   await page
     .getByRole("button", {
       name: "Open conversation with Aina Zulkifli",
@@ -122,5 +120,5 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
     approvedPatientText: "Klinik akan menghubungi anda.",
     mode: "text",
   });
-  expect(workspaceLoads).toBe(2);
+  expect(workspaceLoads).toBeGreaterThanOrEqual(2);
 });

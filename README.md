@@ -6,16 +6,16 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "Local synthetic demo and server persistence wedge implemented and verified; the remaining MVP sequence is Markdown SOP import, LLM proposal, behavioral replay, activation, and rollback."
+status: "The Dream-to-versioned-playbook release loop and direct-OpenAI inbound voice bridge are implemented with mocked-provider proof; live credentials, public deployment, authentication, and provider-quality proof remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
 last_updated: "2026-07-14"
 last_verified: "2026-07-14"
 verification_method:
-  - "npm run verify"
-  - "Playwright browser matrix at 1440px, 390px, and 320px"
-  - "Axe accessibility scans, viewport containment, and mobile target checks"
+  - "npm run lint, npm run typecheck, npm test, and npm run build"
+  - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
+  - "Browser and live-provider verification remain pending"
 sources_consulted:
   - "PROJECT.md"
   - "SOUL.md"
@@ -80,17 +80,23 @@ git history only.
 
 ## Approved hackathon POC
 
-Current code: three-table Supabase wedge, Telegram text and inbound voice-metadata, shared Chat and
-five-seed Eval runner, immutable server Eval evidence. Verification uses mocked providers. Live
-Supabase, Telegram, LLM, Vercel, STT, TTS, LLM proposer, candidate activation, and rollback proof
-remain.
+Current code: three-table Supabase wedge, Telegram text plus automatic inbound voice download,
+OGG/Opus-to-WebM conversion, direct-OpenAI transcription and English gloss, shared Chat and Eval
+runner, immutable server Eval evidence, and a server-authoritative Dream release loop.
+Markdown import, an accepted correction, or a Dream draft creates an inactive whole-playbook
+version. A configured LLM proposes one exact, reviewable diff; affected train cases must pass
+before a full train-plus-holdout replay can mark the version Ready. Human activation updates the
+bundle used by Chat, and one click restores the prior SOP as a new immutable version. Verification
+uses mocked providers; live Supabase, Telegram, LLM quality, browser retry controls, TTS, outbound
+voice, authentication, and public deployment proof remain.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
 - Post-MVP backlog (read-only MCP first): `PROJECT.md` section 16
 - Channel, hosting research, Meta boundary: `PROJECT.md` section 17
 
-Deterministic Analyze failures is the invalid-output fallback, not the target LLM proposer.
+The deterministic Analyze failures path remains a no-provider fallback. With `LLM_API_KEY`
+configured, Analyze failures uses the server-side structured-output proposer instead.
 
 Routes: `/` Chat Control, `/eval` Evaluation Lab, `/dream` Dream playbook review.
 
@@ -145,6 +151,11 @@ optional and inherits `LLM_MODEL` when empty. Any non-empty provider configurati
 during server startup, even while `LIVE_AGENT_ENABLED=false`. Keep the live switch off until one
 provider request succeeds. Full variable list: `.env.example`.
 
+Inbound Telegram voice additionally uses the same direct OpenAI credentials with `whisper-1`: its
+verbose transcription produces the original transcript and detected language, and the translation
+endpoint produces an English staff gloss for non-English speech. The host must provide `ffmpeg`
+with the Opus encoder; the adapter stores no audio file after the request completes.
+
 ### Telegram
 
 Telegram requires the fixed Supabase workspace because inbound events and messages are persisted
@@ -189,25 +200,25 @@ makes automatic resend safe.
 
 ## Deploy topology
 
-Selected hackathon topology: one Vercel project for the Vite SPA plus request-driven TypeScript
-API functions, with Supabase for Postgres and Storage. Distilled from the former demo-day and
-production-roadmap docs (2026-07-14).
+Selected hackathon topology: one DigitalOcean App Platform Docker web service, with Supabase for
+Postgres and Storage. The image runs the Express server, serves the built Vite SPA, and includes
+`ffmpeg` for inbound and outbound Telegram voice conversion.
 
 ```text
 GitHub repository
-  -> one Vercel project
-       -> Vite build in dist/ as static assets
-       -> SPA rewrite sends non-API routes to index.html
-       -> TypeScript API for one fixed workspace
+  -> one DigitalOcean App Platform web service
+       -> Docker build: Node 22 + ffmpeg
+       -> Express serves Vite build from dist/
+       -> one fixed-workspace TypeScript API
             -> Supabase Postgres + Storage
             -> text / STT / TTS endpoints
             -> Telegram Bot API
 ```
 
-Runtime rules: Express remains the local harness; thin Vercel adapters wrap the same services;
-deployed Telegram uses webhooks; every provider call is bounded; agent and Eval work starts from a
-browser action and finishes in one request; no permanent worker or durable job queue in the POC;
-do not proxy audio through a Vercel Function response.
+Runtime rules: the container listens on `0.0.0.0:8080`; App Platform checks `/healthz` and
+`/readyz`; deployed Telegram uses webhooks; every provider call is bounded; agent and Eval work
+starts from a browser action and finishes in one request; no permanent worker or durable job queue
+exists in the POC.
 
 ### POC access
 
@@ -222,15 +233,13 @@ do not proxy audio through a Vercel Function response.
 
 | Host | Cost floor | Decision |
 |---|---:|---|
-| Vercel Hobby | $0 only for qualifying non-commercial personal use | Selected technical topology |
-| Vercel Pro | $20 per developer each month before usage overages | Use if Hobby eligibility is unclear |
-| Railway Hobby | $5 monthly minimum including $5 of usage | Fallback if porting or Vercel policy blocks |
-| Render Free | $0 | Avoid for a live webhook demo (sleeps) |
-| Render Starter | $7 per month | Valid, but no clear advantage over Railway here |
+| DigitalOcean App Platform | $5 monthly for one 512 MiB shared service | Selected: managed HTTPS, GitHub deploys, health checks, logs, and `ffmpeg` in Docker |
+| DigitalOcean Droplet | $4 monthly starting price | Not selected: requires OS, Docker, TLS, firewall, process, and log management |
 
-Hobby eligibility for a prize-bearing hackathon deployment is not proven. Confirm with Vercel or
-use Pro / Railway. Stay on Vercel while the demo uses webhooks and bounded requests. Switch to
-Railway when the product needs an always-on consumer or persistent polling.
+The service deploys from the root `Dockerfile`. Add all provider values only as encrypted runtime
+variables in App Platform; never bake `.env` into the image or expose a server secret through a
+`VITE_` variable. Use the generated HTTPS domain for the Telegram webhook only after `/healthz`
+and `/readyz` succeed.
 
 ## Code architecture and backend seams
 
@@ -261,14 +270,17 @@ Authentication and normalized domain tables remain complete-target work (`PROJEC
 
 ## Current synthetic walkthrough
 
-1. In Chat Control, open Nurul Aisyah, send a staff reply, then choose Create Eval case.
-2. In Evaluation Lab, import the conversation, run the case, then choose Analyze failures and
-   Start analysis.
-3. Open the linked Dream correction, inspect the old and proposed text, then approve or reject it.
-4. Choose Test Changes. The dock verifies the saved playbook text without changing Eval scores.
+1. In Chat Control, open a conversation, generate and approve a staff draft, then create an Eval case.
+2. In Evaluation Lab, run the case and select Analyze failures. With an LLM configured, it creates
+   one pending exact SOP diff from the latest failed train evidence.
+3. Open the linked Dream correction and accept it. This creates an inactive candidate; it does not
+   change Chat or prior Eval evidence.
+4. Replay affected cases, then the full train and holdout suite. A complete pass makes the candidate
+   Ready.
+5. Activate it, generate the next Chat draft against the new SOP, then use Roll back to restore the
+   prior SOP as another immutable version.
 
-Analyze failures reads the latest committed failed train verdicts and creates unique pending Dream
-corrections. It does not rerun the agent or judge, alter Eval evidence, or change candidate output.
+The proposer and activation path never auto-activate, rerun a case, or change existing evidence.
 
 ## Verification
 
@@ -291,7 +303,8 @@ changes. TypeScript project validation is repository-wide through `npm run typec
 `npm run verify` before closing the module.
 
 The verified gate covers lint, the complete automated contract, domain, server, store, component,
-route, and regression suite, TypeScript, the production build, and 18 passing browser executions.
+route, and regression suite, TypeScript, the production build, and 18 browser executions when the
+Playwright browser binaries are installed.
 The browser matrix exercises all three routes at 1440px, 390px, and 320px, including Axe scans,
 overflow checks, 44px mobile targets, route handoffs, reset behavior, the Telegram text refresh
 and exact-send flow, and the full Chat to Eval to Dream flow with browser API fixtures.

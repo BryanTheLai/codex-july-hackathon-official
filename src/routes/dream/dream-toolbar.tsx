@@ -7,21 +7,41 @@ export function DreamToolbar({
   file,
   onDelete,
   onDiscard,
+  onImport,
   onNew,
   onRename,
+  onReplayAffected,
+  onReplayFull,
+  onActivate,
+  onDiscardCandidate,
+  onRollback,
   onSave,
   onTest,
   pending,
+  release,
+  releaseBusy,
   saving,
 }: {
   file: PlaybookFile | null;
   onDelete: () => void;
   onDiscard: () => void;
+  onImport: () => void;
   onNew: () => void;
   onRename: () => void;
+  onReplayAffected: () => void;
+  onReplayFull: () => void;
+  onActivate: () => void;
+  onDiscardCandidate: () => void;
+  onRollback: () => void;
   onSave: () => void;
   onTest: () => void;
   pending: number;
+  release: {
+    candidateVersionId: string | null;
+    candidateReady: boolean;
+    rollbackTargetVersionId: string | null;
+  } | null;
+  releaseBusy: boolean;
   saving: boolean;
 }) {
   const dirty = file?.draft !== undefined;
@@ -34,6 +54,11 @@ export function DreamToolbar({
         <span className={dirty ? "dream-state--dirty" : "dream-state--saved"}>
           {saving ? "Saving" : dirty ? "Unsaved" : "Saved"}
         </span>
+        {release?.candidateVersionId ? (
+          <span className="dream-state--dirty">
+            {release.candidateReady ? "Ready candidate" : "Inactive candidate"}
+          </span>
+        ) : null}
       </div>
       <div className="dream-toolbar__actions">
         <button
@@ -49,6 +74,32 @@ export function DreamToolbar({
           <TestTube2 aria-hidden="true" size={15} />
           Test Changes
         </button>
+        {release?.candidateVersionId ? (
+          <>
+            <button className="dream-button" disabled={releaseBusy} onClick={onReplayAffected} type="button">
+              Replay affected
+            </button>
+            <button className="dream-button" disabled={releaseBusy} onClick={onReplayFull} type="button">
+              Full replay
+            </button>
+            <button
+              className="dream-button dream-button--primary"
+              disabled={!release.candidateReady || releaseBusy}
+              onClick={onActivate}
+              type="button"
+            >
+              Activate
+            </button>
+            <button className="dream-button" disabled={releaseBusy} onClick={onDiscardCandidate} type="button">
+              Discard candidate
+            </button>
+          </>
+        ) : null}
+        {release?.rollbackTargetVersionId ? (
+          <button className="dream-button" disabled={dirty || releaseBusy} onClick={onRollback} type="button">
+            Roll back
+          </button>
+        ) : null}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button aria-label="More file actions" className="dream-button dream-toolbar__more" type="button">
@@ -60,6 +111,9 @@ export function DreamToolbar({
             <DropdownMenu.Content align="end" className="dream-menu" sideOffset={4}>
               <DropdownMenu.Item className="dream-menu__item" onSelect={onNew}>
                 New File
+              </DropdownMenu.Item>
+              <DropdownMenu.Item className="dream-menu__item" onSelect={onImport}>
+                Import Markdown
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="dream-menu__item"

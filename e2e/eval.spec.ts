@@ -6,9 +6,11 @@ import {
   expectNoSeriousAxeViolations,
   installMockEval,
   installMockJudge,
+  resetE2eWorkspace,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await installMockJudge(page);
   await installMockEval(page);
   await page.addInitScript(() => {
@@ -171,7 +173,7 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
   await page.getByRole("button", { name: "Analyze failures" }).click();
   const analysis = page.getByRole("complementary", { name: "Analyze failures" });
   await expect(analysis).toContainText(
-    "Analysis creates review proposals from committed train failures. It does not rerun or improve the agent.",
+    "A configured LLM proposes one reviewable SOP diff from committed train failures. It never reruns, activates, or improves the agent on its own.",
   );
   await expect(analysis.getByRole("spinbutton")).toHaveCount(0);
   const analysisBox = await analysis.boundingBox();

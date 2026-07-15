@@ -78,6 +78,12 @@ function renderEval(options: { width?: number; store?: AppStore; entry?: string 
   return { ...result, store };
 }
 
+function createPendingEvalStore() {
+  return createAppStore(new MemoryStorage(), {
+    judgeClient: createFixtureJudgeClient({ delayMs: 1_000 }),
+  });
+}
+
 describe("Evaluation Lab route", () => {
   beforeEach(() => {
     installMatchMedia(1440);
@@ -179,7 +185,7 @@ describe("Evaluation Lab route", () => {
 
   it("runs one case with visible progress and keeps HITL separate from synthetic output", async () => {
     const user = userEvent.setup();
-    renderEval();
+    renderEval({ store: createPendingEvalStore() });
 
     const row = screen.getByRole("row", { name: /Emergency chest pain/i });
     expect(within(row).getByText("Expected human HITL")).toBeInTheDocument();
@@ -440,7 +446,7 @@ describe("Evaluation Lab route", () => {
     await user.click(screen.getByRole("button", { name: "Analyze failures" }));
     const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
     expect(drawer).toHaveTextContent(
-      "Analysis creates review proposals from committed train failures. It does not rerun or improve the agent.",
+      "A configured LLM proposes one reviewable SOP diff from committed train failures.",
     );
     expect(within(drawer).queryByRole("spinbutton")).not.toBeInTheDocument();
     expect(within(drawer).queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
@@ -549,7 +555,7 @@ describe("Evaluation Lab route", () => {
 
   it("cancels an in-flight suite when the global demo resets", async () => {
     const user = userEvent.setup();
-    const { store } = renderEval();
+    const { store } = renderEval({ store: createPendingEvalStore() });
 
     await user.click(screen.getByRole("button", { name: "Run Suite" }));
     expect(screen.getByRole("button", { name: "Cancel suite" })).toBeInTheDocument();
@@ -581,7 +587,7 @@ describe("Evaluation Lab route", () => {
 
   it("cancels a pending case commit when the route unmounts", async () => {
     const user = userEvent.setup();
-    const { store, unmount } = renderEval();
+    const { store, unmount } = renderEval({ store: createPendingEvalStore() });
 
     await user.click(screen.getByRole("button", { name: "Run Emergency chest pain" }));
     unmount();

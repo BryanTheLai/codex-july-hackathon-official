@@ -41,11 +41,21 @@ export default function ChatRoute() {
   const reconcileTelegramDelivery = useAppStore(
     (store) => store.reconcileTelegramDelivery,
   );
+  const retryTelegramSpeech = useAppStore((store) => store.retryTelegramSpeech);
+  const saveTelegramManualTranscript = useAppStore(
+    (store) => store.saveTelegramManualTranscript,
+  );
+  const translateTelegramReply = useAppStore(
+    (store) => store.translateTelegramReply,
+  );
   const telegramWorkspaceStatus = useAppStore(
     (store) => store.telegramWorkspace.status,
   );
   const pendingTelegramDelivery = useAppStore(
     (store) => store.telegramWorkspace.pendingDelivery,
+  );
+  const telegramSpeechArtifacts = useAppStore(
+    (store) => store.telegramWorkspace.speechArtifacts,
   );
   const resolveConversation = useAppStore((store) => store.resolveConversation);
   const reopenConversation = useAppStore((store) => store.reopenConversation);
@@ -79,6 +89,26 @@ export default function ChatRoute() {
   const [bookingEditId, setBookingEditId] = useState<ConversationId | null>(null);
   const isSinglePane = isMobile || containerTooNarrow;
   const usesRailDrawer = !isSinglePane && viewportUsesRailDrawer;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshTelegramWorkspace(controller.signal).catch(() => undefined);
+    return () => {
+      controller.abort();
+    };
+  }, [refreshTelegramWorkspace]);
+
+  useEffect(() => {
+    if (telegramWorkspaceStatus !== "ready") {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void refreshTelegramWorkspace().catch(() => undefined);
+    }, 8_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshTelegramWorkspace, telegramWorkspaceStatus]);
 
   useEffect(() => {
     updateRouteUi({ chatMobilePane: mobilePane });
@@ -216,11 +246,19 @@ export default function ChatRoute() {
       onReopen={(conversationId) => reopenConversation(conversationId)}
       onResolve={(conversationId) => resolveConversation(conversationId)}
       onSend={(input, signal) => sendVisitorReply(input, signal)}
+      onTranslate={(text, targetLanguage, signal) =>
+        translateTelegramReply(text, targetLanguage, signal)
+      }
+      onRetrySpeech={(messageId, signal) => retryTelegramSpeech(messageId, signal)}
+      onSaveManualTranscript={(messageId, input, signal) =>
+        saveTelegramManualTranscript(messageId, input, signal)
+      }
       onSetAgentMode={(conversationId, mode: AgentMode) =>
         setAgentMode({ conversationId, mode })
       }
       showBack={isSinglePane}
       showDetails={isSinglePane || usesRailDrawer}
+      speechArtifacts={telegramSpeechArtifacts}
     />
   );
 

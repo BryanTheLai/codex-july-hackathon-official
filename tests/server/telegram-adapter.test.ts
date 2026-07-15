@@ -207,4 +207,47 @@ describe("Telegram adapter", () => {
       ),
     );
   });
+
+  it("downloads bounded voice bytes only after Telegram returns a file path", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              file_id: "voice-1",
+              file_unique_id: "voice-unique-1",
+              file_path: "voice/file_1.oga",
+              file_size: 3,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { "content-length": "3" },
+        }),
+      );
+    const adapter = createTelegramAdapter({
+      botToken: "123456:test-token",
+      fetcher,
+    });
+
+    await expect(adapter.downloadVoice("voice-1")).resolves.toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "https://api.telegram.org/bot123456:test-token/getFile?file_id=voice-1",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "https://api.telegram.org/file/bot123456:test-token/voice/file_1.oga",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
 });

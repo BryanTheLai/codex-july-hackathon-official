@@ -344,6 +344,7 @@ describe("HTTP Telegram outbound client", () => {
     const result = {
       deliveryIds: ["send-42"],
       status: "failed",
+      failedParts: ["text"],
     };
     const client = createHttpTelegramOutboundClient(
       vi.fn().mockResolvedValue(

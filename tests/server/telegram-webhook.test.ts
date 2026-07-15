@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCanonicalServerState,
@@ -9,6 +9,7 @@ import {
 import { createJudgeApp } from "../../server/index";
 import { createTelegramAdapter } from "../../server/telegram-adapter";
 import { createTelegramInboundService } from "../../server/telegram-inbound-service";
+import type { InboundSpeechService } from "../../server/inbound-speech-service";
 import { createTelegramEventRepository } from "../../server/telegram-repository";
 import type { WorkspaceRepository } from "../../server/workspace-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
@@ -59,6 +60,7 @@ const voiceUpdate = {
 async function configuredServer(options?: {
   inboundWorkspaceRepository?: WorkspaceRepository;
   maxCasAttempts?: number;
+  speech?: InboundSpeechService;
 }) {
   const workspaceDataSource = new InMemoryWorkspaceDataSource();
   const workspaceRepository = createWorkspaceRepository(workspaceDataSource);
@@ -85,6 +87,7 @@ async function configuredServer(options?: {
     telegram: {
       webhookSecret: "webhook_secret-42",
       inbound,
+      speech: options?.speech,
     },
   });
   const server = app.listen(0);
@@ -305,6 +308,21 @@ describe("Telegram webhook", () => {
         status: "pending",
       }),
     ]);
+  });
+
+  it("starts background speech processing only after the voice webhook is persisted", async () => {
+    const speech: InboundSpeechService = {
+      transcribeNext: vi.fn().mockResolvedValue({ status: "idle" }),
+      retry: vi.fn(),
+      saveManualTranscript: vi.fn(),
+      downloadAudio: vi.fn(),
+    };
+    const { baseUrl } = await configuredServer({ speech });
+
+    expect((await postWebhook(baseUrl, voiceUpdate)).status).toBe(200);
+    await vi.waitFor(() => {
+      expect(speech.transcribeNext).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("repairs a pending speech artifact when the message is already durable", async () => {

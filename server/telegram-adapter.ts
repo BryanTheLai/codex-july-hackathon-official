@@ -5,6 +5,7 @@ import {
   deliveryReceiptSchema,
   normalizedInboundEventSchema,
   type ChannelAdapter,
+  type TelegramVoicePayload,
 } from "../src/contracts/channel";
 
 type Fetcher = (
@@ -99,6 +100,20 @@ const telegramSendResponseSchema = z.discriminatedUnion("ok", [
   telegramSendFailureSchema,
 ]);
 
+const telegramFileResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    result: z
+      .object({
+        file_path: z.string().min(1).max(1024),
+        file_size: z.number().int().nonnegative().optional(),
+      })
+      .passthrough(),
+  })
+  .strict();
+
+const MAX_TELEGRAM_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+
 export type TelegramConfig = {
   botToken: string;
   webhookSecret: string;
@@ -110,6 +125,10 @@ export type TelegramAdapterOptions = {
   fetcher?: Fetcher;
   requestTimeoutMs?: number;
   baseUrl?: string;
+};
+
+export type TelegramVoiceDownloader = {
+  downloadVoice(fileId: string, signal?: AbortSignal): Promise<Uint8Array>;
 };
 
 export class TelegramAdapterError extends Error {
@@ -163,12 +182,35 @@ function senderId(message: z.infer<typeof telegramMessageSchema>): string {
   return String(message.from?.id ?? message.sender_chat?.id ?? message.chat.id);
 }
 
+async function telegramReceipt(
+  response: Response,
+  rejectedMessage: string,
+) {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new TelegramAdapterError(
+      "provider_failed",
+      "Telegram returned an invalid response",
+    );
+  }
+  const parsed = telegramSendResponseSchema.safeParse(body);
+  if (!response.ok || !parsed.success || !parsed.data.ok) {
+    throw new TelegramAdapterError("provider_failed", rejectedMessage);
+  }
+  return deliveryReceiptSchema.parse({
+    providerMessageId: String(parsed.data.result.message_id),
+    acceptedAt: new Date(parsed.data.result.date * 1_000).toISOString(),
+  });
+}
+
 export function createTelegramAdapter({
   botToken,
   fetcher = fetch,
   requestTimeoutMs = 10_000,
   baseUrl = "https://api.telegram.org",
-}: TelegramAdapterOptions): ChannelAdapter {
+}: TelegramAdapterOptions): ChannelAdapter & TelegramVoiceDownloader {
   const token = z.string().min(1).parse(botToken);
   const endpoint = z.url().parse(baseUrl).replace(/\/$/, "");
   const timeout = z.number().int().positive().max(60_000).parse(
@@ -235,26 +277,141 @@ export function createTelegramAdapter({
         );
       }
 
-      let body: unknown;
+      return telegramReceipt(response, "Telegram rejected the text message");
+    },
+
+    async sendVoice(target, voice, idempotencyKey) {
+      const chatId = z.string().min(1).max(128).parse(target);
+      const payload: TelegramVoicePayload = {
+        bytes: z
+          .instanceof(Uint8Array)
+          .refine((value) => value.byteLength > 0)
+          .parse(voice.bytes),
+        contentType: z.literal("audio/ogg").parse(voice.contentType),
+        filename: z.string().trim().min(1).max(128).parse(voice.filename),
+      };
+      requestIdSchema.parse(idempotencyKey);
+      const body = new FormData();
+      body.set("chat_id", chatId);
+      body.set(
+        "voice",
+        new Blob([Uint8Array.from(payload.bytes)], { type: payload.contentType }),
+        payload.filename,
+      );
+      const signal = AbortSignal.timeout(timeout);
+      let response: Response;
       try {
-        body = await response.json();
+        response = await fetcher(`${endpoint}/bot${token}/sendVoice`, {
+          method: "POST",
+          body,
+          signal,
+        });
+      } catch {
+        if (signal.aborted) {
+          throw new TelegramAdapterError(
+            "provider_timeout",
+            "Telegram voice send timed out",
+          );
+        }
+        throw new TelegramAdapterError(
+          "provider_failed",
+          "Telegram voice send failed",
+        );
+      }
+      return telegramReceipt(response, "Telegram rejected the voice message");
+    },
+
+    async downloadVoice(fileId, callerSignal) {
+      const id = z.string().trim().min(1).max(512).parse(fileId);
+      const signal = callerSignal
+        ? AbortSignal.any([callerSignal, AbortSignal.timeout(timeout)])
+        : AbortSignal.timeout(timeout);
+      let metadataResponse: Response;
+      try {
+        metadataResponse = await fetcher(
+          `${endpoint}/bot${token}/getFile?file_id=${encodeURIComponent(id)}`,
+          { signal },
+        );
+      } catch {
+        throw new TelegramAdapterError(
+          signal.aborted ? "provider_timeout" : "provider_failed",
+          signal.aborted
+            ? "Telegram voice download timed out"
+            : "Telegram voice metadata request failed",
+        );
+      }
+      let metadata: unknown;
+      try {
+        metadata = await metadataResponse.json();
       } catch {
         throw new TelegramAdapterError(
           "provider_failed",
-          "Telegram returned an invalid response",
+          "Telegram returned invalid voice metadata",
         );
       }
-      const parsed = telegramSendResponseSchema.safeParse(body);
-      if (!response.ok || !parsed.success || !parsed.data.ok) {
+      const parsed = telegramFileResponseSchema.safeParse(metadata);
+      if (!metadataResponse.ok || !parsed.success) {
         throw new TelegramAdapterError(
           "provider_failed",
-          "Telegram rejected the text message",
+          "Telegram could not prepare the voice download",
         );
       }
-      return deliveryReceiptSchema.parse({
-        providerMessageId: String(parsed.data.result.message_id),
-        acceptedAt: new Date(parsed.data.result.date * 1_000).toISOString(),
-      });
+      if (
+        parsed.data.result.file_size !== undefined &&
+        parsed.data.result.file_size > MAX_TELEGRAM_DOWNLOAD_BYTES
+      ) {
+        throw new TelegramAdapterError(
+          "provider_failed",
+          "Telegram voice file exceeds the supported size",
+        );
+      }
+      const filePath = parsed.data.result.file_path
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
+      let downloadResponse: Response;
+      try {
+        downloadResponse = await fetcher(
+          `${endpoint}/file/bot${token}/${filePath}`,
+          { signal },
+        );
+      } catch {
+        throw new TelegramAdapterError(
+          signal.aborted ? "provider_timeout" : "provider_failed",
+          signal.aborted
+            ? "Telegram voice download timed out"
+            : "Telegram voice download failed",
+        );
+      }
+      const contentLength = Number(downloadResponse.headers.get("content-length"));
+      if (
+        !downloadResponse.ok ||
+        (Number.isFinite(contentLength) &&
+          contentLength > MAX_TELEGRAM_DOWNLOAD_BYTES)
+      ) {
+        throw new TelegramAdapterError(
+          "provider_failed",
+          "Telegram voice file exceeds the supported size",
+        );
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await downloadResponse.arrayBuffer());
+      } catch {
+        throw new TelegramAdapterError(
+          signal.aborted ? "provider_timeout" : "provider_failed",
+          signal.aborted
+            ? "Telegram voice download timed out"
+            : "Telegram voice download failed",
+        );
+      }
+      if (bytes.byteLength === 0 || bytes.byteLength > MAX_TELEGRAM_DOWNLOAD_BYTES) {
+        throw new TelegramAdapterError(
+          "provider_failed",
+          "Telegram voice file exceeds the supported size",
+        );
+      }
+      return bytes;
     },
   };
 }

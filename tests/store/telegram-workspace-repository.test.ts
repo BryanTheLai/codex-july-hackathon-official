@@ -53,10 +53,11 @@ describe("Telegram workspace repository", () => {
     repository.save({
       status: "loading",
       workspaceRevision: 3,
-      conversationRevisions: {
-        "telegram-conversation:-10042": 2,
-      },
-      pendingDelivery: {
+    conversationRevisions: {
+      "telegram-conversation:-10042": 2,
+    },
+    speechArtifacts: {},
+    pendingDelivery: {
         conversationId: "telegram-conversation:-10042",
         deliveryId: "send-42",
       },
@@ -68,6 +69,7 @@ describe("Telegram workspace repository", () => {
       conversationRevisions: {
         "telegram-conversation:-10042": 2,
       },
+      speechArtifacts: {},
       pendingDelivery: {
         conversationId: "telegram-conversation:-10042",
         deliveryId: "send-42",

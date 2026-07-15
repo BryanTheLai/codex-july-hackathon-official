@@ -48,7 +48,7 @@ describe("Telegram workspace projection", () => {
         medicalRecordNumber: "",
         preferredLanguage: "Malay",
       },
-      agentMode: "staff_only",
+      agentMode: "synthetic_agent",
       messages: [
         {
           id: "telegram-message:-10042:88",

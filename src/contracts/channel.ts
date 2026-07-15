@@ -52,6 +52,18 @@ export const deliveryReceiptSchema = z
   })
   .strict();
 
+export const telegramVoiceSourceSchema = z.enum(["tts", "recorded"]);
+
+export const telegramVoicePayloadSchema = z
+  .object({
+    bytes: z.instanceof(Uint8Array<ArrayBufferLike>).refine((value) => value.byteLength > 0, {
+      message: "Voice payload must not be empty",
+    }),
+    contentType: z.literal("audio/ogg"),
+    filename: z.string().trim().min(1).max(128),
+  })
+  .strict();
+
 export type NormalizedInboundEvent = z.infer<
   typeof normalizedInboundEventSchema
 >;
@@ -74,12 +86,23 @@ export type NormalizedInboundVoiceEvent = Omit<
   >;
 };
 export type DeliveryReceipt = z.infer<typeof deliveryReceiptSchema>;
+export type TelegramVoiceSource = z.infer<typeof telegramVoiceSourceSchema>;
+export type TelegramVoicePayload = {
+  bytes: Uint8Array<ArrayBufferLike>;
+  contentType: "audio/ogg";
+  filename: string;
+};
 
 export interface ChannelAdapter {
   normalizeInbound(payload: unknown): NormalizedInboundEvent | null;
   sendText(
     target: string,
     text: string,
+    idempotencyKey: string,
+  ): Promise<DeliveryReceipt>;
+  sendVoice(
+    target: string,
+    voice: TelegramVoicePayload,
     idempotencyKey: string,
   ): Promise<DeliveryReceipt>;
 }

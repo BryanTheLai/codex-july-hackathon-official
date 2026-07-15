@@ -11,6 +11,10 @@ import type { AppState } from "./types";
 export type TelegramWorkspaceProjection = {
   state: AppState;
   conversationRevisions: Record<string, number>;
+  speechArtifacts: Record<
+    string,
+    { status: "pending" | "transcribing" | "ready" | "failed"; error: string | null }
+  >;
 };
 
 function isProjectedTelegramConversation(
@@ -24,6 +28,7 @@ function isProjectedTelegramConversation(
 
 function toConversationView(
   conversation: ServerConversationPayload,
+  speechArtifacts: ServerDomainStatePayload["speechArtifacts"],
 ): ConversationPayload {
   const {
     agentMode,
@@ -35,9 +40,33 @@ function toConversationView(
     source: _source,
     ...shared
   } = conversation;
+  const readySpeech = new Map(
+    speechArtifacts
+      .filter((artifact) => artifact.status === "ready")
+      .map((artifact) => [artifact.messageId, artifact]),
+  );
   return conversationSchema.parse({
     ...shared,
-    agentMode: agentMode === "live_agent" ? "staff_only" : agentMode,
+    messages: shared.messages.map((message) => {
+      const artifact = readySpeech.get(message.id);
+      if (!artifact) {
+        return message;
+      }
+      const { gloss: _gloss, ...withoutGloss } = message;
+      return artifact.englishGloss
+        ? {
+            ...withoutGloss,
+            text: artifact.originalTranscript,
+            language: artifact.detectedLanguage,
+            gloss: artifact.englishGloss,
+          }
+        : {
+            ...withoutGloss,
+            text: artifact.originalTranscript,
+            language: artifact.detectedLanguage,
+          };
+    }),
+    agentMode: agentMode === "live_agent" ? "synthetic_agent" : agentMode,
     channel: "Telegram",
     patient: {
       name: patient.name,
@@ -57,7 +86,9 @@ export function mergeTelegramWorkspaceState(
     (conversation) => conversation.source === "telegram",
   );
   const conversations = [
-    ...telegram.map(toConversationView),
+    ...telegram.map((conversation) =>
+      toConversationView(conversation, server.speechArtifacts),
+    ),
     ...current.conversations.filter(
       (conversation) => !isProjectedTelegramConversation(conversation),
     ),
@@ -82,6 +113,12 @@ export function mergeTelegramWorkspaceState(
       telegram.map((conversation) => [
         conversation.id,
         conversation.revision,
+      ]),
+    ),
+    speechArtifacts: Object.fromEntries(
+      server.speechArtifacts.map((artifact) => [
+        artifact.messageId,
+        { status: artifact.status, error: artifact.error },
       ]),
     ),
   };

@@ -6,7 +6,7 @@
   "description": "Synthetic multilingual clinic operations workbench.",
   "scripts": {
     "dev": "tsx watch server/index.ts",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "start": "tsx server/index.ts --production",
     "bootstrap:demo": "tsx server/bootstrap-demo.ts",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",

@@ -19,6 +19,10 @@ import {
 } from "../src/contracts/agent";
 import type { ServerDomainStatePayload } from "../src/contracts/app-state";
 import {
+  workspaceCommandRequestSchema,
+  workspaceCommandResultSchema,
+} from "../src/contracts/workflow";
+import {
   evalCaseRunRequestSchema,
   evalCaseRunResultSchema,
   evalSuiteCreateRequestSchema,
@@ -46,14 +50,23 @@ import {
   EvalServiceError,
   type EvalService,
 } from "./eval-service";
+import {
+  createWorkspaceCommandService,
+  WorkspaceCommandServiceError,
+  type WorkspaceCommandService,
+} from "./workspace-command-service";
+import { createCorrectionProposer } from "./correction-proposer";
 import type { ApiError } from "./api-contract";
 import {
   apiErrorSchema,
+  manualSpeechTranscriptRequestSchema,
   outboundReconcileRequestSchema,
   outboundSendRequestSchema,
+  outboundVoicePrepareRequestSchema,
   resetDemoRequestSchema,
   saveWorkspaceRequestSchema,
   saveWorkspaceResultSchema,
+  translationRequestSchema,
 } from "./api-contract";
 import type { JudgeRequest, JudgeResponse } from "./judge-contract";
 import { judgeRequestSchema, judgeResponseSchema } from "./judge-contract";
@@ -68,9 +81,29 @@ import {
   readSupabaseConfig,
 } from "./supabase";
 import {
+  createSupabaseVoiceArtifactStore,
+  VoiceArtifactStoreError,
+} from "./voice-artifact-store";
+import {
   createTelegramAdapter,
   readTelegramConfig,
 } from "./telegram-adapter";
+import {
+  createInboundSpeechService,
+  InboundSpeechServiceError,
+  type InboundSpeechService,
+} from "./inbound-speech-service";
+import { createOpenAiSpeechProvider } from "./openai-speech-provider";
+import {
+  createOpenAiTtsProvider,
+  TtsProviderError,
+} from "./openai-tts-provider";
+import {
+  createTranslationService,
+  type TranslationService,
+} from "./translation-service";
+import { createVoiceConverter } from "./voice-converter";
+import { log, requestLogging } from "./structured-log";
 import {
   createTelegramInboundService,
   TelegramInboundError,
@@ -91,16 +124,18 @@ import {
   type WorkspaceRepository,
 } from "./workspace-repository";
 
-try {
-  process.loadEnvFile();
-} catch (error) {
-  if (
-    typeof error !== "object" ||
-    error === null ||
-    !("code" in error) ||
-    error.code !== "ENOENT"
-  ) {
-    throw error;
+if (process.env.NODE_ENV !== "test") {
+  try {
+    process.loadEnvFile();
+  } catch (error) {
+    if (
+      typeof error !== "object" ||
+      error === null ||
+      !("code" in error) ||
+      error.code !== "ENOENT"
+    ) {
+      throw error;
+    }
   }
 }
 
@@ -125,12 +160,14 @@ type JudgeAppOptions = {
   agent?: AgentRunner | null;
   agentTimeoutMs?: number;
   eval?: EvalService | null;
+  workflow?: WorkspaceCommandService | null;
   judge?: Judge;
   rateLimit?: RateLimitOptions;
   requestTimeoutMs?: number;
   now?: () => number;
   workspace?: WorkspaceAppOptions | null;
   telegram?: TelegramAppOptions | null;
+  translation?: TranslationService | null;
 };
 
 type WorkspaceAppOptions = {
@@ -141,8 +178,10 @@ type WorkspaceAppOptions = {
 
 type TelegramAppOptions = {
   webhookSecret: string;
+  liveEnabled?: boolean;
   inbound: TelegramInboundService;
   outbound?: TelegramOutboundService;
+  speech?: InboundSpeechService;
 };
 
 class JudgeConfigurationError extends Error {}
@@ -218,8 +257,21 @@ function configuredTelegram(
     const supabase = readSupabaseConfig();
     const client = createSupabaseServerClient(supabase);
     const adapter = createTelegramAdapter({ botToken: telegram.botToken });
+    const agentConfig = process.env.LLM_API_KEY
+      ? readAgentProviderConfig()
+      : null;
+    const speech = agentConfig
+      ? createInboundSpeechService({
+          workspaceId: workspace.workspaceId,
+          workspaceRepository: workspace.repository,
+          voiceDownloader: adapter,
+          converter: createVoiceConverter(),
+          speechProvider: createOpenAiSpeechProvider(agentConfig),
+        })
+      : undefined;
     return {
       webhookSecret: telegram.webhookSecret,
+      liveEnabled: telegram.liveEnabled,
       inbound: createTelegramInboundService({
         adapter,
         eventRepository: createTelegramEventRepository(
@@ -236,7 +288,15 @@ function configuredTelegram(
         liveEnabled: telegram.liveEnabled,
         workspaceId: workspace.workspaceId,
         workspaceRepository: workspace.repository,
+        voice: agentConfig
+          ? {
+              artifactStore: createSupabaseVoiceArtifactStore(client),
+              converter: createVoiceConverter(),
+              tts: createOpenAiTtsProvider(agentConfig),
+            }
+          : undefined,
       }),
+      speech,
     };
   } catch {
     return null;
@@ -256,6 +316,13 @@ function sendTelegramOutboundFailure(
   response: Response,
   error: unknown,
 ): void {
+  log.error("telegram_outbound_failure", {
+    errorCode:
+      error instanceof TelegramOutboundError || error instanceof TtsProviderError
+        ? error.code
+        : "provider_failed",
+    errorType: error instanceof Error ? error.name : "unknown",
+  });
   if (error instanceof TelegramOutboundError) {
     const status =
       error.code === "invalid_request"
@@ -421,6 +488,77 @@ function sendEvalFailure(response: Response, error: unknown): void {
   });
 }
 
+function sendInboundSpeechFailure(response: Response, error: unknown): void {
+  if (error instanceof InboundSpeechServiceError) {
+    const status =
+      error.code === "not_found"
+        ? 404
+        : error.code === "revision_conflict"
+          ? 409
+          : 503;
+    sendApiError(response, status, {
+      code: error.code,
+      error: error.message,
+      retryable: error.code !== "not_found",
+    });
+    return;
+  }
+  if (error instanceof TtsProviderError) {
+    sendApiError(response, error.code === "provider_timeout" ? 504 : 502, {
+      code: error.code,
+      error: error.message,
+      retryable: true,
+    });
+    return;
+  }
+  if (error instanceof VoiceArtifactStoreError) {
+    sendApiError(response, 502, {
+      code: "provider_failed",
+      error: "Voice artifact storage failed.",
+      retryable: true,
+    });
+    return;
+  }
+  sendApiError(response, 503, {
+    code: "provider_failed",
+    error: "Speech processing failed.",
+    retryable: true,
+  });
+}
+
+function configuredTranslation(): TranslationService | null {
+  if (!process.env.LLM_API_KEY) {
+    return null;
+  }
+  try {
+    return createTranslationService(readAgentProviderConfig());
+  } catch {
+    return null;
+  }
+}
+
+function sendWorkspaceCommandFailure(response: Response, error: unknown): void {
+  if (error instanceof WorkspaceCommandServiceError) {
+    const status =
+      error.code === "feature_disabled"
+        ? 503
+        : error.code === "invalid_request"
+        ? 400
+        : error.code === "not_found"
+          ? 404
+          : error.code === "revision_conflict"
+            ? 409
+            : 422;
+    sendApiError(response, status, {
+      code: error.code,
+      error: error.message,
+      retryable: error.retryable,
+    });
+    return;
+  }
+  sendEvalFailure(response, error);
+}
+
 function configuredJudgeModel(): string {
   if (!process.env.LLM_API_KEY) {
     return "gpt-5.5";
@@ -476,6 +614,25 @@ function configuredEval(
   });
 }
 
+function configuredWorkspaceCommands(
+  workspace: WorkspaceAppOptions | null,
+  evalService: EvalService | null,
+): WorkspaceCommandService | null {
+  if (!workspace || !evalService) {
+    return null;
+  }
+  return createWorkspaceCommandService({
+    workspaceId: workspace.workspaceId,
+    repository: workspace.repository,
+    evalService,
+    createId: randomUUID,
+    now: () => new Date().toISOString(),
+    proposer: process.env.LLM_API_KEY
+      ? createCorrectionProposer(readAgentProviderConfig())
+      : null,
+  });
+}
+
 function rateLimiter(
   { requests, windowMs }: RateLimitOptions,
   now: () => number,
@@ -517,13 +674,62 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
     options.telegram === undefined
       ? configuredTelegram(workspace)
       : options.telegram;
+  const translation =
+    options.translation === undefined
+      ? configuredTranslation()
+      : options.translation;
   const evalService =
     options.eval === undefined
       ? configuredEval(workspace, agent, judge, now)
       : options.eval;
+  const workflow =
+    options.workflow === undefined
+      ? configuredWorkspaceCommands(workspace, evalService)
+      : options.workflow;
   const app = express();
   app.disable("x-powered-by");
+  app.use(requestLogging);
   app.use(express.json({ limit: "64kb" }));
+  app.get("/healthz", (_request: Request, response: Response) => {
+    response.status(200).json({
+      ok: true,
+      configured: {
+        telegram: Boolean(telegram),
+        telegramLiveDelivery: telegram?.liveEnabled ?? false,
+        telegramSpeech: Boolean(telegram?.speech),
+        translation: Boolean(translation),
+        workspace: Boolean(workspace),
+      },
+    });
+  });
+  app.get("/readyz", async (_request: Request, response: Response) => {
+    if (!workspace) {
+      sendApiError(response, 503, {
+        code: "feature_disabled",
+        error: "Workspace storage is not configured.",
+        retryable: false,
+      });
+      return;
+    }
+    try {
+      const loaded = await workspace.repository.load(workspace.workspaceId);
+      if (!loaded) {
+        sendApiError(response, 503, {
+          code: "not_found",
+          error: "Workspace is not ready.",
+          retryable: true,
+        });
+        return;
+      }
+      response.status(200).json({ ok: true, workspaceRevision: loaded.revision });
+    } catch {
+      sendApiError(response, 503, {
+        code: "provider_failed",
+        error: "Workspace readiness check failed.",
+        retryable: true,
+      });
+    }
+  });
   app.post(
     "/api/telegram/webhook",
     async (request: Request, response: Response) => {
@@ -549,7 +755,17 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         return;
       }
       try {
-        response.status(200).json(await telegram.inbound.process(request.body));
+        const result = await telegram.inbound.process(request.body);
+        response.status(200).json(result);
+        if (telegram.speech) {
+          void telegram.speech.transcribeNext().then((speechResult) => {
+            log.info("telegram_speech_auto_transcription", {
+              status: speechResult.status,
+            });
+          }).catch(() => {
+            log.error("telegram_speech_auto_transcription_failed");
+          });
+        }
       } catch (error) {
         if (error instanceof ZodError) {
           sendApiError(response, 400, {
@@ -582,6 +798,207 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
           error: "Telegram inbound persistence failed.",
           retryable: true,
         });
+      }
+    },
+  );
+  app.post(
+    "/api/telegram/speech/:messageId/retry",
+    async (request: Request, response: Response) => {
+      if (!telegram?.speech) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram speech processing is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const messageId = Array.isArray(request.params.messageId)
+          ? ""
+          : (request.params.messageId ?? "");
+        const result = await telegram.speech.retry(messageId);
+        response.status(200).json(result);
+      } catch (error) {
+        sendInboundSpeechFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/telegram/speech/:messageId/manual-transcript",
+    async (request: Request, response: Response) => {
+      if (!telegram?.speech) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram speech processing is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const input = manualSpeechTranscriptRequestSchema.safeParse(request.body);
+      if (!input.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Manual transcript is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const messageId = Array.isArray(request.params.messageId)
+          ? ""
+          : (request.params.messageId ?? "");
+        response.status(200).json(
+          await telegram.speech.saveManualTranscript(messageId, {
+            ...input.data,
+            englishGloss: input.data.englishGloss ?? null,
+          }),
+        );
+      } catch (error) {
+        sendInboundSpeechFailure(response, error);
+      }
+    },
+  );
+  app.get(
+    "/api/telegram/speech/:messageId/audio",
+    async (request: Request, response: Response) => {
+      if (!telegram?.speech) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram speech processing is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const messageId = Array.isArray(request.params.messageId)
+          ? ""
+          : (request.params.messageId ?? "");
+        const bytes = await telegram.speech.downloadAudio(messageId);
+        response
+          .status(200)
+          .set("cache-control", "private, no-store")
+          .type("audio/ogg")
+          .send(Buffer.from(bytes));
+      } catch (error) {
+        sendInboundSpeechFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/translation",
+    async (request: Request, response: Response) => {
+      if (!translation) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Translation is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const input = translationRequestSchema.safeParse(request.body);
+      if (!input.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Translation request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        response.status(200).json(await translation.translate(input.data));
+      } catch (error) {
+        sendApiError(response, 503, {
+          code: error instanceof AgentProviderError ? error.code : "provider_failed",
+          error: error instanceof AgentProviderError
+            ? error.message
+            : "Translation failed.",
+          retryable: true,
+        });
+      }
+    },
+  );
+  app.post(
+    "/api/outbound/voice/prepare",
+    async (request: Request, response: Response) => {
+      if (!telegram?.outbound) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram outbound is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const input = outboundVoicePrepareRequestSchema.safeParse(request.body);
+      if (!input.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Voice preparation request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        response.status(200).json(await telegram.outbound.prepareVoice(input.data));
+      } catch (error) {
+        sendTelegramOutboundFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/outbound/deliveries/:id/voice/recording",
+    express.raw({ type: ["audio/webm", "audio/ogg"], limit: "8mb" }),
+    async (request: Request, response: Response) => {
+      if (!telegram?.outbound) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram outbound is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      if (!Buffer.isBuffer(request.body) || request.body.byteLength === 0) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Recorded voice audio is required.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const deliveryId = Array.isArray(request.params.id)
+          ? ""
+          : (request.params.id ?? "");
+        response.status(200).json(
+          await telegram.outbound.attachRecordedVoice(deliveryId, request.body),
+        );
+      } catch (error) {
+        sendTelegramOutboundFailure(response, error);
+      }
+    },
+  );
+  app.get(
+    "/api/outbound/deliveries/:id/voice/audio",
+    async (request: Request, response: Response) => {
+      if (!telegram?.outbound) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Telegram outbound is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const deliveryId = Array.isArray(request.params.id)
+          ? ""
+          : (request.params.id ?? "");
+        const bytes = await telegram.outbound.readVoiceAudio(deliveryId);
+        response
+          .status(200)
+          .set("cache-control", "private, no-store")
+          .type("audio/ogg")
+          .send(Buffer.from(bytes));
+      } catch (error) {
+        sendTelegramOutboundFailure(response, error);
       }
     },
   );
@@ -695,6 +1112,63 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         response.status(result.ok ? 200 : 409).json(result);
       } catch (error) {
         sendWorkspaceFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/workspace/commands",
+    rateLimiter(rateLimit, now),
+    async (request: Request, response: Response) => {
+      if (!requireWorkspace(workspace, response)) {
+        return;
+      }
+      if (!workflow) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Dream release workflows are not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const parsed = workspaceCommandRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Workspace command request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      const connectionController = new AbortController();
+      request.once("aborted", () => connectionController.abort());
+      response.once("close", () => {
+        if (!response.writableEnded) {
+          connectionController.abort();
+        }
+      });
+      const signal = AbortSignal.any([
+        connectionController.signal,
+        AbortSignal.timeout(agentTimeoutMs + requestTimeoutMs),
+      ]);
+      try {
+        response.status(200).json(
+          workspaceCommandResultSchema.parse(
+            await workflow.execute(parsed.data, signal),
+          ),
+        );
+      } catch (error) {
+        if (connectionController.signal.aborted) {
+          return;
+        }
+        if (signal.aborted) {
+          sendApiError(response, 504, {
+            code: "provider_timeout",
+            error: "The workspace command timed out.",
+            retryable: true,
+          });
+          return;
+        }
+        sendWorkspaceCommandFailure(response, error);
       }
     },
   );
@@ -1022,7 +1496,8 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
 
 async function startServer(): Promise<void> {
   const app = createJudgeApp();
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.argv.includes("--production");
   if (isProduction) {
     const distPath = resolve(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -1041,9 +1516,13 @@ async function startServer(): Promise<void> {
     app.use(vite.middlewares);
   }
 
-  const port = Number(process.env.PORT || 5173);
-  app.listen(port, () => {
-    console.log(`KaunterAI listening on http://localhost:${port}`);
+  const portArgument = process.argv.find((argument) => argument.startsWith("--port="));
+  const port = Number(portArgument?.slice("--port=".length) || process.env.PORT || 5173);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("PORT must be an integer between 1 and 65535");
+  }
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`KaunterAI listening on port ${port}`);
   });
 }
 

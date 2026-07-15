@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { createCanonicalServerState } from "../src/domain";
+import { resetE2eWorkspace } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await page.addInitScript(() => {
     localStorage.clear();
   });

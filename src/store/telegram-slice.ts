@@ -10,6 +10,7 @@ import {
   type TelegramOutboundClient,
   type WorkspaceClient,
 } from "../services/api-client";
+import type { TelegramVoiceSource } from "../contracts/channel";
 import { isAbortError } from "../shared/errors";
 import { applyMutation } from "./apply-mutation";
 import type { AppStateRepository } from "./repository";
@@ -22,6 +23,9 @@ export type { TelegramWorkspaceState } from "./telegram-workspace-repository";
 
 export type SendVisitorReplyInput = SendStaffReplyInput & {
   requestId: string;
+  deliveryMode?: "text" | "voice" | "both";
+  voiceRecording?: Blob;
+  voiceSource?: TelegramVoiceSource;
 };
 
 type TelegramSliceDeps = {
@@ -85,6 +89,7 @@ export function createTelegramActions({
         status: "ready",
         workspaceRevision: envelope.revision,
         conversationRevisions: projected.conversationRevisions,
+        speechArtifacts: projected.speechArtifacts,
       };
       set({
         state: projected.state,
@@ -166,8 +171,40 @@ export function createTelegramActions({
         input.translation?.language ||
         conversation.patient.preferredLanguage ||
         "English";
+      const deliveryMode = input.deliveryMode ?? "text";
+      const voiceSource = input.voiceSource ?? "tts";
 
       try {
+        if (deliveryMode !== "text") {
+          if (!outboundClient.prepareVoice) {
+            const message = "Telegram voice preparation is unavailable.";
+            set({ lastFeedback: message });
+            return failed(getState(), message);
+          }
+          const prepared = await outboundClient.prepareVoice(
+            {
+              requestId: input.requestId,
+              conversationId: input.conversationId,
+              expectedConversationRevision: revision,
+              targetLanguage,
+              approvedPatientText,
+              source: voiceSource,
+            },
+            signal,
+          );
+          if (prepared.status === "recording_required") {
+            if (!input.voiceRecording || !outboundClient.uploadRecordedVoice) {
+              const message = "Record a staff voice reply before sending.";
+              set({ lastFeedback: message });
+              return failed(getState(), message);
+            }
+            await outboundClient.uploadRecordedVoice(
+              input.requestId,
+              input.voiceRecording,
+              signal,
+            );
+          }
+        }
         const result = await outboundClient.send(
           {
             requestId: input.requestId,
@@ -175,7 +212,8 @@ export function createTelegramActions({
             expectedConversationRevision: revision,
             targetLanguage,
             approvedPatientText,
-            mode: "text",
+            mode: deliveryMode,
+            voiceSource: deliveryMode === "text" ? undefined : voiceSource,
           },
           signal,
         );
@@ -187,10 +225,10 @@ export function createTelegramActions({
         }
 
         const deliveryId = result.deliveryIds[0]!;
-        const pendingDelivery = {
+        const pendingDelivery = result.text ? {
           conversationId: input.conversationId,
           deliveryId,
-        };
+        } : null;
         const refreshed = await refreshTelegramWorkspace(signal);
         if (!refreshed.ok) {
           set({
@@ -202,6 +240,19 @@ export function createTelegramActions({
             pendingDelivery,
           });
           return { ok: true, state: getState() };
+        }
+        if (!result.text) {
+          if (result.status === "partial_failure") {
+            const message = "Voice reply was not accepted. Retry sends only the failed voice part.";
+            set({ lastFeedback: message });
+            return failed(getState(), message);
+          }
+          setTelegramWorkspace({
+            ...getTelegramWorkspace(),
+            pendingDelivery: null,
+          });
+          set({ lastFeedback: "Telegram voice reply sent." });
+          return refreshed;
         }
         const linkedMessageId = `telegram-delivery:${deliveryId}:text`;
         const linked = getState().conversations
@@ -224,6 +275,11 @@ export function createTelegramActions({
           ...getTelegramWorkspace(),
           pendingDelivery: null,
         });
+        if (result.status === "partial_failure") {
+          const message = "Text reply sent; voice was not accepted. Retry sends only the failed voice part.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
         set({ lastFeedback: "Telegram reply sent." });
         return refreshed;
       } catch (error) {
@@ -332,6 +388,77 @@ export function createTelegramActions({
           status: "error",
         });
         return failed(getState(), message);
+      }
+    },
+
+    async retryTelegramSpeech(
+      messageId: string,
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      if (!outboundClient.retrySpeech) {
+        const message = "Speech retry is unavailable.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      try {
+        await outboundClient.retrySpeech(messageId, signal);
+        return refreshTelegramWorkspace(signal);
+      } catch (error) {
+        const message = error instanceof ApiClientError
+          ? error.message
+          : "Speech retry failed.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
+
+    async saveTelegramManualTranscript(
+      messageId: string,
+      input: {
+        detectedLanguage: string;
+        englishGloss?: string | null;
+        originalTranscript: string;
+      },
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      if (!outboundClient.saveManualTranscript) {
+        const message = "Manual speech recovery is unavailable.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      try {
+        await outboundClient.saveManualTranscript(messageId, input, signal);
+        return refreshTelegramWorkspace(signal);
+      } catch (error) {
+        const message = error instanceof ApiClientError
+          ? error.message
+          : "Manual transcript could not be saved.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
+
+    async translateTelegramReply(
+      text: string,
+      targetLanguage: string,
+      signal?: AbortSignal,
+    ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+      if (!outboundClient.translate) {
+        return { ok: false, error: "Live translation is unavailable." };
+      }
+      try {
+        const result = await outboundClient.translate(
+          { text, targetLanguage },
+          signal,
+        );
+        return { ok: true, text: result.translatedText };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof ApiClientError
+            ? error.message
+            : "Live translation failed.",
+        };
       }
     },
   };

@@ -4,9 +4,11 @@ import {
   expectMobileTargets,
   expectNoDocumentOverflow,
   expectNoSeriousAxeViolations,
+  resetE2eWorkspace,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
+  await resetE2eWorkspace(page);
   await page.addInitScript(() => {
     localStorage.clear();
   });
