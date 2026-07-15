@@ -2,6 +2,21 @@ import { z } from "zod";
 
 import { revisionSchema } from "../contracts/app-state";
 
+const telegramDeliveryNoticeSchema = z
+  .object({
+    conversationId: z.string().min(1),
+    requestId: z.string().min(1),
+    targetLanguage: z.string().min(1),
+    approvedPatientText: z.string().min(1),
+    mode: z.enum(["text", "voice", "both"]),
+    voiceSource: z.enum(["tts", "recorded"]).nullable(),
+    status: z.enum(["sending", "sent", "voice_sent", "partial_failure", "failed"]),
+    retryStage: z.enum(["send", "voice_prepare"]),
+    failedParts: z.array(z.enum(["text", "voice"])),
+    message: z.string().min(1),
+  })
+  .strict();
+
 export const TELEGRAM_WORKSPACE_STORAGE_KEY =
   "kaunter-ai-telegram-workspace-v1";
 
@@ -29,6 +44,7 @@ const telegramWorkspaceStateSchema = z
       })
       .strict()
       .nullable(),
+    deliveryNotice: telegramDeliveryNoticeSchema.nullable().default(null),
   })
   .strict();
 
@@ -42,13 +58,17 @@ const persistedTelegramWorkspaceSchema = z
 export type TelegramWorkspaceState = z.infer<
   typeof telegramWorkspaceStateSchema
 >;
+export type TelegramDeliveryNotice = z.infer<
+  typeof telegramDeliveryNoticeSchema
+>;
 
 export const INITIAL_TELEGRAM_WORKSPACE: TelegramWorkspaceState = {
   status: "local",
   workspaceRevision: null,
-    conversationRevisions: {},
+  conversationRevisions: {},
   speechArtifacts: {},
   pendingDelivery: null,
+  deliveryNotice: null,
 };
 
 export interface TelegramWorkspaceRepository {

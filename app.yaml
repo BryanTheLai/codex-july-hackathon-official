@@ -1,0 +1,40 @@
+name: kaunter-ai-demo
+region: sgp
+alerts:
+  - rule: DEPLOYMENT_FAILED
+services:
+  - name: web
+    github:
+      repo: BryanTheLai/codex-july-hackathon-official
+      branch: codex/deploy-digitalocean
+      deploy_on_push: true
+    source_dir: /
+    dockerfile_path: Dockerfile
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 5
+      http_path: /readyz
+      port: 8080
+    liveness_health_check:
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 6
+      http_path: /healthz
+      port: 8080
+    alerts:
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 0
+        window: FIVE_MINUTES

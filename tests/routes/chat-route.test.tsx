@@ -17,9 +17,12 @@ import type {
 } from "../../src/services/api-client";
 import { ApiClientError } from "../../src/services/api-client";
 import {
+  beginTelegramSpeechTranscription,
   createCanonicalServerState,
+  failTelegramSpeechTranscription,
   linkAcceptedTelegramOutboundText,
   mergeTelegramInboundText,
+  mergeTelegramInboundVoice,
 } from "../../src/domain";
 import ChatRoute from "../../src/routes/chat/chat-route";
 import { AppStoreProvider } from "../../src/store/app-store-context";
@@ -109,6 +112,40 @@ async function telegramServerState() {
     throw new Error(result.error);
   }
   return result.state;
+}
+
+async function failedTelegramVoiceState() {
+  const inbound = mergeTelegramInboundVoice(await createCanonicalServerState(), {
+    channel: "telegram",
+    externalEventId: "1003",
+    externalConversationId: "-10043",
+    externalMessageId: "90",
+    sender: {
+      externalId: "43",
+      displayName: "Voice Patient",
+    },
+    message: {
+      kind: "voice",
+      telegramFileId: "voice-1",
+      language: "ms",
+    },
+    receivedAt: "2026-07-13T12:03:00.000Z",
+  });
+  if (!inbound.ok) {
+    throw new Error(inbound.error);
+  }
+  return failTelegramSpeechTranscription({
+    state: beginTelegramSpeechTranscription({
+      state: inbound.state,
+      messageId: "telegram-message:-10043:90",
+      model: "whisper-1",
+    }),
+    messageId: "telegram-message:-10043:90",
+    model: "whisper-1",
+    error: "Speech transcription failed.",
+    detectedLanguage: "Malay",
+    originalTranscript: "Saya mahu buat temujanji.",
+  });
 }
 
 describe("Chat Control route", () => {
@@ -620,6 +657,7 @@ describe("Chat Control route", () => {
       send: vi.fn().mockResolvedValue({
         deliveryIds: ["send-42"],
         status: "failed",
+        failedParts: ["text"],
       }),
       reconcile: vi.fn(),
     };
@@ -646,7 +684,9 @@ describe("Chat Control route", () => {
     await user.type(message, "Cuba lagi.");
 
     await user.click(within(selected).getByRole("button", { name: "Send" }));
-    await within(selected).findByText(/Telegram did not accept/i);
+    await screen.findByRole("status", {
+      name: "Telegram connection and delivery status",
+    });
     await user.click(within(selected).getByRole("button", { name: "Send" }));
 
     expect(message).toHaveValue("Cuba lagi.");
@@ -659,6 +699,128 @@ describe("Chat Control route", () => {
         selector: '[data-message-side="outgoing"]',
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows a durable partial failure banner and retries only the failed delivery", async () => {
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 1,
+        state: await telegramServerState(),
+      }),
+    };
+    const outboundClient: TelegramOutboundClient = {
+      prepareVoice: vi.fn().mockResolvedValue({
+        requestId: "prepared",
+        source: "tts",
+        status: "ready",
+      }),
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({
+          deliveryIds: ["send-both"],
+          status: "partial_failure",
+          text: {
+            providerMessageId: "9001",
+            acceptedAt: "2026-07-13T12:01:00.000Z",
+          },
+          failedParts: ["voice"],
+        })
+        .mockResolvedValueOnce({
+          deliveryIds: ["send-both"],
+          status: "sent",
+          text: {
+            providerMessageId: "9001",
+            acceptedAt: "2026-07-13T12:01:00.000Z",
+          },
+          voice: {
+            providerMessageId: "9002",
+            acceptedAt: "2026-07-13T12:02:00.000Z",
+          },
+        }),
+      reconcile: vi.fn(),
+    };
+    const store = createAppStore(new MemoryStorage(), {
+      outboundClient,
+      workspaceClient,
+    });
+    const user = userEvent.setup();
+    renderChat({ store });
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open conversation with Aina Zulkifli",
+      }),
+    );
+    const selected = screen.getByRole("region", {
+      name: "Selected conversation",
+    });
+    await user.selectOptions(
+      within(selected).getByRole("combobox", { name: "Telegram delivery mode" }),
+      "both",
+    );
+    await user.type(
+      within(selected).getByRole("textbox", { name: "Message" }),
+      "Klinik akan menghubungi anda.",
+    );
+    await user.click(within(selected).getByRole("button", { name: "Send" }));
+
+    const status = await screen.findByRole("status", {
+      name: "Telegram connection and delivery status",
+    });
+    expect(status).toHaveTextContent("Partial failure");
+    expect(status).toHaveTextContent("text sent; voice failed");
+    expect(status).toHaveTextContent("Attention needed");
+    await user.click(
+      within(status).getByRole("button", { name: "Retry failed voice" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(outboundClient.send).toHaveBeenCalledTimes(2);
+    });
+    const first = vi.mocked(outboundClient.send).mock.calls[0]![0];
+    const second = vi.mocked(outboundClient.send).mock.calls[1]![0];
+    expect(second).toMatchObject({
+      requestId: first.requestId,
+      mode: "both",
+      voiceSource: "tts",
+    });
+  });
+
+  it("keeps failed voice recovery actions visible to staff", async () => {
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 1,
+        state: await failedTelegramVoiceState(),
+      }),
+    };
+    const outboundClient: TelegramOutboundClient = {
+      reconcile: vi.fn(),
+      retrySpeech: vi.fn().mockResolvedValue({ status: "failed" }),
+      saveManualTranscript: vi.fn(),
+      send: vi.fn(),
+    };
+    const store = createAppStore(new MemoryStorage(), {
+      outboundClient,
+      workspaceClient,
+    });
+    const user = userEvent.setup();
+    renderChat({ store });
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open conversation with Voice Patient",
+      }),
+    );
+    const selected = screen.getByRole("region", {
+      name: "Selected conversation",
+    });
+    expect(within(selected).getByRole("button", { name: "Play voice" })).toBeInTheDocument();
+    expect(within(selected).getByRole("button", { name: "Retry transcription" })).toBeInTheDocument();
+    expect(within(selected).getByRole("button", { name: "Manual transcript" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Telegram connection and delivery status" }),
+    ).toHaveTextContent("Attention needed");
   });
 
   it("allows only one Telegram send before React disables the button", async () => {

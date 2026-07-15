@@ -159,8 +159,9 @@ with the Opus encoder; the adapter stores no audio file after the request comple
 ### Telegram
 
 Telegram requires the fixed Supabase workspace because inbound events and messages are persisted
-before the webhook returns. Apply `supabase/migrations/001_demo_platform.sql`, set the Supabase and
-Telegram values in `.env`, then run:
+before the webhook returns. Apply **every** file in `supabase/migrations/` in ascending filename
+order (the later two files add the required outbound-voice columns and private storage bucket),
+set the Supabase and Telegram values in `.env`, then run:
 
 ```bash
 npm run bootstrap:demo
@@ -220,6 +221,9 @@ Runtime rules: the container listens on `0.0.0.0:8080`; App Platform checks `/he
 starts from a browser action and finishes in one request; no permanent worker or durable job queue
 exists in the POC.
 
+`PORT=5173` is only for local development. Do not add it to DigitalOcean: leave `PORT` unset so
+the Docker image's `PORT=8080` is used, or explicitly set it to `8080`.
+
 ### POC access
 
 1. The app opens directly into one fixed demo workspace.
@@ -240,6 +244,20 @@ The service deploys from the root `Dockerfile`. Add all provider values only as 
 variables in App Platform; never bake `.env` into the image or expose a server secret through a
 `VITE_` variable. Use the generated HTTPS domain for the Telegram webhook only after `/healthz`
 and `/readyz` succeed.
+
+### Health checks and operator alerts
+
+[`app.yaml`](app.yaml) is the non-secret App Platform spec for this repository and branch. It
+configures the app-level failed-deployment alert, an 80% RAM alert over five minutes, and a
+restart-count alert over five minutes. It also keeps the routes deliberately separate:
+`/readyz` controls whether App Platform sends traffic to the service, while `/healthz` is the
+liveness probe that may restart a stuck process.
+
+After the app exists, open **Apps → kaunter-ai-demo → Settings → Alert Policies → Edit** and
+confirm the email recipient. The spec is versioned, but DigitalOcean owns notification recipients
+and any alert policy created in the dashboard. Do not upload a newly written app spec over an
+existing app without first downloading its current spec, because an App Platform update replaces
+the full configuration, including encrypted environment variables.
 
 ## Code architecture and backend seams
 

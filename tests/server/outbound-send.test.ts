@@ -531,4 +531,75 @@ describe("visitor-approved Telegram text", () => {
       ttsVoice: "coral",
     });
   });
+
+  it("retries a partial text and voice delivery without resending accepted text", async () => {
+    const artifacts = new Map<string, Uint8Array>();
+    const adapter = fakeAdapter();
+    adapter.sendVoice = vi
+      .fn<ChannelAdapter["sendVoice"]>()
+      .mockRejectedValueOnce(
+        new TelegramAdapterError("provider_failed", "Telegram voice failed."),
+      )
+      .mockResolvedValueOnce({
+        providerMessageId: "9003",
+        acceptedAt: "2026-07-13T12:02:00.000Z",
+      });
+    const configured = await configuredOutbound({
+      adapter,
+      voice: {
+        artifactStore: {
+          async download(path) {
+            return artifacts.get(path) ?? new Uint8Array();
+          },
+          async upload(path, bytes) {
+            artifacts.set(path, bytes);
+            return {
+              objectPath: path,
+              contentType: "audio/ogg",
+              sha256: "b".repeat(64),
+            };
+          },
+        },
+        converter: {
+          convertToWebm: vi.fn(),
+          convertToOgg: vi.fn(),
+        },
+        tts: {
+          synthesize: vi.fn().mockResolvedValue({
+            bytes: new Uint8Array([4, 5, 6]),
+            model: "gpt-4o-mini-tts",
+            voice: "coral",
+          }),
+        },
+      },
+    });
+    const request = {
+      ...sendRequest,
+      mode: "both" as const,
+      voiceSource: "tts" as const,
+    };
+
+    await configured.outbound.prepareVoice({
+      requestId: request.requestId,
+      conversationId: request.conversationId,
+      expectedConversationRevision: request.expectedConversationRevision,
+      targetLanguage: request.targetLanguage,
+      approvedPatientText: request.approvedPatientText,
+      source: "tts",
+    });
+
+    await expect(configured.outbound.send(request)).resolves.toMatchObject({
+      status: "partial_failure",
+      failedParts: ["voice"],
+      text: { providerMessageId: "9001" },
+    });
+    await expect(configured.outbound.send(request)).resolves.toMatchObject({
+      status: "sent",
+      text: { providerMessageId: "9001" },
+      voice: { providerMessageId: "9003" },
+    });
+
+    expect(adapter.sendText).toHaveBeenCalledTimes(1);
+    expect(adapter.sendVoice).toHaveBeenCalledTimes(2);
+  });
 });

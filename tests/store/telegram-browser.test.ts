@@ -103,6 +103,7 @@ describe("Telegram browser store", () => {
       },
       speechArtifacts: {},
       pendingDelivery: null,
+      deliveryNotice: null,
     });
   });
 
@@ -313,6 +314,7 @@ describe("Telegram browser store", () => {
       send: vi.fn().mockResolvedValue({
         deliveryIds: ["send-42"],
         status: "failed",
+        failedParts: ["text"],
       }),
       reconcile: vi.fn(),
     };
@@ -339,6 +341,91 @@ describe("Telegram browser store", () => {
     expect(outboundClient.send).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ requestId: "send-42" }),
+      undefined,
+    );
+  });
+
+  it("persists a partial delivery and retries the original request ID and mode", async () => {
+    const server = await telegramServerState();
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 1,
+        state: server,
+      }),
+    };
+    const outboundClient: TelegramOutboundClient = {
+      prepareVoice: vi.fn().mockResolvedValue({
+        requestId: "send-both",
+        source: "tts",
+        status: "ready",
+      }),
+      send: vi
+        .fn()
+        .mockResolvedValueOnce({
+          deliveryIds: ["send-both"],
+          status: "partial_failure",
+          text: {
+            providerMessageId: "9001",
+            acceptedAt: "2026-07-13T12:01:00.000Z",
+          },
+          failedParts: ["voice"],
+        })
+        .mockResolvedValueOnce({
+          deliveryIds: ["send-both"],
+          status: "sent",
+          text: {
+            providerMessageId: "9001",
+            acceptedAt: "2026-07-13T12:01:00.000Z",
+          },
+          voice: {
+            providerMessageId: "9002",
+            acceptedAt: "2026-07-13T12:02:00.000Z",
+          },
+        }),
+      reconcile: vi.fn(),
+    };
+    const storage = new MemoryStorage();
+    const store = createAppStore(storage, { outboundClient, workspaceClient });
+    await store.getState().refreshTelegramWorkspace();
+
+    const first = await store.getState().sendVisitorReply({
+      requestId: "send-both",
+      conversationId: "telegram-conversation:-10042",
+      kind: "reply",
+      text: "Klinik akan menghubungi anda.",
+      deliveryMode: "both",
+      voiceSource: "tts",
+    });
+
+    expect(first.ok).toBe(false);
+    expect(store.getState().telegramWorkspace.deliveryNotice).toMatchObject({
+      requestId: "send-both",
+      mode: "both",
+      status: "partial_failure",
+      failedParts: ["voice"],
+    });
+
+    const reloadedStore = createAppStore(storage, {
+      outboundClient,
+      workspaceClient,
+    });
+    expect(reloadedStore.getState().telegramWorkspace.deliveryNotice).toMatchObject({
+      requestId: "send-both",
+      status: "partial_failure",
+      failedParts: ["voice"],
+    });
+
+    await expect(reloadedStore.getState().retryTelegramDelivery()).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(outboundClient.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        requestId: "send-both",
+        mode: "both",
+        voiceSource: "tts",
+      }),
       undefined,
     );
   });

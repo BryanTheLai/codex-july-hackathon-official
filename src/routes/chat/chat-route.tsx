@@ -35,6 +35,9 @@ export default function ChatRoute() {
     (store) => store.generateAgentDraft,
   );
   const sendVisitorReply = useAppStore((store) => store.sendVisitorReply);
+  const retryTelegramDelivery = useAppStore(
+    (store) => store.retryTelegramDelivery,
+  );
   const refreshTelegramWorkspace = useAppStore(
     (store) => store.refreshTelegramWorkspace,
   );
@@ -53,6 +56,12 @@ export default function ChatRoute() {
   );
   const pendingTelegramDelivery = useAppStore(
     (store) => store.telegramWorkspace.pendingDelivery,
+  );
+  const telegramDeliveryNotice = useAppStore(
+    (store) => store.telegramWorkspace.deliveryNotice,
+  );
+  const telegramWorkspaceRevision = useAppStore(
+    (store) => store.telegramWorkspace.workspaceRevision,
   );
   const telegramSpeechArtifacts = useAppStore(
     (store) => store.telegramWorkspace.speechArtifacts,
@@ -153,6 +162,61 @@ export default function ChatRoute() {
     visible.find((conversation) => conversation.id === state.selections.conversationId) ??
     visible[0];
   const visibleIds = visible.map((conversation) => conversation.id).join("|");
+  const failedSpeechConversationId = useMemo(
+    () =>
+      state.conversations.find((conversation) =>
+        conversation.messages.some(
+          (message) => telegramSpeechArtifacts[message.id]?.status === "failed",
+        ),
+      )?.id ?? null,
+    [state.conversations, telegramSpeechArtifacts],
+  );
+  const failedDelivery = telegramDeliveryNotice?.status === "partial_failure" ||
+    telegramDeliveryNotice?.status === "failed";
+  const needsAttention =
+    failedDelivery ||
+    pendingTelegramDelivery !== null ||
+    failedSpeechConversationId !== null;
+  const connectionStatus = telegramWorkspaceStatus === "error"
+    ? "offline"
+    : needsAttention || telegramWorkspaceRevision === null
+      ? "attention"
+      : "connected";
+  const connectionLabel = connectionStatus === "connected"
+    ? "Connected"
+    : connectionStatus === "offline"
+      ? "Offline"
+      : "Attention needed";
+  const deliveryStatusLabel = telegramDeliveryNotice?.status === "partial_failure"
+    ? "Partial failure"
+    : telegramDeliveryNotice?.status === "failed"
+      ? "Failed"
+      : telegramDeliveryNotice?.status === "voice_sent"
+        ? "Voice sent"
+        : telegramDeliveryNotice?.status === "sent"
+          ? "Sent"
+          : telegramDeliveryNotice?.status === "sending"
+            ? "Sending"
+            : null;
+  const statusDetail = telegramWorkspaceStatus === "error"
+    ? "Inbox refresh failed. Staff actions are paused until it reconnects."
+    : failedDelivery
+      ? `${deliveryStatusLabel}: ${telegramDeliveryNotice.message}`
+      : pendingTelegramDelivery
+        ? "A Telegram message was accepted and is waiting for inbox synchronization. Do not resend it."
+        : failedSpeechConversationId
+          ? "A voice transcription needs staff attention."
+          : telegramDeliveryNotice
+            ? `${deliveryStatusLabel}: ${telegramDeliveryNotice.message}`
+            : telegramWorkspaceRevision === null
+              ? "Waiting for the first successful Telegram inbox refresh."
+              : "Inbox synchronization is healthy.";
+  const issueConversationId = failedDelivery
+    ? telegramDeliveryNotice.conversationId
+    : failedSpeechConversationId;
+  const retryLabel = telegramDeliveryNotice?.failedParts.length
+    ? `Retry failed ${telegramDeliveryNotice.failedParts.join(" and ")}`
+    : "Retry original delivery";
 
   useEffect(() => {
     if (
@@ -319,6 +383,36 @@ export default function ChatRoute() {
         syncPending={pendingTelegramDelivery !== null}
         view={view}
       />
+      <section
+        aria-label="Telegram connection and delivery status"
+        aria-live="polite"
+        className={`telegram-status-banner telegram-status-banner--${connectionStatus}`}
+        role="status"
+      >
+        <span className="telegram-status-banner__indicator" />
+        <div className="telegram-status-banner__copy">
+          <strong>{connectionLabel}</strong>
+          <span>{statusDetail}</span>
+        </div>
+        {issueConversationId ? (
+          <button
+            className="chat-text-button"
+            onClick={() => openConversation(issueConversationId)}
+            type="button"
+          >
+            Open affected conversation
+          </button>
+        ) : null}
+        {failedDelivery && telegramDeliveryNotice ? (
+          <button
+            className="chat-button"
+            onClick={() => void retryTelegramDelivery()}
+            type="button"
+          >
+            {retryLabel}
+          </button>
+        ) : null}
+      </section>
       <div aria-label="Chat workbench" className={`chat-workbench chat-workbench--${view}`}>
         {view === "schedule" ? (
           <SchedulePane

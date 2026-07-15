@@ -788,6 +788,7 @@ function SpeechMessageControls({
     signal?: AbortSignal,
   ) => Promise<MutationResult>;
 }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [transcript, setTranscript] = useState(
     message.text.startsWith("Voice note awaiting") ? "" : message.text,
@@ -807,6 +808,17 @@ function SpeechMessageControls({
       setError(result.error);
     }
     setIsWorking(false);
+  };
+  const play = async () => {
+    if (!audioRef.current) {
+      setError("Voice playback is not ready. Try again in a moment.");
+      return;
+    }
+    try {
+      await audioRef.current.play();
+    } catch {
+      setError("Voice playback failed. Retry transcription or enter a manual transcript.");
+    }
   };
   const saveManual = async () => {
     if (!onSaveManualTranscript || !transcript.trim() || !language.trim() || isWorking) {
@@ -832,7 +844,14 @@ function SpeechMessageControls({
         <Mic aria-hidden="true" size={13} />
         <span>Voice {artifact.status}</span>
       </div>
-      <audio controls preload="none" src={`/api/telegram/speech/${encodeURIComponent(message.id)}/audio`}>
+      <button onClick={() => void play()} type="button">Play voice</button>
+      <audio
+        controls
+        onError={() => setError("Voice playback failed. Retry transcription or enter a manual transcript.")}
+        preload="none"
+        ref={audioRef}
+        src={`/api/telegram/speech/${encodeURIComponent(message.id)}/audio`}
+      >
         Voice playback is not available in this browser.
       </audio>
       {artifact.status === "failed" && onRetrySpeech ? (

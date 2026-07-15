@@ -11,10 +11,12 @@ import {
   type WorkspaceClient,
 } from "../services/api-client";
 import type { TelegramVoiceSource } from "../contracts/channel";
+import type { OutboundSendResult } from "../contracts/api";
 import { isAbortError } from "../shared/errors";
 import { applyMutation } from "./apply-mutation";
 import type { AppStateRepository } from "./repository";
 import type {
+  TelegramDeliveryNotice,
   TelegramWorkspaceRepository,
   TelegramWorkspaceState,
 } from "./telegram-workspace-repository";
@@ -49,6 +51,46 @@ function failed(
   return { ok: false, state, error };
 }
 
+type DeliveryContext = Pick<
+  TelegramDeliveryNotice,
+  | "conversationId"
+  | "requestId"
+  | "targetLanguage"
+  | "approvedPatientText"
+  | "mode"
+  | "voiceSource"
+>;
+
+function deliveryPartLabel(parts: Array<"text" | "voice">): string {
+  if (parts.length === 2) {
+    return "text and voice";
+  }
+  return parts[0] ?? "delivery";
+}
+
+type AcceptedOutboundResult = Exclude<
+  OutboundSendResult,
+  { status: "failed" }
+>;
+
+function sentParts(result: AcceptedOutboundResult): Array<"text" | "voice"> {
+  return [
+    ...(result.text ? ["text" as const] : []),
+    ...(result.voice ? ["voice" as const] : []),
+  ];
+}
+
+function sentMessage(result: AcceptedOutboundResult): string {
+  const parts = sentParts(result);
+  if (parts.length === 2) {
+    return "Text and voice sent.";
+  }
+  if (parts[0] === "voice") {
+    return "Voice sent.";
+  }
+  return "Sent.";
+}
+
 export function createTelegramActions({
   getState,
   getTelegramWorkspace,
@@ -64,6 +106,40 @@ export function createTelegramActions({
   ) => {
     set({ telegramWorkspace });
     telegramWorkspaceRepository.save(telegramWorkspace);
+  };
+
+  const setDeliveryNotice = (notice: TelegramDeliveryNotice) => {
+    set({ lastFeedback: notice.message });
+    setTelegramWorkspace({
+      ...getTelegramWorkspace(),
+      deliveryNotice: notice,
+    });
+  };
+
+  const noticeFor = (
+    context: DeliveryContext,
+    status: TelegramDeliveryNotice["status"],
+    message: string,
+    failedParts: Array<"text" | "voice"> = [],
+    retryStage: TelegramDeliveryNotice["retryStage"] = "send",
+  ): TelegramDeliveryNotice => ({
+    ...context,
+    status,
+    retryStage,
+    failedParts,
+    message,
+  });
+
+  const failedDelivery = (
+    context: DeliveryContext,
+    message: string,
+    failedParts: Array<"text" | "voice"> = [],
+    retryStage: TelegramDeliveryNotice["retryStage"] = "send",
+  ): MutationResult => {
+    setDeliveryNotice(
+      noticeFor(context, "failed", message, failedParts, retryStage),
+    );
+    return failed(getState(), message);
   };
 
   const refreshTelegramWorkspace = async (
@@ -129,6 +205,100 @@ export function createTelegramActions({
     }
   };
 
+  const settleOutboundDelivery = async (
+    context: DeliveryContext,
+    result: OutboundSendResult,
+    signal?: AbortSignal,
+  ): Promise<MutationResult> => {
+    const failedParts = result.status === "sent" ? [] : result.failedParts ?? [];
+    if (result.status === "failed") {
+      const message = `${deliveryPartLabel(failedParts)} delivery failed before confirmation. Retry checks the original request and sends only unsent parts.`;
+      return failedDelivery(context, message, failedParts);
+    }
+
+    const deliveryId = result.deliveryIds[0]!;
+    const pendingDelivery = result.text
+      ? { conversationId: context.conversationId, deliveryId }
+      : null;
+    const refreshed = await refreshTelegramWorkspace(signal);
+    const partialMessage = result.status === "partial_failure"
+      ? `${deliveryPartLabel(sentParts(result))} sent; ${deliveryPartLabel(failedParts)} failed. Retry only the failed ${deliveryPartLabel(failedParts)} part.`
+      : "";
+
+    if (!refreshed.ok) {
+      const message = result.status === "partial_failure"
+        ? `${partialMessage} Inbox refresh is pending; do not resend the successful part.`
+        : `Telegram accepted the ${deliveryPartLabel(sentParts(result))} delivery, but inbox refresh is pending. Do not resend.`;
+      setDeliveryNotice(
+        noticeFor(
+          context,
+          result.status === "partial_failure" ? "partial_failure" : result.voice && !result.text ? "voice_sent" : "sent",
+          message,
+          result.status === "partial_failure" ? failedParts : [],
+        ),
+      );
+      setTelegramWorkspace({
+        ...getTelegramWorkspace(),
+        pendingDelivery,
+      });
+      return result.status === "partial_failure"
+        ? failed(getState(), message)
+        : { ok: true, state: getState() };
+    }
+
+    if (result.text) {
+      const linkedMessageId = `telegram-delivery:${deliveryId}:text`;
+      const linked = getState().conversations
+        .find((item) => item.id === context.conversationId)
+        ?.messages.some((message) => message.id === linkedMessageId);
+      if (!linked) {
+        const message = result.status === "partial_failure"
+          ? `${partialMessage} Text synchronization is pending; do not resend the successful part.`
+          : `Telegram accepted the ${deliveryPartLabel(sentParts(result))} delivery, but text synchronization is pending. Do not resend.`;
+        setDeliveryNotice(
+          noticeFor(
+            context,
+            result.status === "partial_failure" ? "partial_failure" : "sent",
+            message,
+            result.status === "partial_failure" ? failedParts : [],
+          ),
+        );
+        setTelegramWorkspace({
+          ...getTelegramWorkspace(),
+          pendingDelivery,
+        });
+        return result.status === "partial_failure"
+          ? failed(getState(), message)
+          : { ok: true, state: getState() };
+      }
+    }
+
+    setTelegramWorkspace({
+      ...getTelegramWorkspace(),
+      pendingDelivery: null,
+    });
+    if (result.status === "partial_failure") {
+      setDeliveryNotice(
+        noticeFor(
+          context,
+          "partial_failure",
+          partialMessage,
+          failedParts,
+        ),
+      );
+      return failed(getState(), partialMessage);
+    }
+    const message = sentMessage(result);
+    setDeliveryNotice(
+      noticeFor(
+        context,
+        result.voice && !result.text ? "voice_sent" : "sent",
+        message,
+      ),
+    );
+    return refreshed;
+  };
+
   return {
     refreshTelegramWorkspace,
 
@@ -159,12 +329,6 @@ export function createTelegramActions({
           "Staff reply sent.",
         );
       }
-      if (revision === undefined) {
-        const message =
-          "Refresh the Telegram inbox before sending this message.";
-        set({ lastFeedback: message });
-        return failed(getState(), message);
-      }
       const approvedPatientText =
         input.translation?.text.trim() ?? input.text.trim();
       const targetLanguage =
@@ -173,13 +337,38 @@ export function createTelegramActions({
         "English";
       const deliveryMode = input.deliveryMode ?? "text";
       const voiceSource = input.voiceSource ?? "tts";
+      const context: DeliveryContext = {
+        conversationId: input.conversationId,
+        requestId: input.requestId,
+        targetLanguage,
+        approvedPatientText,
+        mode: deliveryMode,
+        voiceSource: deliveryMode === "text" ? null : voiceSource,
+      };
+      const requestedParts = deliveryMode === "both"
+        ? ["text", "voice"] as Array<"text" | "voice">
+        : [deliveryMode];
+      if (revision === undefined) {
+        const message =
+          "Refresh the Telegram inbox before sending this message.";
+        return failedDelivery(context, message, requestedParts);
+      }
+
+      setDeliveryNotice(
+        noticeFor(
+          context,
+          "sending",
+          deliveryMode === "text" ? "Sending text reply." : "Preparing voice reply.",
+          [],
+          deliveryMode === "text" ? "send" : "voice_prepare",
+        ),
+      );
 
       try {
         if (deliveryMode !== "text") {
           if (!outboundClient.prepareVoice) {
             const message = "Telegram voice preparation is unavailable.";
-            set({ lastFeedback: message });
-            return failed(getState(), message);
+            return failedDelivery(context, message, ["voice"], "voice_prepare");
           }
           const prepared = await outboundClient.prepareVoice(
             {
@@ -195,8 +384,7 @@ export function createTelegramActions({
           if (prepared.status === "recording_required") {
             if (!input.voiceRecording || !outboundClient.uploadRecordedVoice) {
               const message = "Record a staff voice reply before sending.";
-              set({ lastFeedback: message });
-              return failed(getState(), message);
+              return failedDelivery(context, message, ["voice"], "voice_prepare");
             }
             await outboundClient.uploadRecordedVoice(
               input.requestId,
@@ -207,81 +395,17 @@ export function createTelegramActions({
         }
         const result = await outboundClient.send(
           {
-            requestId: input.requestId,
-            conversationId: input.conversationId,
+            requestId: context.requestId,
+            conversationId: context.conversationId,
             expectedConversationRevision: revision,
-            targetLanguage,
-            approvedPatientText,
-            mode: deliveryMode,
-            voiceSource: deliveryMode === "text" ? undefined : voiceSource,
+            targetLanguage: context.targetLanguage,
+            approvedPatientText: context.approvedPatientText,
+            mode: context.mode,
+            voiceSource: context.voiceSource ?? undefined,
           },
           signal,
         );
-        if (result.status === "failed") {
-          const message =
-            "Telegram did not accept the message. Retry sends the same approved request.";
-          set({ lastFeedback: message });
-          return failed(getState(), message);
-        }
-
-        const deliveryId = result.deliveryIds[0]!;
-        const pendingDelivery = result.text ? {
-          conversationId: input.conversationId,
-          deliveryId,
-        } : null;
-        const refreshed = await refreshTelegramWorkspace(signal);
-        if (!refreshed.ok) {
-          set({
-            lastFeedback:
-              "Telegram accepted the message, but Chat refresh failed. Refresh the inbox; do not resend.",
-          });
-          setTelegramWorkspace({
-            ...getTelegramWorkspace(),
-            pendingDelivery,
-          });
-          return { ok: true, state: getState() };
-        }
-        if (!result.text) {
-          if (result.status === "partial_failure") {
-            const message = "Voice reply was not accepted. Retry sends only the failed voice part.";
-            set({ lastFeedback: message });
-            return failed(getState(), message);
-          }
-          setTelegramWorkspace({
-            ...getTelegramWorkspace(),
-            pendingDelivery: null,
-          });
-          set({ lastFeedback: "Telegram voice reply sent." });
-          return refreshed;
-        }
-        const linkedMessageId = `telegram-delivery:${deliveryId}:text`;
-        const linked = getState().conversations
-          .find(
-            (item) => item.id === input.conversationId,
-          )
-          ?.messages.some((message) => message.id === linkedMessageId);
-        if (!linked) {
-          set({
-            lastFeedback:
-              "Telegram sent the message, but Chat sync is pending. Use the sync action; do not resend.",
-          });
-          setTelegramWorkspace({
-            ...getTelegramWorkspace(),
-            pendingDelivery,
-          });
-          return { ok: true, state: getState() };
-        }
-        setTelegramWorkspace({
-          ...getTelegramWorkspace(),
-          pendingDelivery: null,
-        });
-        if (result.status === "partial_failure") {
-          const message = "Text reply sent; voice was not accepted. Retry sends only the failed voice part.";
-          set({ lastFeedback: message });
-          return failed(getState(), message);
-        }
-        set({ lastFeedback: "Telegram reply sent." });
-        return refreshed;
+        return settleOutboundDelivery(context, result, signal);
       } catch (error) {
         if (isAbortError(error)) {
           throw error;
@@ -293,15 +417,124 @@ export function createTelegramActions({
           await refreshTelegramWorkspace(signal);
           const message =
             "Conversation changed. Review the refreshed thread and retry.";
-          set({ lastFeedback: message });
-          return failed(getState(), message);
+          return failedDelivery(context, message, requestedParts);
+        }
+        if (error instanceof ApiClientError && error.code === "feature_disabled") {
+          return failedDelivery(context, error.message, requestedParts);
         }
         const message =
           error instanceof ApiClientError
             ? error.message
             : "The Telegram send request failed.";
+        return failedDelivery(
+          context,
+          `${message} Delivery status is unknown. Retry checks the original request and sends only unsent parts.`,
+          [],
+          deliveryMode === "text" ? "send" : "voice_prepare",
+        );
+      }
+    },
+
+    async retryTelegramDelivery(
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      const notice = getTelegramWorkspace().deliveryNotice;
+      if (
+        !notice ||
+        (notice.status !== "partial_failure" && notice.status !== "failed")
+      ) {
+        const message = "No failed Telegram delivery is available to retry.";
         set({ lastFeedback: message });
         return failed(getState(), message);
+      }
+      const revision = getTelegramWorkspace().conversationRevisions[
+        notice.conversationId
+      ];
+      if (revision === undefined) {
+        const message = "Refresh the Telegram inbox before retrying this delivery.";
+        return failedDelivery(notice, message, notice.failedParts);
+      }
+      const requestedParts = notice.mode === "both"
+        ? ["text", "voice"] as Array<"text" | "voice">
+        : [notice.mode];
+      setDeliveryNotice(
+        noticeFor(
+          notice,
+          "sending",
+          "Retrying the original approved delivery.",
+          [],
+          notice.retryStage,
+        ),
+      );
+      try {
+        if (notice.mode !== "text" && notice.retryStage === "voice_prepare") {
+          if (!outboundClient.prepareVoice || !notice.voiceSource) {
+            return failedDelivery(
+              notice,
+              "Telegram voice preparation is unavailable.",
+              ["voice"],
+              "voice_prepare",
+            );
+          }
+          const prepared = await outboundClient.prepareVoice(
+            {
+              requestId: notice.requestId,
+              conversationId: notice.conversationId,
+              expectedConversationRevision: revision,
+              targetLanguage: notice.targetLanguage,
+              approvedPatientText: notice.approvedPatientText,
+              source: notice.voiceSource,
+            },
+            signal,
+          );
+          if (prepared.status === "recording_required") {
+            return failedDelivery(
+              notice,
+              "The original staff recording is unavailable. Open the conversation and record it again before retrying.",
+              ["voice"],
+              "voice_prepare",
+            );
+          }
+        }
+        const result = await outboundClient.send(
+          {
+            requestId: notice.requestId,
+            conversationId: notice.conversationId,
+            expectedConversationRevision: revision,
+            targetLanguage: notice.targetLanguage,
+            approvedPatientText: notice.approvedPatientText,
+            mode: notice.mode,
+            voiceSource: notice.voiceSource ?? undefined,
+          },
+          signal,
+        );
+        return settleOutboundDelivery(notice, result, signal);
+      } catch (error) {
+        if (isAbortError(error)) {
+          throw error;
+        }
+        if (
+          error instanceof ApiClientError &&
+          error.code === "revision_conflict"
+        ) {
+          await refreshTelegramWorkspace(signal);
+          const message =
+            "Conversation changed. Review the refreshed thread and retry.";
+          return failedDelivery(notice, message, requestedParts);
+        }
+        if (error instanceof ApiClientError && error.code === "feature_disabled") {
+          return failedDelivery(notice, error.message, requestedParts);
+        }
+        const message =
+          error instanceof ApiClientError
+            ? error.message
+            : "The Telegram retry request failed.";
+        return failedDelivery(
+          notice,
+          `${message} Delivery status is unknown. Retry checks the original request and sends only unsent parts.`,
+          [],
+          notice.mode === "text" ? "send" : notice.retryStage,
+        );
       }
     },
 

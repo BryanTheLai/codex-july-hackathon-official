@@ -61,6 +61,7 @@ describe("Telegram workspace repository", () => {
         conversationId: "telegram-conversation:-10042",
         deliveryId: "send-42",
       },
+    deliveryNotice: null,
     });
 
     expect(repository.load()).toEqual({
@@ -74,6 +75,7 @@ describe("Telegram workspace repository", () => {
         conversationId: "telegram-conversation:-10042",
         deliveryId: "send-42",
       },
+      deliveryNotice: null,
     });
   });
 
