@@ -6,16 +6,17 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop and direct-OpenAI inbound voice bridge are implemented with mocked-provider proof; live credentials, public deployment, authentication, and provider-quality proof remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. Authentication, outbound delivery proof, and agent/Eval provider-quality proof remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
-last_updated: "2026-07-14"
-last_verified: "2026-07-14"
+last_updated: "2026-07-15"
+last_verified: "2026-07-15"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "Browser and live-provider verification remain pending"
+  - "427 automated tests, 18 Playwright executions with three intentional skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
+  - "Live agent/Eval runs, translation, TTS, and outbound delivery remain pending"
 sources_consulted:
   - "PROJECT.md"
   - "SOUL.md"
@@ -80,19 +81,20 @@ git history only.
 
 ## Approved hackathon POC
 
-Current code: three-table Supabase wedge, Telegram text plus automatic inbound voice download,
-OGG/Opus-to-WebM conversion, direct-OpenAI transcription and English gloss, shared Chat and Eval
-runner, immutable server Eval evidence, and a server-authoritative Dream release loop.
+Current code: a live three-table Supabase workspace, protected Telegram text plus automatic inbound
+voice download, OGG/Opus-to-WebM conversion, direct-OpenAI transcription and English gloss, shared
+Chat and Eval runner, immutable server Eval evidence, and a server-authoritative Dream release loop.
 Markdown import, an accepted correction, or a Dream draft creates an inactive whole-playbook
 version. A configured LLM proposes one exact, reviewable diff; affected train cases must pass
 before a full train-plus-holdout replay can mark the version Ready. Human activation updates the
 bundle used by Chat, and one click restores the prior SOP as a new immutable version. Verification
-uses mocked providers; live Supabase, Telegram, LLM quality, browser retry controls, TTS, outbound
-voice, authentication, and public deployment proof remain.
+uses mocked providers. Live Supabase, protected Telegram text, and one live English voice
+transcription are verified; live agent/Eval quality, translation, TTS, outbound voice, and
+authentication remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
-- Post-MVP backlog (read-only MCP first): `PROJECT.md` section 16
+- Post-MVP backlog and the DigitalOcean inference-switch TODO: `PROJECT.md` section 16
 - Channel, hosting research, Meta boundary: `PROJECT.md` section 17
 
 The deterministic Analyze failures path remains a no-provider fallback. With `LLM_API_KEY`
@@ -192,8 +194,9 @@ Telegram documents `secret_token` and the matching
 `X-Telegram-Bot-Api-Secret-Token` header under
 [setWebhook](https://core.telegram.org/bots/api#setwebhook).
 
-Keep `LIVE_TELEGRAM_ENABLED=false` while testing inbound messages. Set it to `true` only when the
-visitor-approved outbound send path is ready to contact the bot chat.
+Keep `LIVE_TELEGRAM_ENABLED=false` for a local or separate test bot. The deployed controlled demo
+currently uses `true`; staff must still explicitly approve every outbound send. Do not test a real
+outbound reply until the target chat and exact message are approved.
 
 If a process crashes while a delivery is `sending`, fail closed. Do not auto-resend. Inspect the
 delivery record before any manual recovery. Telegram Bot API has no request idempotency key that
@@ -331,8 +334,8 @@ and exact-send flow, and the full Chat to Eval to Dream flow with browser API fi
 
 The repository proves the local synthetic workflow, the same-origin judge contract, deterministic
 simulated-judge behavior, fixed-workspace CAS and reset behavior, the three-table PostgreSQL
-migration, mocked Telegram inbound and exact outbound text transport, and the responsive frontend
-contract. It does not prove a live Supabase project, live Telegram provider compatibility, live
-OpenAI quality or availability, authentication, clinical integration, a deployed shared database,
-production capacity, or real patient contact. `PROJECT.md` section 16 separates approved POC work
-from post-POC gaps. `PROJECT.md` section 17 holds channel and Meta research.
+migration, responsive frontend contract, deployed DigitalOcean health/readiness, live Supabase
+persistence, protected Telegram inbound text, and one live English Whisper transcription. It does
+not prove live agent/Eval quality or availability, translation, TTS, outbound Telegram delivery,
+authentication, clinical integration, production capacity, or real-patient operation.
+`PROJECT.md` section 16 separates verified behavior, deferred TODOs, and post-POC gaps.
