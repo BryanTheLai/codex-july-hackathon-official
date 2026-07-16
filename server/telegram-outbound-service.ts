@@ -27,7 +27,10 @@ import {
   type DeliveryReceipt,
   type TelegramVoiceSource,
 } from "../src/contracts/channel";
-import { linkAcceptedTelegramOutboundText } from "../src/domain";
+import {
+  linkAcceptedTelegramOutboundText,
+  linkAcceptedTelegramOutboundVoice,
+} from "../src/domain";
 import { TelegramAdapterError } from "./telegram-adapter";
 import type { TtsProvider } from "./openai-tts-provider";
 import type {
@@ -147,6 +150,10 @@ function sha256(value: string): string {
 
 function messageId(requestId: string): string {
   return `telegram-delivery:${requestId}:text`;
+}
+
+function voiceMessageId(requestId: string): string {
+  return `telegram-delivery:${requestId}:voice`;
 }
 
 function receiptFromDelivery(
@@ -346,6 +353,53 @@ export function createTelegramOutboundService({
     return null;
   };
 
+  const syncAcceptedVoice = async (
+    delivery: TelegramDeliveryRecord,
+  ): Promise<number | null> => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const workspace = await workspaceRepository.load(workspaceId);
+      if (!workspace) {
+        throw new TelegramOutboundError("not_found", "Workspace not found", false);
+      }
+      const conversation = workspace.state.conversations.find(
+        (item) => item.id === delivery.conversationId,
+      );
+      if (!conversation) {
+        throw new TelegramOutboundError("not_found", "Conversation not found", false);
+      }
+      const linkedMessageId = voiceMessageId(delivery.requestId);
+      if (conversation.messages.some((message) => message.id === linkedMessageId)) {
+        await deliveryRepository.markSynced(delivery.requestId, "voice");
+        return workspace.revision;
+      }
+      const mutation = linkAcceptedTelegramOutboundVoice(workspace.state, {
+        conversationId: delivery.conversationId,
+        messageId: linkedMessageId,
+        deliveryId: delivery.requestId,
+        text:
+          delivery.voiceSource === "recorded"
+            ? "Staff-recorded voice reply."
+            : "AI-generated voice reply.",
+        language: delivery.targetLanguage,
+        sentAt: receiptFromDelivery(delivery).acceptedAt,
+        voiceSource: delivery.voiceSource ?? "tts",
+      });
+      if (!mutation.ok) {
+        throw new TelegramOutboundError("invalid_request", mutation.error, false);
+      }
+      const saved = await workspaceRepository.save(
+        workspaceId,
+        workspace.revision,
+        mutation.state,
+      );
+      if (saved.ok) {
+        await deliveryRepository.markSynced(delivery.requestId, "voice");
+        return saved.workspace.revision;
+      }
+    }
+    return null;
+  };
+
   const sendPart = async (
     request: OutboundSendRequest,
     target: Target,
@@ -359,6 +413,9 @@ export function createTelegramOutboundService({
     if (delivery.status === "sent") {
       if (part === "text" && delivery.workspaceSyncStatus === "pending") {
         await syncAcceptedText(delivery);
+      }
+      if (part === "voice" && delivery.workspaceSyncStatus === "pending") {
+        await syncAcceptedVoice(delivery);
       }
       return { status: "sent", part, receipt: receiptFromDelivery(delivery) };
     }
@@ -388,8 +445,10 @@ export function createTelegramOutboundService({
         true,
       );
     }
+    let receipt: DeliveryReceipt;
+    let sent: TelegramDeliveryRecord;
     try {
-      const receipt =
+      receipt =
         part === "text"
           ? await adapter.sendText(
               target.externalConversationId,
@@ -407,13 +466,7 @@ export function createTelegramOutboundService({
               },
               request.requestId,
             );
-      const sent = await deliveryRepository.markSent(request.requestId, part, receipt);
-      if (part === "text") {
-        await syncAcceptedText(sent);
-      } else {
-        await deliveryRepository.markSynced(request.requestId, "voice");
-      }
-      return { status: "sent", part, receipt };
+      sent = await deliveryRepository.markSent(request.requestId, part, receipt);
     } catch (error) {
       await deliveryRepository.markFailed(
         request.requestId,
@@ -422,6 +475,12 @@ export function createTelegramOutboundService({
       );
       return { status: "failed", part };
     }
+    if (part === "text") {
+      await syncAcceptedText(sent);
+    } else {
+      await syncAcceptedVoice(sent);
+    }
+    return { status: "sent", part, receipt };
   };
 
   return {
@@ -570,8 +629,12 @@ export function createTelegramOutboundService({
       if (existing.every((delivery) => delivery?.status === "sent")) {
         const sentDeliveries = existing as TelegramDeliveryRecord[];
         const textDelivery = sentDeliveries.find((item) => item.part === "text");
+        const voiceDelivery = sentDeliveries.find((item) => item.part === "voice");
         if (textDelivery?.workspaceSyncStatus === "pending") {
           await syncAcceptedText(textDelivery);
+        }
+        if (voiceDelivery?.workspaceSyncStatus === "pending") {
+          await syncAcceptedVoice(voiceDelivery);
         }
         return resultFromAttempts(
           request.requestId,

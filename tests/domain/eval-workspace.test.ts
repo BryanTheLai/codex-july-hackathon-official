@@ -5,7 +5,9 @@ import {
   createCanonicalSeed,
   createCanonicalServerState,
   freezeEvalSuiteSnapshot,
+  mergeTelegramInboundText,
   projectEvalSuiteArtifacts,
+  projectServerWorkspace,
   projectEvalWorkspaceArtifacts,
 } from "../../src/domain";
 
@@ -226,6 +228,62 @@ describe("Eval workspace projection", () => {
     expect(
       result.state.evalDatasets[0]!.suiteSnapshots,
     ).toHaveLength(0);
+  });
+
+  it("projects a live Telegram conversation without hiding refreshed Dream corrections", async () => {
+    const local = createCanonicalSeed();
+    const inbound = mergeTelegramInboundText(
+      await createCanonicalServerState(),
+      {
+        channel: "telegram",
+        externalEventId: "telegram-update-1",
+        externalConversationId: "telegram-chat-1",
+        externalMessageId: "telegram-message-1",
+        sender: {
+          externalId: "telegram-user-1",
+          displayName: "Telegram smoke tester",
+        },
+        message: {
+          kind: "text",
+          text: "Live Telegram test",
+          language: "en",
+        },
+        receivedAt: "2026-07-16T00:00:00.000Z",
+      },
+    );
+    expect(inbound.ok).toBe(true);
+    if (!inbound.ok) return;
+    inbound.state.corrections.push({
+      id: "corr-live-model",
+      fileId: "file-triage",
+      oldText: "Seek urgent care for chest pain.",
+      newText: "For chest pain, call Malaysia's emergency number, 999.",
+      evidence: "Live configured-model smoke",
+      status: "pending",
+      sourceCaseId: "case-emergency-train",
+    });
+
+    const result = projectServerWorkspace(local, inbound.state);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.state.conversations.find(
+        (conversation) => conversation.id === "telegram-conversation:telegram-chat-1",
+      ),
+    ).toMatchObject({
+      channel: "Telegram",
+      agentMode: "synthetic_agent",
+      patient: { phone: "", medicalRecordNumber: "" },
+    });
+    expect(result.state.corrections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "corr-live-model",
+          newText: "For chest pain, call Malaysia's emergency number, 999.",
+        }),
+      ]),
+    );
   });
 
   it("rejects committed server evidence that cannot project locally", async () => {

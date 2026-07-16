@@ -300,7 +300,7 @@ export function PatientRail({
             {conversation.booking.status === "pending" ? (
               <div className="rail-action-row">
                 <ConfirmAction
-                  confirmLabel="Confirm and notify"
+                  confirmLabel="Confirm booking"
                   description={
                     approvalPreview.ok
                       ? `${approvalPreview.preview.text}${
@@ -321,7 +321,7 @@ export function PatientRail({
                   }
                 />
                 <ConfirmAction
-                  confirmLabel="Reject and notify"
+                  confirmLabel="Reject booking"
                   description={
                     rejectionPreview.ok
                       ? `${rejectionPreview.preview.text}${

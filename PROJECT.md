@@ -5,17 +5,17 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, and complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle are implemented. The fixed demo workspace is deployed on DigitalOcean App Platform with live Supabase persistence, a protected Telegram webhook, live inbound text, and live inbound Whisper transcription. Dashboard authentication, real outbound delivery proof, and agent/Eval provider-quality proof remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, and idempotent Text, Voice, and Both delivery records. It retains the existing no-provider deterministic Analyze fallback. Authentication, multi-user authorization, and real outbound/provider-quality proof remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, and complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle are implemented. The fixed demo workspace is deployed on DigitalOcean App Platform with live Supabase persistence, a protected Telegram webhook, live inbound text, and live inbound Whisper transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. Dashboard authentication, booking dispatch/calendar files, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, and idempotent Text, Voice, and Both delivery records. It retains the existing no-provider deterministic Analyze fallback. Tested local patches persist accepted outbound voices in the reloadable conversation, provide server-backed playback, and let Dream/Eval project live Telegram records; they still need deployment. Authentication and multi-user authorization remain deferred."
 created: "2026-07-08"
-last_updated: "2026-07-15"
-last_verified: "2026-07-15"
-last_verified_scope: "Lint, typecheck, 427 automated tests, production build, 18 Playwright executions with three intentional skips, local and deployed health/readiness checks, live Supabase persistence, Telegram webhook authentication, live inbound text, and one live English voice transcription using whisper-1. Dream and Eval provider runs remain unproven against a live model."
+last_updated: "2026-07-16"
+last_verified: "2026-07-16"
+last_verified_scope: "Lint, typecheck, 430 automated tests, production build, 18 Playwright executions with three intentional skips, local and deployed health/readiness checks, live Supabase persistence, Telegram webhook authentication, live inbound text, English voice transcription using whisper-1, direct-OpenAI agent drafting, five-case Eval judging, an exact pending SOP proposal, outbound translation, Telegram text, TTS voice, and recorded-voice provider acceptance in the owner's test chat. The deployed build does not yet retain outbound voice messages after reload or project live Telegram state into Dream/Eval; the repository fixes are locally verified and awaiting deployment."
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
   - "DigitalOcean deployment, public health checks, live Supabase persistence, and protected Telegram inbound text and voice verification"
-  - "Live agent drafting, live Eval judging, translation, TTS, and outbound Telegram delivery remain deliberately unproven"
+  - "Controlled owner-chat provider smoke verified agent drafting, Eval judging, translation, TTS, and Telegram text/voice provider acceptance; local outbound-voice persistence/playback and live-Telegram Dream/Eval projection fixes remain to deploy"
   - "Independent cold-read design, behavior, and causal-honesty audit"
 routes:
   chat_control: "/"
@@ -2646,8 +2646,12 @@ browser-triggered synthetic reset pass the built-baseline acceptance gates in se
 2026-07-15, the same fixed workspace is deployed on DigitalOcean App Platform, `/healthz` and
 `/readyz` return 200, the Telegram webhook secret is accepted by the deployed endpoint, and a live
 Telegram text message plus a live English voice note were persisted through Supabase. The voice
-note reached a ready `whisper-1` artifact. Live agent drafting, live Eval judging, translation,
-TTS, and real outbound delivery remain outside those gates:
+note reached a ready `whisper-1` artifact. On 2026-07-16, a controlled smoke test against the
+owner's existing Telegram chat proved direct-OpenAI drafting, five configured Eval cases, an exact
+pending SOP proposal, outbound translation, and Telegram text, TTS voice, and recorded-voice
+provider acceptance. The production build currently omits accepted outbound voices from the
+reloadable thread and cannot project a live Telegram record into Dream/Eval; the repository fixes
+have passed the full local gate and still need deployment:
 
 - The complete automated contract, domain, server, store, component, route, and regression suite
   passes.
@@ -2721,14 +2725,21 @@ separates runtime configuration and post-POC work from the completed release wor
 
 ### Still unproven or deferred
 
-- A live outbound text, TTS voice, recorded staff voice, and Text + Voice delivery. The delivery
-  model, UI recovery states, and automated tests exist; no patient-facing outbound message has been
-  sent during verification.
-- Live agent drafting, structured SOP proposals, and Eval judging with the configured provider.
-  Mocked providers remain the automated-test source of truth.
+- Deploy and recheck the local outbound-voice transcript/playback and live-Telegram Dream/Eval
+  projection fixes. The current deployed build accepts voice at Telegram but does not retain it in
+  the reloaded Chat transcript, and Dream keeps stale local corrections when a live Telegram
+  conversation exists.
+- A live Telegram-provider partial failure for Text + Voice. Deterministic fault injection proves
+  that retry sends only the failed voice part; deliberately breaking a live delivery would be
+  unsafe and would not improve the demo.
+- Browser microphone permission and a freshly recorded staff-voice send on a physical microphone.
+  The backend recorded-voice conversion and send path were verified using the owner's existing
+  test audio.
 - Dashboard authentication, authorization, clinic tenancy, and multi-user coordination before the
   public URL is shared beyond controlled demo use.
 - DigitalOcean alert-recipient confirmation and a deliberate production-provider smoke-test record.
+- Automatic booking notifications, reschedule/cancellation dispatch, and `.ics` calendar
+  attachments. Current booking mutations remain synthetic workspace messages only.
 
 ### Deferred TODO: optional DigitalOcean inference provider switch
 
@@ -2774,10 +2785,10 @@ candidate's immutable full-suite evidence is Ready.
 | Shared platform contracts | `BUILT` | API error body, aggregate CAS, Telegram voice/speech contracts, playbook pins |
 | Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
 | Conversation source | `SIMULATED` | Seed data and local patient simulation |
-| Translation | `BUILT` adapter and automated proof | Live provider/output-quality verification remains |
-| Telegram | `PARTIAL` live protected inbound text and Whisper transcription; outbound records and recovery UI built | Real outbound text, TTS voice, recorded voice, and partial-failure recovery need controlled live proof |
-| Candidate reply generation | `BUILT` Chat and five-seed Eval paths with mocked-provider proof | Live-provider proof remains; Chat drafts stay unsent until approval |
-| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked-provider proof | Live-provider proof and immutable persistence remain |
+| Translation | `BUILT` adapter, automated proof, and controlled live Malay translation | Output quality still requires human review by clinic staff |
+| Telegram | `PARTIAL` live protected inbound text/Whisper transcription plus controlled outbound text, TTS, and recorded-voice provider acceptance | Deploy the local reloadable outbound-voice transcript/playback fix; partial provider failure remains deterministic-test-only |
+| Candidate reply generation | `BUILT` Chat and five-seed Eval paths with mocked proof plus a controlled live draft | Broader live-provider quality validation remains; Chat drafts stay unsent until approval |
+| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus controlled live Eval judging | Broader live-provider quality validation remains |
 | Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |

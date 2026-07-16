@@ -166,6 +166,7 @@ function MessageRow({
             onSaveManualTranscript={onSaveManualTranscript}
           />
         ) : null}
+        {message.outboundVoice ? <OutboundVoiceMessageControls message={message} /> : null}
         {message.role === "synthetic_agent" ? (
           <span className="message-bubble__boundary">No external contact. Synthetic output only.</span>
         ) : null}
@@ -762,6 +763,49 @@ function Composer({
           blockedReason ||
           "Press Command or Control + Enter to send."}
       </div>
+    </section>
+  );
+}
+
+function OutboundVoiceMessageControls({
+  message,
+}: {
+  message: Conversation["messages"][number];
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [error, setError] = useState("");
+  const source = message.outboundVoice?.source === "recorded" ? "Staff recording" : "AI-generated";
+  const play = async () => {
+    if (!audioRef.current) {
+      setError("Sent voice playback is not ready. Try again in a moment.");
+      return;
+    }
+    try {
+      await audioRef.current.play();
+    } catch {
+      setError("Sent voice playback failed. The Telegram delivery remains recorded as sent.");
+    }
+  };
+  if (!message.outboundVoice) {
+    return null;
+  }
+  return (
+    <section aria-label="Sent voice controls" className="message-voice-controls">
+      <div className="message-voice-controls__status">
+        <Mic aria-hidden="true" size={13} />
+        <span>{source} voice sent</span>
+      </div>
+      <button onClick={() => void play()} type="button">Play sent voice</button>
+      <audio
+        controls
+        onError={() => setError("Sent voice playback failed. The Telegram delivery remains recorded as sent.")}
+        preload="none"
+        ref={audioRef}
+        src={`/api/outbound/deliveries/${encodeURIComponent(message.outboundVoice.deliveryId)}/voice/audio`}
+      >
+        Sent voice playback is not available in this browser.
+      </audio>
+      {error ? <span className="message-voice-controls__error">{error}</span> : null}
     </section>
   );
 }

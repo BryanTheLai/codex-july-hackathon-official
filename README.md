@@ -6,17 +6,18 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. Authentication, outbound delivery proof, and agent/Eval provider-quality proof remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. Dashboard authentication, booking dispatch/calendar files, and broader provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
-last_updated: "2026-07-15"
-last_verified: "2026-07-15"
+last_updated: "2026-07-16"
+last_verified: "2026-07-16"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "427 automated tests, 18 Playwright executions with three intentional skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
-  - "Live agent/Eval runs, translation, TTS, and outbound delivery remain pending"
+  - "430 automated tests, 18 Playwright executions with three intentional skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
+  - "Controlled owner-chat smoke: direct-OpenAI agent drafting, five-case Eval judging, exact SOP proposal, translation, Telegram text, TTS voice, and recorded-voice provider acceptance"
+  - "The repository has tested outbound-voice persistence/playback and live-Telegram Dream/Eval projection fixes that are not yet deployed"
 sources_consulted:
   - "PROJECT.md"
   - "SOUL.md"
@@ -88,9 +89,14 @@ Markdown import, an accepted correction, or a Dream draft creates an inactive wh
 version. A configured LLM proposes one exact, reviewable diff; affected train cases must pass
 before a full train-plus-holdout replay can mark the version Ready. Human activation updates the
 bundle used by Chat, and one click restores the prior SOP as a new immutable version. Verification
-uses mocked providers. Live Supabase, protected Telegram text, and one live English voice
-transcription are verified; live agent/Eval quality, translation, TTS, outbound voice, and
-authentication remain pending.
+uses mocked providers for the automated gate. A controlled test of the owner's Telegram chat has
+also verified live Supabase, protected inbound text, English voice transcription, direct-OpenAI
+agent drafting and Eval judging, exact SOP proposal generation, outbound translation, Telegram
+text, AI TTS voice, and staff-recorded voice provider acceptance. The current production build
+does not yet retain outbound voice messages after reload or refresh Dream/Eval reliably when a
+live Telegram conversation exists. The repository fixes are tested locally and must be deployed.
+Authentication, automatic booking dispatch, calendar attachments, and broader provider-quality
+validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
@@ -335,7 +341,8 @@ and exact-send flow, and the full Chat to Eval to Dream flow with browser API fi
 The repository proves the local synthetic workflow, the same-origin judge contract, deterministic
 simulated-judge behavior, fixed-workspace CAS and reset behavior, the three-table PostgreSQL
 migration, responsive frontend contract, deployed DigitalOcean health/readiness, live Supabase
-persistence, protected Telegram inbound text, and one live English Whisper transcription. It does
-not prove live agent/Eval quality or availability, translation, TTS, outbound Telegram delivery,
-authentication, clinical integration, production capacity, or real-patient operation.
+persistence, protected Telegram inbound text, English Whisper transcription, and the controlled
+owner-chat provider smoke described above. It does not prove broad agent/Eval quality or
+availability, real-patient operation, automatic booking dispatch, calendar attachment delivery,
+dashboard authentication, clinical integration, or production capacity.
 `PROJECT.md` section 16 separates verified behavior, deferred TODOs, and post-POC gaps.

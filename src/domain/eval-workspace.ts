@@ -11,6 +11,7 @@ import {
   ok,
   updateDataset,
 } from "./shared";
+import { mergeTelegramWorkspaceState } from "./telegram-workspace";
 import type {
   AppState,
   EvalDatasetId,
@@ -22,7 +23,12 @@ export function projectServerWorkspace(
   input: ServerDomainStatePayload,
 ): MutationResult {
   const server = serverDomainStateSchema.parse(input);
-  const domain = domainStateSchema.parse(server);
+  const telegram = mergeTelegramWorkspaceState(state, server).state;
+  const { conversations: _serverConversations, ...serverWithoutConversations } = server;
+  const domain = domainStateSchema.parse({
+    ...serverWithoutConversations,
+    conversations: telegram.conversations,
+  });
   const selectedPlaybookFileId = domain.playbookFiles.some(
     (file) => file.id === state.selections.playbookFileId,
   )
@@ -30,9 +36,12 @@ export function projectServerWorkspace(
     : domain.playbookFiles[0]?.id ?? null;
   return projectEvalWorkspaceArtifacts(
     {
-      ...state,
+      ...telegram,
       ...domain,
-      selections: { ...state.selections, playbookFileId: selectedPlaybookFileId },
+      selections: {
+        ...telegram.selections,
+        playbookFileId: selectedPlaybookFileId,
+      },
     },
     server,
   );

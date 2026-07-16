@@ -16,6 +16,13 @@ export const messageSchema = z.object({
   gloss: z.string().optional(),
   language: z.string().optional(),
   sentAt: z.string(),
+  outboundVoice: z
+    .object({
+      deliveryId: z.string().min(1).max(128),
+      source: z.enum(["tts", "recorded"]),
+    })
+    .strict()
+    .optional(),
 });
 
 export const bookingSchema = z.object({

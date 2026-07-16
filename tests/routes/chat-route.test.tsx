@@ -21,6 +21,7 @@ import {
   createCanonicalServerState,
   failTelegramSpeechTranscription,
   linkAcceptedTelegramOutboundText,
+  linkAcceptedTelegramOutboundVoice,
   mergeTelegramInboundText,
   mergeTelegramInboundVoice,
 } from "../../src/domain";
@@ -487,6 +488,44 @@ describe("Chat Control route", () => {
       screen.getByRole("button", {
         name: "Open conversation with Ahmad bin Hassan",
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a reload-safe sent voice message with server-backed playback", async () => {
+    const inbound = await telegramServerState();
+    const linked = linkAcceptedTelegramOutboundVoice(inbound, {
+      conversationId: "telegram-conversation:-10042",
+      messageId: "telegram-delivery:voice-42:voice",
+      deliveryId: "voice-42",
+      text: "AI-generated voice reply.",
+      language: "Malay",
+      sentAt: "2026-07-13T12:01:00.000Z",
+      voiceSource: "tts",
+    });
+    if (!linked.ok) {
+      throw new Error(linked.error);
+    }
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 2,
+        state: linked.state,
+      }),
+    };
+    const store = createAppStore(new MemoryStorage(), { workspaceClient });
+    const user = userEvent.setup();
+    const { container } = renderChat({ store });
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open conversation with Aina Zulkifli",
+      }),
+    );
+    const selected = screen.getByRole("region", { name: "Selected conversation" });
+    expect(within(selected).getByText("AI-generated voice sent")).toBeInTheDocument();
+    expect(within(selected).getByRole("button", { name: "Play sent voice" })).toBeInTheDocument();
+    expect(
+      container.querySelector('audio[src="/api/outbound/deliveries/voice-42/voice/audio"]'),
     ).toBeInTheDocument();
   });
 
@@ -1048,7 +1087,7 @@ describe("Chat Control route", () => {
     const confirmation = screen.getByRole("alertdialog", { name: "Confirm this appointment?" });
     expect(confirmation).toHaveTextContent("Temu janji anda disahkan");
     await user.click(
-      within(confirmation).getByRole("button", { name: "Confirm and notify" }),
+      within(confirmation).getByRole("button", { name: "Confirm booking" }),
     );
     expect(screen.getByText("approved")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
@@ -1059,14 +1098,15 @@ describe("Chat Control route", () => {
     );
   });
 
-  it("previews and sends a pending booking update from patient context", async () => {
+  it("previews and saves a pending booking update in the synthetic workspace", async () => {
     const user = userEvent.setup();
     renderChat();
 
     await user.click(screen.getByRole("button", { name: /Nurul Aisyah/i }));
     await user.click(screen.getByRole("button", { name: "Edit booking" }));
     const dialog = screen.getByRole("dialog", { name: "Edit booking" });
-    const save = within(dialog).getByRole("button", { name: "Save and notify" });
+    expect(dialog).toHaveTextContent("Nothing is sent to Telegram");
+    const save = within(dialog).getByRole("button", { name: "Save booking" });
     expect(within(dialog).getByText("Patient message")).toBeInTheDocument();
     expect(save).toBeDisabled();
     const dateTime = within(dialog).getByLabelText("Booking date and time");
@@ -1093,7 +1133,7 @@ describe("Chat Control route", () => {
     );
   });
 
-  it("cancels an approved appointment, notifies the patient, and removes it from Schedule", async () => {
+  it("cancels an approved appointment in the synthetic workspace and removes it from Schedule", async () => {
     const user = userEvent.setup();
     renderChat();
 
@@ -1102,7 +1142,7 @@ describe("Chat Control route", () => {
     await user.click(
       within(screen.getByRole("alertdialog", { name: "Confirm this appointment?" })).getByRole(
         "button",
-        { name: "Confirm and notify" },
+        { name: "Confirm booking" },
       ),
     );
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));

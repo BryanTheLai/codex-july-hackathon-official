@@ -53,28 +53,28 @@ export function createChatActions({ getState, set, repository }: ChatSliceDeps) 
     approveBooking(conversationId: ConversationId) {
       return run(
         approveBooking(getState(), conversationId),
-        "Appointment confirmed and patient notified.",
+        "Appointment confirmed in the synthetic workspace. No Telegram message was sent.",
       );
     },
 
     rejectBooking(conversationId: ConversationId) {
       return run(
         rejectBooking(getState(), conversationId),
-        "Booking request rejected and patient notified.",
+        "Booking request rejected in the synthetic workspace. No Telegram message was sent.",
       );
     },
 
     cancelBooking(conversationId: ConversationId) {
       return run(
         cancelBooking(getState(), conversationId),
-        "Appointment cancelled and patient notified.",
+        "Appointment cancelled in the synthetic workspace. No Telegram message was sent.",
       );
     },
 
     updateBooking(conversationId: ConversationId, input: UpdateBookingInput) {
       return run(
         updateBooking(getState(), conversationId, input),
-        "Booking updated and patient notified.",
+        "Booking updated in the synthetic workspace. No Telegram message was sent.",
       );
     },
 

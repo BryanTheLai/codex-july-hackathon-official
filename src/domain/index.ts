@@ -23,10 +23,12 @@ export {
 export {
   appendTelegramOutboundText,
   linkAcceptedTelegramOutboundText,
+  linkAcceptedTelegramOutboundVoice,
   mergeTelegramInboundText,
   mergeTelegramInboundVoice,
   telegramInboundMessageId,
   type AppendTelegramOutboundTextInput,
+  type AppendTelegramOutboundVoiceInput,
 } from "./telegram";
 export {
   TelegramSpeechDomainError,

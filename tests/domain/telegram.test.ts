@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { NormalizedInboundTextEvent } from "../../src/contracts/channel";
 import {
   appendTelegramOutboundText,
+  linkAcceptedTelegramOutboundVoice,
   linkAcceptedTelegramOutboundText,
   mergeTelegramInboundText,
 } from "../../src/domain";
@@ -186,6 +187,46 @@ describe("Telegram aggregate mutations", () => {
     });
 
     expect(appendTelegramOutboundText(sent.state, input)).toEqual(sent);
+  });
+
+  it("links an accepted outbound voice with its durable playback identity", () => {
+    const created = mergeTelegramInboundText(
+      createServerStateFixture(),
+      firstInbound,
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      return;
+    }
+    const sent = linkAcceptedTelegramOutboundVoice(created.state, {
+      conversationId: "telegram-conversation:-10042",
+      messageId: "telegram-delivery:voice-42:voice",
+      deliveryId: "voice-42",
+      text: "AI-generated voice reply.",
+      language: "Malay",
+      sentAt: "2026-07-13T12:03:00.000Z",
+      voiceSource: "tts",
+    });
+    expect(sent.ok).toBe(true);
+    if (!sent.ok) {
+      return;
+    }
+    expect(sent.state.conversations[0]?.messages.at(-1)).toMatchObject({
+      id: "telegram-delivery:voice-42:voice",
+      role: "staff",
+      outboundVoice: { deliveryId: "voice-42", source: "tts" },
+    });
+    expect(
+      linkAcceptedTelegramOutboundVoice(sent.state, {
+        conversationId: "telegram-conversation:-10042",
+        messageId: "telegram-delivery:voice-42:voice",
+        deliveryId: "voice-42",
+        text: "AI-generated voice reply.",
+        language: "Malay",
+        sentAt: "2026-07-13T12:03:00.000Z",
+        voiceSource: "tts",
+      }),
+    ).toEqual(sent);
   });
 
   it("rejects outbound text for missing, synthetic, and resolved conversations", () => {

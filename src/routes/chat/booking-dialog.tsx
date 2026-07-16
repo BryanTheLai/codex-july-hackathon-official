@@ -78,8 +78,8 @@ export function BookingDialog({
             Edit booking
           </Dialog.Title>
           <Dialog.Description className="chat-dialog__description">
-            Update this synthetic booking and preview the patient message. Times use Malaysia Time
-            (MYT).
+            Update this synthetic booking and preview the patient message. Nothing is sent to
+            Telegram. Times use Malaysia Time (MYT).
           </Dialog.Description>
           <label className="chat-dialog__field">
             Date and time
@@ -143,7 +143,7 @@ export function BookingDialog({
               onClick={submit}
               type="button"
             >
-              Save and notify
+              Save booking
             </button>
           </div>
         </Dialog.Content>

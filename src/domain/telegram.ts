@@ -22,8 +22,18 @@ const outboundTextInputSchema = z
   })
   .strict();
 
+const outboundVoiceInputSchema = outboundTextInputSchema
+  .extend({
+    deliveryId: z.string().min(1).max(128),
+    voiceSource: z.enum(["tts", "recorded"]),
+  })
+  .strict();
+
 export type AppendTelegramOutboundTextInput = z.infer<
   typeof outboundTextInputSchema
+>;
+export type AppendTelegramOutboundVoiceInput = z.infer<
+  typeof outboundVoiceInputSchema
 >;
 
 type ServerMutationResult = MutationResult<ServerDomainStatePayload>;
@@ -212,13 +222,22 @@ export function mergeTelegramInboundVoice(
   return ok(current);
 }
 
-function appendOutboundText(
+function appendOutboundMessage(
   state: ServerDomainStatePayload,
-  input: AppendTelegramOutboundTextInput,
+  input: AppendTelegramOutboundTextInput | AppendTelegramOutboundVoiceInput,
   allowResolved: boolean,
 ): ServerMutationResult {
   const current = serverDomainStateSchema.parse(state);
-  const parsed = outboundTextInputSchema.parse(input);
+  const voiceCandidate = outboundVoiceInputSchema.safeParse(input);
+  const parsed = voiceCandidate.success
+    ? voiceCandidate.data
+    : outboundTextInputSchema.parse(input);
+  const outboundVoice = voiceCandidate.success
+    ? {
+        deliveryId: voiceCandidate.data.deliveryId,
+        source: voiceCandidate.data.voiceSource,
+      }
+    : undefined;
   const index = current.conversations.findIndex(
     (conversation) => conversation.id === parsed.conversationId,
   );
@@ -252,6 +271,7 @@ function appendOutboundText(
         text: parsed.text,
         language: parsed.language,
         sentAt: parsed.sentAt,
+        ...(outboundVoice ? { outboundVoice } : {}),
       },
     ],
   };
@@ -262,12 +282,19 @@ export function appendTelegramOutboundText(
   state: ServerDomainStatePayload,
   input: AppendTelegramOutboundTextInput,
 ): ServerMutationResult {
-  return appendOutboundText(state, input, false);
+  return appendOutboundMessage(state, input, false);
 }
 
 export function linkAcceptedTelegramOutboundText(
   state: ServerDomainStatePayload,
   input: AppendTelegramOutboundTextInput,
 ): ServerMutationResult {
-  return appendOutboundText(state, input, true);
+  return appendOutboundMessage(state, input, true);
+}
+
+export function linkAcceptedTelegramOutboundVoice(
+  state: ServerDomainStatePayload,
+  input: AppendTelegramOutboundVoiceInput,
+): ServerMutationResult {
+  return appendOutboundMessage(state, input, true);
 }

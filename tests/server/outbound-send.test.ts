@@ -526,9 +526,19 @@ describe("visitor-approved Telegram text", () => {
     expect(configured.adapter.sendVoice).toHaveBeenCalledTimes(1);
     expect(await configured.deliveryRepository.read("send-42", "voice")).toMatchObject({
       status: "sent",
+      workspaceSyncStatus: "synced",
       voiceSource: "tts",
       ttsModel: "gpt-4o-mini-tts",
       ttsVoice: "coral",
+    });
+    expect(
+      (await configured.workspaceRepository.load("demo"))?.state.conversations
+        .find((conversation) => conversation.id === request.conversationId)
+        ?.messages.at(-1),
+    ).toMatchObject({
+      id: "telegram-delivery:send-42:voice",
+      role: "staff",
+      outboundVoice: { deliveryId: "send-42", source: "tts" },
     });
   });
 
