@@ -6,7 +6,7 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. A local, disabled-by-default Telegram .ics dispatch path now records idempotent calendar receipts for an already server-authoritative approved booking. Dashboard authentication, booking authority, unattended automation, and broader provider-quality validation remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. The deployed server can send an idempotent Telegram .ics attachment from an already-approved Telegram booking. Dashboard authentication, booking authority, unattended automation, and broader provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
@@ -95,8 +95,8 @@ agent drafting and Eval judging, exact SOP proposal generation, outbound transla
 text, AI TTS voice, and staff-recorded voice provider acceptance. The current production build
 does not yet retain outbound voice messages after reload or refresh Dream/Eval reliably when a
 live Telegram conversation exists. The repository fixes are tested locally and must be deployed.
-The local `.ics` dispatch code remains disabled until a named, operator-owned Telegram chat is
-allowlisted. Authentication, actual booking authority, automatic booking dispatch, and broader
+The deployed `.ics` dispatch code uses the approved booking's existing Telegram conversation as
+its destination. Authentication, actual booking authority, automatic booking dispatch, and broader
 provider-quality validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
@@ -182,7 +182,7 @@ approve delivery. This is deliberate POC scope, not autonomous booking or dispat
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; manual agent drafts; server-side `.ics` documents for allowlisted, already-approved Telegram bookings; synthetic booking decisions; Eval-to-Dream candidate workflow | Webhook-triggered agent worker; live availability and booking creation; autonomous external sends; phone/voice-call dispatch; user authentication; durable job retries and real-time UI push |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; manual agent drafts; server-side `.ics` documents for already-approved Telegram bookings; synthetic booking decisions; Eval-to-Dream candidate workflow | Webhook-triggered agent worker; live availability and booking creation; autonomous external sends; phone/voice-call dispatch; user authentication; durable job retries and real-time UI push |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
 17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build

@@ -78,7 +78,6 @@ describe("calendar dispatch service", () => {
     const service = createCalendarDispatchService({
       adapter: { sendDocument },
       config: {
-        allowedChatIds: new Set(["-10042"]),
         defaultDurationMinutes: 30,
         enabled: true,
         location: "KaunterAI Clinic",
@@ -121,7 +120,6 @@ describe("calendar dispatch service", () => {
     const service = createCalendarDispatchService({
       adapter: { sendDocument },
       config: {
-        allowedChatIds: new Set(["-10042"]),
         defaultDurationMinutes: 30,
         enabled: true,
         location: null,

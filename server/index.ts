@@ -267,24 +267,15 @@ function configuredTelegram(
     const supabase = readSupabaseConfig();
     const client = createSupabaseServerClient(supabase);
     const adapter = createTelegramAdapter({ botToken: telegram.botToken });
-    const calendarVariables = [
-      process.env.CALENDAR_DISPATCH_ENABLED,
-      process.env.CALENDAR_ALLOWED_TELEGRAM_CHAT_IDS,
-      process.env.CALENDAR_DEFAULT_DURATION_MINUTES,
-      process.env.CALENDAR_LOCATION,
-      process.env.CALENDAR_UID_DOMAIN,
-    ];
-    const calendar = calendarVariables.every((value) => value === undefined)
-      ? undefined
-      : createCalendarDispatchService({
-          adapter,
-          config: readCalendarDispatchConfig(),
-          deliveryRepository: createCalendarDeliveryRepository(
-            createSupabaseCalendarDeliveryDataSource(client),
-          ),
-          workspaceId: workspace.workspaceId,
-          workspaceRepository: workspace.repository,
-        });
+    const calendar = createCalendarDispatchService({
+      adapter,
+      config: readCalendarDispatchConfig(),
+      deliveryRepository: createCalendarDeliveryRepository(
+        createSupabaseCalendarDeliveryDataSource(client),
+      ),
+      workspaceId: workspace.workspaceId,
+      workspaceRepository: workspace.repository,
+    });
     const agentConfig = process.env.LLM_API_KEY
       ? readAgentProviderConfig()
       : null;
@@ -750,6 +741,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       ok: true,
       configured: {
         telegram: Boolean(telegram),
+        telegramCalendar: Boolean(telegram?.calendar),
         telegramLiveDelivery: telegram?.liveEnabled ?? false,
         telegramSpeech: Boolean(telegram?.speech),
         translation: Boolean(translation),

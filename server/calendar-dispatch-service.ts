@@ -21,7 +21,6 @@ const requestSchema = z
 
 const configSchema = z
   .object({
-    allowedChatIds: z.instanceof(Set<string>),
     defaultDurationMinutes: z.number().int().min(5).max(480),
     enabled: z.boolean(),
     location: z.string().trim().min(1).max(256).nullable(),
@@ -154,13 +153,6 @@ export function createCalendarDispatchService({
         throw new CalendarDispatchError(
           "invalid_request",
           "Cannot send a calendar file to a resolved conversation.",
-          false,
-        );
-      }
-      if (!config.allowedChatIds.has(conversation.externalConversationId)) {
-        throw new CalendarDispatchError(
-          "feature_disabled",
-          "Calendar delivery is not enabled for this Telegram chat.",
           false,
         );
       }
