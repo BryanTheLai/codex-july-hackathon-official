@@ -208,6 +208,46 @@ describe("Telegram adapter", () => {
     );
   });
 
+  it("sends an ICS calendar attachment as a Telegram document", async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 9002, date: 1_783_944_060 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const adapter = createTelegramAdapter({
+      botToken: "123456:test-token",
+      fetcher,
+    });
+
+    await expect(
+      adapter.sendDocument(
+        "-10042",
+        {
+          bytes: new Uint8Array([66, 69, 71, 73, 78]),
+          contentType: "text/calendar",
+          filename: "appointment.ics",
+        },
+        "calendar-42",
+      ),
+    ).resolves.toMatchObject({ providerMessageId: "9002" });
+
+    const call = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    const [, init] = call;
+    expect(call[0]).toBe(
+      "https://api.telegram.org/bot123456:test-token/sendDocument",
+    );
+    expect(init.body).toBeInstanceOf(FormData);
+    const body = init.body as FormData;
+    expect(body.get("chat_id")).toBe("-10042");
+    const document = body.get("document") as File;
+    expect(document.name).toBe("appointment.ics");
+    expect(document.type).toBe("text/calendar");
+  });
+
   it("downloads bounded voice bytes only after Telegram returns a file path", async () => {
     const fetcher = vi
       .fn()

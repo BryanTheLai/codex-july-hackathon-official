@@ -187,6 +187,22 @@ export const outboundReconcileResultSchema = z
   })
   .strict();
 
+export const calendarDispatchRequestSchema = z
+  .object({
+    conversationId: z.string().min(1).max(128),
+    expectedConversationRevision: revisionSchema,
+  })
+  .strict();
+
+export const calendarDispatchResultSchema = z
+  .object({
+    requestId: requestIdSchema,
+    status: z.literal("sent"),
+    providerMessageId: z.string().min(1).max(128),
+    providerAcceptedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
 export const saveWorkspaceResultSchema = z.discriminatedUnion("ok", [
   z
     .object({
@@ -230,4 +246,6 @@ export type OutboundReconcileRequest = z.infer<
 export type OutboundReconcileResult = z.infer<
   typeof outboundReconcileResultSchema
 >;
+export type CalendarDispatchRequest = z.infer<typeof calendarDispatchRequestSchema>;
+export type CalendarDispatchResult = z.infer<typeof calendarDispatchResultSchema>;
 export type SaveWorkspaceResult = z.infer<typeof saveWorkspaceResultSchema>;

@@ -68,6 +68,10 @@ function fakeAdapter(
       providerMessageId: "9002",
       acceptedAt: "2026-07-13T12:01:00.000Z",
     })),
+    sendDocument: vi.fn(async () => ({
+      providerMessageId: "9003",
+      acceptedAt: "2026-07-13T12:01:00.000Z",
+    })),
   };
 }
 

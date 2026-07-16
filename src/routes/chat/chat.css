@@ -1382,6 +1382,13 @@
   margin-right: 10px;
 }
 
+.schedule-row__calendar {
+  align-self: center;
+  gap: 6px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
 .chat-dialog__overlay {
   position: fixed;
   z-index: 50;
@@ -1768,6 +1775,21 @@
 
   .chat-composer__translate-toggle > span {
     display: none;
+  }
+
+  .schedule-row__calendar {
+    width: 44px;
+    min-width: 44px;
+    margin-right: 4px;
+    padding: 0;
+  }
+
+  .schedule-row__calendar svg {
+    margin: 0;
+  }
+
+  .schedule-row__calendar {
+    font-size: 0;
   }
 
   .chat-composer__translate-toggle {

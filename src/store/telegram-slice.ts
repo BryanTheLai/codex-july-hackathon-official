@@ -302,6 +302,58 @@ export function createTelegramActions({
   return {
     refreshTelegramWorkspace,
 
+    async sendCalendarInvitation(
+      conversationId: string,
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      const conversation = getState().conversations.find(
+        (candidate) => candidate.id === conversationId,
+      );
+      if (!conversation) {
+        const message = "Conversation not found.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      if (
+        conversation.channel !== "Telegram" ||
+        !conversation.booking ||
+        conversation.booking.status !== "approved"
+      ) {
+        const message = "Calendar delivery requires an approved Telegram booking.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      const revision = getTelegramWorkspace().conversationRevisions[conversationId];
+      if (revision === undefined) {
+        const message = "Refresh the Telegram inbox before sending the calendar file.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      if (!outboundClient.sendCalendar) {
+        const message = "Calendar delivery is unavailable.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+      set({ lastFeedback: "Sending calendar invitation." });
+      try {
+        await outboundClient.sendCalendar(
+          { conversationId, expectedConversationRevision: revision },
+          signal,
+        );
+        const refreshed = await refreshTelegramWorkspace(signal);
+        if (!refreshed.ok) return refreshed;
+        set({ lastFeedback: "Calendar invitation sent to Telegram." });
+        return { ok: true, state: getState() };
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        const message = error instanceof ApiClientError
+          ? error.message
+          : "The calendar invitation could not be sent.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
+
     async sendVisitorReply(
       input: SendVisitorReplyInput,
       signal?: AbortSignal,

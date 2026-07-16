@@ -35,6 +35,9 @@ export default function ChatRoute() {
     (store) => store.generateAgentDraft,
   );
   const sendVisitorReply = useAppStore((store) => store.sendVisitorReply);
+  const sendCalendarInvitation = useAppStore(
+    (store) => store.sendCalendarInvitation,
+  );
   const retryTelegramDelivery = useAppStore(
     (store) => store.retryTelegramDelivery,
   );
@@ -427,6 +430,9 @@ export default function ChatRoute() {
             fixtureTime={state.fixtureTime}
             onEditBooking={setBookingEditId}
             onOpenConversation={openConversation}
+            onSendCalendar={(conversationId) =>
+              void sendCalendarInvitation(conversationId)
+            }
           />
         ) : (
           inbox

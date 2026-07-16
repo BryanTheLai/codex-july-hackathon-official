@@ -15,6 +15,8 @@ import {
   outboundVoicePrepareRequestSchema,
   outboundVoicePrepareResultSchema,
   outboundVoiceRecordingResultSchema,
+  calendarDispatchRequestSchema,
+  calendarDispatchResultSchema,
   manualSpeechTranscriptRequestSchema,
   saveWorkspaceResultSchema,
   workspaceEnvelopeSchema,
@@ -26,6 +28,8 @@ import {
   type OutboundVoicePrepareRequest,
   type OutboundVoicePrepareResult,
   type OutboundVoiceRecordingResult,
+  type CalendarDispatchRequest,
+  type CalendarDispatchResult,
   type ManualSpeechTranscriptRequest,
   type SaveWorkspaceResult,
   type WorkspaceEnvelope,
@@ -106,6 +110,10 @@ export interface EvalClient {
 }
 
 export interface TelegramOutboundClient {
+  sendCalendar?(
+    request: CalendarDispatchRequest,
+    signal?: AbortSignal,
+  ): Promise<CalendarDispatchResult>;
   prepareVoice?(
     request: OutboundVoicePrepareRequest,
     signal?: AbortSignal,
@@ -363,6 +371,23 @@ export function createHttpTelegramOutboundClient(
   fetcher: Fetcher = fetch,
 ): TelegramOutboundClient {
   return {
+    sendCalendar(request, signal) {
+      const body = calendarDispatchRequestSchema.parse(request);
+      return requestJson({
+        fetcher,
+        input: "/api/calendar-deliveries",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal,
+        },
+        schema: calendarDispatchResultSchema,
+        networkError: "The calendar delivery server could not be reached.",
+        invalidResponseError: "The calendar delivery server returned an invalid response.",
+        requestError: "The calendar delivery request failed.",
+      });
+    },
     prepareVoice(input, signal) {
       const request = outboundVoicePrepareRequestSchema.parse(input);
       return requestJson({

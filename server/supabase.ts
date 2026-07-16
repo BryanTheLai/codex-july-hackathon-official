@@ -21,6 +21,12 @@ import {
   telegramEventRecordSchema,
 } from "./telegram-repository";
 import type {
+  CalendarDeliveryDataSource,
+  CalendarDeliveryRecord,
+  CalendarDeliveryStatus,
+} from "./calendar-repository";
+import { calendarDeliveryRecordSchema } from "./calendar-repository";
+import type {
   WorkspaceDataSource,
   WorkspaceRecord,
 } from "./workspace-repository";
@@ -70,6 +76,24 @@ const telegramDeliveryRowSchema = z
     tts_voice: z.string().nullable(),
     status: z.string(),
     workspace_sync_status: z.string(),
+    provider_message_id: z.string().nullable(),
+    provider_accepted_at: z.string().nullable(),
+    error: z.unknown().nullable(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
+
+const calendarDeliveryRowSchema = z
+  .object({
+    request_id: z.string(),
+    workspace_id: workspaceIdSchema,
+    conversation_id: z.string(),
+    calendar_uid: z.string(),
+    calendar_sequence: z.number().int(),
+    kind: z.string(),
+    content_hash: z.string(),
+    status: z.string(),
     provider_message_id: z.string().nullable(),
     provider_accepted_at: z.string().nullable(),
     error: z.unknown().nullable(),
@@ -219,6 +243,43 @@ function toTelegramDeliveryRow(record: TelegramDeliveryRecord) {
   };
 }
 
+function toCalendarDeliveryRecord(row: unknown): CalendarDeliveryRecord {
+  const parsed = calendarDeliveryRowSchema.parse(row);
+  return calendarDeliveryRecordSchema.parse({
+    requestId: parsed.request_id,
+    workspaceId: parsed.workspace_id,
+    conversationId: parsed.conversation_id,
+    calendarUid: parsed.calendar_uid,
+    calendarSequence: parsed.calendar_sequence,
+    kind: parsed.kind,
+    contentHash: parsed.content_hash,
+    status: parsed.status,
+    providerMessageId: parsed.provider_message_id,
+    providerAcceptedAt: parsed.provider_accepted_at,
+    error: parsed.error,
+    createdAt: parsed.created_at,
+    updatedAt: parsed.updated_at,
+  });
+}
+
+function toCalendarDeliveryRow(record: CalendarDeliveryRecord) {
+  return {
+    request_id: record.requestId,
+    workspace_id: record.workspaceId,
+    conversation_id: record.conversationId,
+    calendar_uid: record.calendarUid,
+    calendar_sequence: record.calendarSequence,
+    kind: record.kind,
+    content_hash: record.contentHash,
+    status: record.status,
+    provider_message_id: record.providerMessageId,
+    provider_accepted_at: record.providerAcceptedAt,
+    error: record.error,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
 function throwDataSourceError(
   operation: SupabaseDataSourceOperation,
 ): never {
@@ -233,6 +294,8 @@ const telegramEventColumns =
   "update_id,workspace_id,payload_hash,status,normalized_message_id,error,created_at,updated_at";
 const telegramDeliveryColumns =
   "request_id,part,workspace_id,conversation_id,target_language,approved_text,approved_text_hash,voice_source,audio_object_path,audio_content_type,audio_sha256,tts_model,tts_voice,status,workspace_sync_status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
+const calendarDeliveryColumns =
+  "request_id,workspace_id,conversation_id,calendar_uid,calendar_sequence,kind,content_hash,status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
 
 export function createSupabaseWorkspaceDataSource(
   client: SupabaseClient,
@@ -409,6 +472,58 @@ export function createSupabaseTelegramDeliveryDataSource(
 
     updateIfSyncStatus(record, expectedStatus) {
       return update(record, "workspace_sync_status", expectedStatus);
+    },
+  };
+}
+
+export function createSupabaseCalendarDeliveryDataSource(
+  client: SupabaseClient,
+  now: () => string = () => new Date().toISOString(),
+): CalendarDeliveryDataSource {
+  const update = async (
+    record: CalendarDeliveryRecord,
+    expectedStatus: CalendarDeliveryStatus,
+  ): Promise<CalendarDeliveryRecord | null> => {
+    const {
+      request_id: requestId,
+      created_at: _createdAt,
+      ...changes
+    } = toCalendarDeliveryRow(record);
+    const { data, error } = await client
+      .from("calendar_deliveries")
+      .update({ ...changes, updated_at: now() })
+      .eq("request_id", requestId)
+      .eq("status", expectedStatus)
+      .select(calendarDeliveryColumns)
+      .maybeSingle();
+    if (error) return throwDataSourceError("update");
+    return data ? toCalendarDeliveryRecord(data) : null;
+  };
+
+  return {
+    async read(requestId) {
+      const { data, error } = await client
+        .from("calendar_deliveries")
+        .select(calendarDeliveryColumns)
+        .eq("request_id", requestId)
+        .maybeSingle();
+      if (error) return throwDataSourceError("read");
+      return data ? toCalendarDeliveryRecord(data) : null;
+    },
+
+    async insertIfAbsent(record) {
+      const { data, error } = await client
+        .from("calendar_deliveries")
+        .insert(toCalendarDeliveryRow(record))
+        .select(calendarDeliveryColumns)
+        .maybeSingle();
+      if (error?.code === "23505") return null;
+      if (error) return throwDataSourceError("insert");
+      return data ? toCalendarDeliveryRecord(data) : null;
+    },
+
+    updateIfStatus(record, expectedStatus) {
+      return update(record, expectedStatus);
     },
   };
 }

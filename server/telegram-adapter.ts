@@ -5,6 +5,7 @@ import {
   deliveryReceiptSchema,
   normalizedInboundEventSchema,
   type ChannelAdapter,
+  type TelegramDocumentPayload,
   type TelegramVoicePayload,
 } from "../src/contracts/channel";
 
@@ -319,6 +320,47 @@ export function createTelegramAdapter({
         );
       }
       return telegramReceipt(response, "Telegram rejected the voice message");
+    },
+
+    async sendDocument(target, document, idempotencyKey) {
+      const chatId = z.string().min(1).max(128).parse(target);
+      const payload: TelegramDocumentPayload = {
+        bytes: z
+          .instanceof(Uint8Array)
+          .refine((value) => value.byteLength > 0)
+          .parse(document.bytes),
+        contentType: z.literal("text/calendar").parse(document.contentType),
+        filename: z.string().trim().regex(/\.ics$/i).min(5).max(128).parse(document.filename),
+      };
+      requestIdSchema.parse(idempotencyKey);
+      const body = new FormData();
+      body.set("chat_id", chatId);
+      body.set(
+        "document",
+        new Blob([Uint8Array.from(payload.bytes)], { type: payload.contentType }),
+        payload.filename,
+      );
+      const signal = AbortSignal.timeout(timeout);
+      let response: Response;
+      try {
+        response = await fetcher(`${endpoint}/bot${token}/sendDocument`, {
+          method: "POST",
+          body,
+          signal,
+        });
+      } catch {
+        if (signal.aborted) {
+          throw new TelegramAdapterError(
+            "provider_timeout",
+            "Telegram document send timed out",
+          );
+        }
+        throw new TelegramAdapterError(
+          "provider_failed",
+          "Telegram document send failed",
+        );
+      }
+      return telegramReceipt(response, "Telegram rejected the calendar document");
     },
 
     async downloadVoice(fileId, callerSignal) {

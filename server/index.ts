@@ -60,6 +60,7 @@ import type { ApiError } from "./api-contract";
 import {
   apiErrorSchema,
   manualSpeechTranscriptRequestSchema,
+  calendarDispatchRequestSchema,
   outboundReconcileRequestSchema,
   outboundSendRequestSchema,
   outboundVoicePrepareRequestSchema,
@@ -75,6 +76,7 @@ import { createJudgeService } from "./judge-service";
 import { JUDGE_PROMPT_VERSION } from "./judge-prompt";
 import {
   createSupabaseServerClient,
+  createSupabaseCalendarDeliveryDataSource,
   createSupabaseTelegramDeliveryDataSource,
   createSupabaseTelegramEventDataSource,
   createSupabaseWorkspaceDataSource,
@@ -118,6 +120,13 @@ import {
   TelegramOutboundError,
   type TelegramOutboundService,
 } from "./telegram-outbound-service";
+import {
+  CalendarDispatchError,
+  createCalendarDispatchService,
+  type CalendarDispatchService,
+} from "./calendar-dispatch-service";
+import { readCalendarDispatchConfig } from "./calendar-config";
+import { createCalendarDeliveryRepository } from "./calendar-repository";
 import {
   createWorkspaceRepository,
   WorkspaceRepositoryError,
@@ -181,6 +190,7 @@ type TelegramAppOptions = {
   liveEnabled?: boolean;
   inbound: TelegramInboundService;
   outbound?: TelegramOutboundService;
+  calendar?: CalendarDispatchService;
   speech?: InboundSpeechService;
 };
 
@@ -257,6 +267,24 @@ function configuredTelegram(
     const supabase = readSupabaseConfig();
     const client = createSupabaseServerClient(supabase);
     const adapter = createTelegramAdapter({ botToken: telegram.botToken });
+    const calendarVariables = [
+      process.env.CALENDAR_DISPATCH_ENABLED,
+      process.env.CALENDAR_ALLOWED_TELEGRAM_CHAT_IDS,
+      process.env.CALENDAR_DEFAULT_DURATION_MINUTES,
+      process.env.CALENDAR_LOCATION,
+      process.env.CALENDAR_UID_DOMAIN,
+    ];
+    const calendar = calendarVariables.every((value) => value === undefined)
+      ? undefined
+      : createCalendarDispatchService({
+          adapter,
+          config: readCalendarDispatchConfig(),
+          deliveryRepository: createCalendarDeliveryRepository(
+            createSupabaseCalendarDeliveryDataSource(client),
+          ),
+          workspaceId: workspace.workspaceId,
+          workspaceRepository: workspace.repository,
+        });
     const agentConfig = process.env.LLM_API_KEY
       ? readAgentProviderConfig()
       : null;
@@ -296,6 +324,7 @@ function configuredTelegram(
             }
           : undefined,
       }),
+      calendar,
       speech,
     };
   } catch {
@@ -343,6 +372,32 @@ function sendTelegramOutboundFailure(
   sendApiError(response, 503, {
     code: "provider_failed",
     error: "Telegram delivery failed.",
+    retryable: true,
+  });
+}
+
+function sendCalendarDispatchFailure(response: Response, error: unknown): void {
+  if (error instanceof CalendarDispatchError) {
+    const status =
+      error.code === "invalid_request"
+        ? 400
+        : error.code === "not_found"
+          ? 404
+          : error.code === "revision_conflict" || error.code === "duplicate"
+            ? 409
+            : error.code === "provider_timeout"
+              ? 504
+              : 503;
+    sendApiError(response, status, {
+      code: error.code,
+      error: error.message,
+      retryable: error.retryable,
+    });
+    return;
+  }
+  sendApiError(response, 503, {
+    code: "provider_failed",
+    error: "Calendar delivery failed.",
     retryable: true,
   });
 }
@@ -1026,6 +1081,33 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         response.status(200).json(await telegram.outbound.send(parsed.data));
       } catch (error) {
         sendTelegramOutboundFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/calendar-deliveries",
+    async (request: Request, response: Response) => {
+      if (!telegram?.calendar) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Calendar delivery is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const parsed = calendarDispatchRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Calendar delivery request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        response.status(200).json(await telegram.calendar.send(parsed.data));
+      } catch (error) {
+        sendCalendarDispatchFailure(response, error);
       }
     },
   );

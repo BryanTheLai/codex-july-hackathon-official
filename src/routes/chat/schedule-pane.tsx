@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { CalendarPlus, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { Conversation, ConversationId } from "../../domain";
@@ -10,12 +10,14 @@ export function SchedulePane({
   fixtureTime,
   onEditBooking,
   onOpenConversation,
+  onSendCalendar,
 }: {
   compact: boolean;
   conversations: Conversation[];
   fixtureTime: string;
   onEditBooking: (conversationId: ConversationId) => void;
   onOpenConversation: (conversationId: ConversationId) => void;
+  onSendCalendar: (conversationId: ConversationId) => void;
 }) {
   const days = useMemo(() => scheduleDays(fixtureTime), [fixtureTime]);
   const bookings = conversations.filter(
@@ -68,6 +70,19 @@ export function SchedulePane({
                 {conversation.booking?.status}
               </span>
             </button>
+            {conversation.channel === "Telegram" &&
+            conversation.booking?.status === "approved" ? (
+              <button
+                aria-label={`Send calendar invitation to ${conversation.patient.name}`}
+                className="chat-button schedule-row__calendar"
+                onClick={() => onSendCalendar(conversation.id)}
+                title="Send the appointment .ics file to Telegram"
+                type="button"
+              >
+                <CalendarPlus aria-hidden="true" size={14} />
+                Send calendar
+              </button>
+            ) : null}
             <button
               aria-label={`Edit booking for ${conversation.patient.name}`}
               className="chat-icon-button schedule-row__edit"
