@@ -9,6 +9,8 @@ import {
 import { createJudgeApp } from "../../server/index";
 import { createTelegramAdapter } from "../../server/telegram-adapter";
 import { createTelegramInboundService } from "../../server/telegram-inbound-service";
+import type { AgentRunRequest, AgentRunResult } from "../../src/contracts/agent";
+import type { TelegramOutboundService } from "../../server/telegram-outbound-service";
 import type { InboundSpeechService } from "../../server/inbound-speech-service";
 import { createTelegramEventRepository } from "../../server/telegram-repository";
 import type { WorkspaceRepository } from "../../server/workspace-repository";
@@ -58,8 +60,15 @@ const voiceUpdate = {
 };
 
 async function configuredServer(options?: {
+  agent?: {
+    agentConfigVersion: string;
+    liveEnabled?: boolean;
+    run(request: AgentRunRequest, signal?: AbortSignal): Promise<AgentRunResult>;
+  };
+  autoReplyEnabled?: boolean;
   inboundWorkspaceRepository?: WorkspaceRepository;
   maxCasAttempts?: number;
+  outbound?: TelegramOutboundService;
   speech?: InboundSpeechService;
 }) {
   const workspaceDataSource = new InMemoryWorkspaceDataSource();
@@ -70,8 +79,9 @@ async function configuredServer(options?: {
   );
   const eventDataSource = new InMemoryTelegramEventDataSource();
   const eventRepository = createTelegramEventRepository(eventDataSource);
+  const adapter = createTelegramAdapter({ botToken: "123456:test-token" });
   const inbound = createTelegramInboundService({
-    adapter: createTelegramAdapter({ botToken: "123456:test-token" }),
+    adapter,
     eventRepository,
     workspaceId: "demo",
     workspaceRepository:
@@ -79,14 +89,18 @@ async function configuredServer(options?: {
     maxCasAttempts: options?.maxCasAttempts,
   });
   const app = createJudgeApp({
+    agent: options?.agent ?? null,
     workspace: {
       workspaceId: "demo",
       repository: workspaceRepository,
       createCanonicalState: createCanonicalServerState,
     },
     telegram: {
+      autoReplyEnabled: options?.autoReplyEnabled,
       webhookSecret: "webhook_secret-42",
       inbound,
+      normalizeInbound: adapter.normalizeInbound,
+      outbound: options?.outbound,
       speech: options?.speech,
     },
   });
@@ -129,6 +143,114 @@ function postWebhook(
 }
 
 describe("Telegram webhook", () => {
+  it("automatically sends exactly one agent text reply for a newly persisted Telegram message", async () => {
+    const run = vi.fn(async (): Promise<AgentRunResult> => ({
+      draft: {
+        englishText: "I can help with an appointment.",
+        patientLanguage: "Malay",
+        patientText: "Saya boleh bantu dengan temujanji.",
+      },
+      evidence: [],
+      handoffReason: null,
+      latencyMs: 12,
+      proposedAction: "reply",
+      runId: "agent-auto-1",
+      stopReason: "completed",
+      toolCalls: [],
+      usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+    }));
+    const send = vi.fn(async () => ({
+      deliveryIds: ["agent-auto-delivery"],
+      status: "sent" as const,
+      text: {
+        acceptedAt: "2026-07-13T12:00:00.000Z",
+        providerMessageId: "123",
+      },
+    }));
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice: vi.fn(),
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const { baseUrl } = await configuredServer({
+      agent: { agentConfigVersion: "auto-agent-v1", liveEnabled: true, run },
+      autoReplyEnabled: true,
+      outbound,
+    });
+
+    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversation: expect.objectContaining({
+          id: "telegram-conversation:-10042",
+          revision: 1,
+        }),
+        mode: "live",
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedPatientText: "Saya boleh bantu dengan temujanji.",
+        conversationId: "telegram-conversation:-10042",
+        mode: "text",
+        targetLanguage: "Malay",
+      }),
+    );
+
+    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs and does not send when the automatic agent requests staff handoff", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const send = vi.fn();
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice: vi.fn(),
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const { baseUrl } = await configuredServer({
+      agent: {
+        agentConfigVersion: "auto-agent-v1",
+        liveEnabled: true,
+        run: vi.fn(async (): Promise<AgentRunResult> => ({
+          draft: {
+            englishText: "A staff member will help.",
+            patientLanguage: "Malay",
+            patientText: "Seorang staf akan membantu.",
+          },
+          evidence: [],
+          handoffReason: "Needs staff review",
+          latencyMs: 12,
+          proposedAction: "staff_handoff",
+          runId: "agent-auto-handoff",
+          stopReason: "handoff",
+          toolCalls: [],
+          usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+        })),
+      },
+      autoReplyEnabled: true,
+      outbound,
+    });
+
+    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    await vi.waitFor(() =>
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"telegram_auto_reply_handoff"'),
+      ),
+    );
+    expect(send).not.toHaveBeenCalled();
+    info.mockRestore();
+  });
+
   it("rejects a wrong provider secret before persistence", async () => {
     const { baseUrl, eventDataSource } = await configuredServer();
 

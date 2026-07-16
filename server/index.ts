@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -90,6 +90,7 @@ import {
   createTelegramAdapter,
   readTelegramConfig,
 } from "./telegram-adapter";
+import type { NormalizedInboundEvent } from "../src/contracts/channel";
 import {
   createInboundSpeechService,
   InboundSpeechServiceError,
@@ -153,6 +154,7 @@ type Judge = (request: JudgeRequest, signal?: AbortSignal) => Promise<JudgeRespo
 type AgentRunner = {
   agentConfigVersion: string;
   apiMode?: "responses" | "chat_completions";
+  liveEnabled?: boolean;
   modelId?: string;
   run(
     request: AgentRunRequest,
@@ -186,9 +188,11 @@ type WorkspaceAppOptions = {
 };
 
 type TelegramAppOptions = {
+  autoReplyEnabled?: boolean;
   webhookSecret: string;
   liveEnabled?: boolean;
   inbound: TelegramInboundService;
+  normalizeInbound?: (payload: unknown) => NormalizedInboundEvent | null;
   outbound?: TelegramOutboundService;
   calendar?: CalendarDispatchService;
   speech?: InboundSpeechService;
@@ -239,6 +243,7 @@ function configuredAgent(): AgentRunner | null {
   return {
     agentConfigVersion: createAgentConfigVersion(config),
     apiMode: config.apiMode,
+    liveEnabled: config.liveEnabled,
     modelId: config.model,
     run: createAgentService({
       createResponse,
@@ -250,6 +255,7 @@ function configuredAgent(): AgentRunner | null {
 
 function configuredTelegram(
   workspace: WorkspaceAppOptions | null,
+  agent: AgentRunner | null,
 ): TelegramAppOptions | null {
   if (!workspace) {
     return null;
@@ -290,6 +296,7 @@ function configuredTelegram(
       : undefined;
     return {
       webhookSecret: telegram.webhookSecret,
+      autoReplyEnabled: telegram.liveEnabled && Boolean(agent?.liveEnabled),
       liveEnabled: telegram.liveEnabled,
       inbound: createTelegramInboundService({
         adapter,
@@ -299,6 +306,7 @@ function configuredTelegram(
         workspaceId: workspace.workspaceId,
         workspaceRepository: workspace.repository,
       }),
+      normalizeInbound: adapter.normalizeInbound,
       outbound: createTelegramOutboundService({
         adapter,
         deliveryRepository: createTelegramDeliveryRepository(
@@ -318,8 +326,162 @@ function configuredTelegram(
       calendar,
       speech,
     };
-  } catch {
+  } catch (error) {
+    log.error("telegram_configuration_failed", errorLogFields(error));
     return null;
+  }
+}
+
+function errorLogFields(error: unknown): Record<string, string | undefined> {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code
+      : undefined;
+  return {
+    errorCode: code,
+    errorMessage: error instanceof Error ? error.message : "Unknown error",
+    errorType: error instanceof Error ? error.name : typeof error,
+  };
+}
+
+function automaticReplyRequestId(event: NormalizedInboundEvent): string {
+  const identity = `${event.externalEventId}:${event.externalMessageId}`;
+  return `agent-auto-${createHash("sha256").update(identity).digest("hex").slice(0, 48)}`;
+}
+
+async function runTelegramAutoReply(input: {
+  agent: AgentRunner | null;
+  agentTimeoutMs: number;
+  event: NormalizedInboundEvent;
+  telegram: TelegramAppOptions;
+  webhookRequestId?: string;
+  workspace: WorkspaceAppOptions | null;
+}): Promise<void> {
+  const { agent, agentTimeoutMs, event, telegram, webhookRequestId, workspace } = input;
+  const logContext = {
+    externalEventId: event.externalEventId,
+    externalMessageId: event.externalMessageId,
+    messageKind: event.message.kind,
+    webhookRequestId,
+  };
+  if (!telegram.autoReplyEnabled || !agent || !telegram.outbound || !workspace) {
+    log.info("telegram_auto_reply_skipped", {
+      ...logContext,
+      reason: !telegram.autoReplyEnabled
+        ? "disabled"
+        : !agent
+          ? "agent_unconfigured"
+          : !telegram.outbound
+            ? "outbound_unconfigured"
+            : "workspace_unconfigured",
+    });
+    return;
+  }
+  if (event.message.kind !== "text") {
+    log.info("telegram_auto_reply_skipped", {
+      ...logContext,
+      reason: "voice_pending_transcript",
+    });
+    return;
+  }
+
+  try {
+    const loaded = await workspace.repository.load(workspace.workspaceId);
+    const conversation = loaded?.state.conversations.find(
+      (candidate) =>
+        candidate.channel === "telegram" &&
+        candidate.source === "telegram" &&
+        candidate.externalConversationId === event.externalConversationId,
+    );
+    if (!loaded || !conversation) {
+      log.error("telegram_auto_reply_failed", {
+        ...logContext,
+        reason: "conversation_not_persisted",
+        workspaceId: workspace.workspaceId,
+      });
+      return;
+    }
+    if (conversation.workflowStatus === "resolved" || conversation.agentMode !== "live_agent") {
+      log.info("telegram_auto_reply_skipped", {
+        ...logContext,
+        conversationId: conversation.id,
+        reason:
+          conversation.workflowStatus === "resolved"
+            ? "conversation_resolved"
+            : "agent_mode_disabled",
+      });
+      return;
+    }
+
+    const startedAt = performance.now();
+    log.info("telegram_auto_reply_started", {
+      ...logContext,
+      conversationId: conversation.id,
+      conversationRevision: conversation.revision,
+      workspaceId: workspace.workspaceId,
+    });
+    const result = await agent.run(
+      buildLiveAgentRunRequest(
+        loaded.state,
+        {
+          conversationId: conversation.id,
+          expectedConversationRevision: conversation.revision,
+        },
+        agent.agentConfigVersion,
+      ),
+      AbortSignal.timeout(agentTimeoutMs),
+    );
+    log.info("telegram_auto_reply_agent_completed", {
+      ...logContext,
+      conversationId: conversation.id,
+      latencyMs: Math.round(performance.now() - startedAt),
+      proposedAction: result.proposedAction,
+      runId: result.runId,
+      totalTokens: result.usage.totalTokens,
+    });
+    if (result.proposedAction === "staff_handoff") {
+      log.info("telegram_auto_reply_handoff", {
+        ...logContext,
+        conversationId: conversation.id,
+        runId: result.runId,
+      });
+      return;
+    }
+
+    const delivery = await telegram.outbound.send({
+      requestId: automaticReplyRequestId(event),
+      conversationId: conversation.id,
+      expectedConversationRevision: conversation.revision,
+      targetLanguage: result.draft.patientLanguage,
+      approvedPatientText: result.draft.patientText,
+      mode: "text",
+    });
+    if (delivery.status === "sent") {
+      log.info("telegram_auto_reply_sent", {
+        ...logContext,
+        conversationId: conversation.id,
+        providerMessageId: delivery.text?.providerMessageId,
+        requestId: automaticReplyRequestId(event),
+        runId: result.runId,
+      });
+      return;
+    }
+    log.error("telegram_auto_reply_delivery_failed", {
+      ...logContext,
+      conversationId: conversation.id,
+      failedParts: delivery.failedParts.join(","),
+      requestId: automaticReplyRequestId(event),
+      runId: result.runId,
+    });
+  } catch (error) {
+    log.error("telegram_auto_reply_failed", {
+      ...logContext,
+      workspaceId: workspace.workspaceId,
+      ...errorLogFields(error),
+    });
   }
 }
 
@@ -718,7 +880,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
   } = options;
   const telegram =
     options.telegram === undefined
-      ? configuredTelegram(workspace)
+      ? configuredTelegram(workspace, agent)
       : options.telegram;
   const translation =
     options.translation === undefined
@@ -741,6 +903,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       ok: true,
       configured: {
         telegram: Boolean(telegram),
+        telegramAutoReply: telegram?.autoReplyEnabled ?? false,
         telegramCalendar: Boolean(telegram?.calendar),
         telegramLiveDelivery: telegram?.liveEnabled ?? false,
         telegramSpeech: Boolean(telegram?.speech),
@@ -802,18 +965,39 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         return;
       }
       try {
+        const event = telegram.normalizeInbound?.(request.body) ?? null;
         const result = await telegram.inbound.process(request.body);
         response.status(200).json(result);
+        log.info("telegram_webhook_processed", {
+          externalEventId: event?.externalEventId,
+          messageKind: event?.message.kind,
+          status: result.status,
+        });
+        if (result.status === "processed" && event) {
+          const webhookRequestHeader = response.getHeader("x-request-id");
+          void runTelegramAutoReply({
+            agent,
+            agentTimeoutMs,
+            event,
+            telegram,
+            webhookRequestId:
+              typeof webhookRequestHeader === "string"
+                ? webhookRequestHeader
+                : undefined,
+            workspace,
+          });
+        }
         if (telegram.speech) {
           void telegram.speech.transcribeNext().then((speechResult) => {
             log.info("telegram_speech_auto_transcription", {
               status: speechResult.status,
             });
-          }).catch(() => {
-            log.error("telegram_speech_auto_transcription_failed");
+          }).catch((error) => {
+            log.error("telegram_speech_auto_transcription_failed", errorLogFields(error));
           });
         }
       } catch (error) {
+        log.error("telegram_webhook_failed", errorLogFields(error));
         if (error instanceof ZodError) {
           sendApiError(response, 400, {
             code: "invalid_request",

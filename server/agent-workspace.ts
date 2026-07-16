@@ -18,9 +18,14 @@ export class AgentWorkspaceError extends Error {
   }
 }
 
+type AgentRunTarget = Pick<
+  AgentRunCreateRequest,
+  "conversationId" | "expectedConversationRevision"
+>;
+
 export function buildLiveAgentRunRequest(
   state: ServerDomainStatePayload,
-  createRequest: AgentRunCreateRequest,
+  createRequest: AgentRunCreateRequest | AgentRunTarget,
   agentConfigVersion: string,
 ): AgentRunRequest {
   const conversation = state.conversations.find(

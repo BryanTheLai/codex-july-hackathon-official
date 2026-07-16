@@ -1130,8 +1130,12 @@
 
   .dream-toolbar__actions {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
+  }
+
+  .dream-toolbar__actions > .dream-release-action {
+    display: none;
   }
 
   .dream-toolbar__actions .dream-button,
@@ -1215,7 +1219,7 @@
   }
 
   .dream-toolbar__more {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .dream-editor .cm-gutters {

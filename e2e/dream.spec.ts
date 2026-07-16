@@ -85,11 +85,31 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
 
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Inactive candidate", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Discard candidate" }).click();
+  if (mobile) {
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Discard candidate" }).click();
+  } else {
+    await page.getByRole("button", { name: "Discard candidate" }).click();
+  }
   await expect(page.getByText("Inactive candidate", { exact: true })).toHaveCount(0);
   await expect(changes.getByRole("button", { name: "Approve correction" })).toBeEnabled();
   await changes.getByRole("button", { name: "Approve correction" }).click();
   await expect(changes).toContainText("approved");
+  if (mobile) {
+    await page.getByRole("tab", { name: "Files" }).click();
+  }
+  await page.getByRole("treeitem", { name: /malay-booking\.md/i }).click();
+  await page.getByRole("button", { name: "Replay affected" }).click();
+  await expect(page.getByRole("main").getByRole("status").first()).toHaveText(
+    "Affected Eval replay completed.",
+  );
+  if (mobile) {
+    await page.getByRole("tab", { name: "Files" }).click();
+  }
+  await page.getByRole("treeitem", { name: /triage\.md/i }).click();
+  if (mobile) {
+    await page.getByRole("tab", { name: "Changes" }).click();
+  }
   await expect(
     changes.getByRole("button", { name: /Focus correction at line \d+/ }),
   ).toBeEnabled();

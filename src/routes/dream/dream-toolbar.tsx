@@ -79,18 +79,28 @@ export function DreamToolbar({
             <button className="dream-button" disabled={releaseBusy} onClick={onReplayAffected} type="button">
               Replay affected
             </button>
-            <button className="dream-button" disabled={releaseBusy} onClick={onReplayFull} type="button">
+            <button
+              className="dream-button dream-release-action"
+              disabled={releaseBusy}
+              onClick={onReplayFull}
+              type="button"
+            >
               Full replay
             </button>
             <button
-              className="dream-button dream-button--primary"
+              className="dream-button dream-button--primary dream-release-action"
               disabled={!release.candidateReady || releaseBusy}
               onClick={onActivate}
               type="button"
             >
               Activate
             </button>
-            <button className="dream-button" disabled={releaseBusy} onClick={onDiscardCandidate} type="button">
+            <button
+              className="dream-button dream-release-action"
+              disabled={releaseBusy}
+              onClick={onDiscardCandidate}
+              type="button"
+            >
               Discard candidate
             </button>
           </>
@@ -109,6 +119,31 @@ export function DreamToolbar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" className="dream-menu" sideOffset={4}>
+              {release?.candidateVersionId ? (
+                <>
+                  <DropdownMenu.Item
+                    className="dream-menu__item dream-menu__release"
+                    disabled={releaseBusy}
+                    onSelect={onReplayFull}
+                  >
+                    Full replay
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className="dream-menu__item dream-menu__release"
+                    disabled={!release.candidateReady || releaseBusy}
+                    onSelect={onActivate}
+                  >
+                    Activate candidate
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className="dream-menu__item dream-menu__item--risk dream-menu__release"
+                    disabled={releaseBusy}
+                    onSelect={onDiscardCandidate}
+                  >
+                    Discard candidate
+                  </DropdownMenu.Item>
+                </>
+              ) : null}
               <DropdownMenu.Item className="dream-menu__item" onSelect={onNew}>
                 New File
               </DropdownMenu.Item>

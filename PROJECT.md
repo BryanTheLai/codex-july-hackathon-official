@@ -5,17 +5,17 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, and complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle are implemented. The fixed demo workspace is deployed on DigitalOcean App Platform with live Supabase persistence, a protected Telegram webhook, live inbound text, and live inbound Whisper transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. Dashboard authentication, booking dispatch/calendar files, and broader provider-quality validation remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, and idempotent Text, Voice, and Both delivery records. It retains the existing no-provider deterministic Analyze fallback. Tested local patches persist accepted outbound voices in the reloadable conversation, provide server-backed playback, and let Dream/Eval project live Telegram records; they still need deployment. Authentication and multi-user authorization remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text-reply control flow are implemented. A newly persisted live-agent Telegram text message runs the agent and sends one idempotent reply when both live switches are enabled; staff handoff sends nothing and voice waits for transcription. Dashboard authentication, booking authority, durable jobs, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, and automatic replies for newly persisted live-agent Telegram text. It retains the existing no-provider deterministic Analyze fallback. Automatic voice reply, booking tools, durable job retry, authentication, and multi-user authorization remain deferred."
 created: "2026-07-08"
-last_updated: "2026-07-16"
-last_verified: "2026-07-16"
-last_verified_scope: "Lint, typecheck, 430 automated tests, production build, 18 Playwright executions with three intentional skips, local and deployed health/readiness checks, live Supabase persistence, Telegram webhook authentication, live inbound text, English voice transcription using whisper-1, direct-OpenAI agent drafting, five-case Eval judging, an exact pending SOP proposal, outbound translation, Telegram text, TTS voice, and recorded-voice provider acceptance in the owner's test chat. The deployed build does not yet retain outbound voice messages after reload or project live Telegram state into Dream/Eval; the repository fixes are locally verified and awaiting deployment."
+last_updated: "2026-07-17"
+last_verified: "2026-07-17"
+last_verified_scope: "Lint, typecheck, 451 automated tests, production build, 20 passing Playwright executions with seven intentional skips, focused automatic-Telegram-reply regression tests, and an interactive local browser smoke. These prove the automatic inbound text control flow with mocked model and Telegram providers, including duplicate suppression and staff-handoff no-send behavior; they do not prove live provider quality or durable background execution."
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
   - "DigitalOcean deployment, public health checks, live Supabase persistence, and protected Telegram inbound text and voice verification"
-  - "Controlled owner-chat provider smoke verified agent drafting, Eval judging, translation, TTS, and Telegram text/voice provider acceptance; local outbound-voice persistence/playback and live-Telegram Dream/Eval projection fixes remain to deploy"
+  - "Focused automatic-reply tests verified new inbound text -> one agent run -> one outbound delivery; duplicate updates do neither and staff handoff sends nothing"
   - "Independent cold-read design, behavior, and causal-honesty audit"
 routes:
   chat_control: "/"
@@ -1791,8 +1791,9 @@ to the one-pane Files, Editor, and Changes choreography.
 +----------------------------------+
 ```
 
-At 320px, New File, Rename, Delete, and Discard stay in More. Save and Test Changes remain direct
-44px targets. Pending correction decisions stay in Changes and never move to More.
+At 320px, New File, Rename, Delete, and Discard stay in More. When a candidate exists, Full replay,
+Activate, and Discard candidate also move to More so Save, Test Changes, and Replay affected leave
+the Files pane reachable. Pending correction decisions stay in Changes and never move to More.
 
 Mobile reading order is selected file, saved-state text, current pane tabs, pane content, then the
 owning actions. In Changes, each card reads evidence, exact old text, exact new text, Reject, then
@@ -1834,8 +1835,9 @@ Desktop:
 
 Below 1000px:
 
-1. Save and Test Changes remain direct.
-2. Rename, Delete, and Discard move to More. New File and New Folder remain in the Files pane.
+1. Save, Test Changes, and Replay affected remain direct while a candidate exists.
+2. Rename, Delete, Discard, Full replay, Activate, and Discard candidate move to More. New File
+   and New Folder remain in the Files pane.
 3. No autonomous Dream Cycle control appears; corrections, Test Changes, activation, and rollback
    remain explicit visitor actions.
 
@@ -2658,9 +2660,8 @@ have passed the full local gate and still need deployment:
 - Static type checking and linting pass with no reported errors or warnings.
 - The production build passes. Every route delivery artifact remains below the 500 kB
   uncompressed budget.
-- 18 browser tests pass. Three integration entries are intentionally skipped because one
-  cross-route causal flow runs only on desktop and one pane-restoration flow runs only at the two
-  mobile widths.
+- 20 browser tests pass. Seven entries are intentionally skipped because one cross-route causal
+  flow runs only on desktop and some checks apply only to their owning viewport.
 - Chat Control, Dream, and Evaluation Lab pass at 1440 by 900, 390 by 844, and 320 by 568 CSS
   pixels.
 - Automated Axe scans report no serious or critical violations.
@@ -2685,7 +2686,9 @@ have passed the full local gate and still need deployment:
 - Telegram text verification covers secret rejection, malformed payloads, unsupported updates,
   payload-hash mismatch, failed-event retry, duplicate webhook delivery, concurrent outbound
   requests, provider failure, accepted-delivery reconciliation, reload-safe browser metadata, and
-  exact visitor-approved send across all three browser widths.
+  exact visitor-approved send across all three browser widths. Automatic-reply tests additionally
+  prove one agent run and one delivery for a new inbound text update, no duplicate model run or
+  send for a replayed update, and no send on staff handoff.
 - Agent contracts reject judge-only fields, non-empty tool traces, invalid pins, and inconsistent
   handoff output. One server-owned prompt builder delimits pinned Dream content, bounded context,
   ordered messages, and the strict output schema for both live and sandbox modes.
@@ -2725,10 +2728,9 @@ separates runtime configuration and post-POC work from the completed release wor
 
 ### Still unproven or deferred
 
-- Deploy and recheck the local outbound-voice transcript/playback and live-Telegram Dream/Eval
-  projection fixes. The current deployed build accepts voice at Telegram but does not retain it in
-  the reloaded Chat transcript, and Dream keeps stale local corrections when a live Telegram
-  conversation exists.
+- Deploy and recheck the automatic Telegram text-reply path, outbound-voice transcript/playback,
+  and live-Telegram Dream/Eval projection fixes. The local automated proof does not replace a
+  provider-backed deployment smoke.
 - A live Telegram-provider partial failure for Text + Voice. Deterministic fault injection proves
   that retry sends only the failed voice part; deliberately breaking a live delivery would be
   unsafe and would not improve the demo.
@@ -2738,8 +2740,9 @@ separates runtime configuration and post-POC work from the completed release wor
 - Dashboard authentication, authorization, clinic tenancy, and multi-user coordination before the
   public URL is shared beyond controlled demo use.
 - DigitalOcean alert-recipient confirmation and a deliberate production-provider smoke-test record.
-- Automatic booking notifications, reschedule/cancellation dispatch, and `.ics` calendar
-  attachments. Current booking mutations remain synthetic workspace messages only.
+- Automatic voice reply after transcription, booking notifications, reschedule/cancellation
+  dispatch, and `.ics` calendar attachments. Current booking mutations remain synthetic workspace
+  messages only.
 
 ### Deferred TODO: optional DigitalOcean inference provider switch
 
@@ -2786,9 +2789,9 @@ candidate's immutable full-suite evidence is Ready.
 | Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
 | Conversation source | `SIMULATED` | Seed data and local patient simulation |
 | Translation | `BUILT` adapter, automated proof, and controlled live Malay translation | Output quality still requires human review by clinic staff |
-| Telegram | `PARTIAL` live protected inbound text/Whisper transcription plus controlled outbound text, TTS, and recorded-voice provider acceptance | Deploy the local reloadable outbound-voice transcript/playback fix; partial provider failure remains deterministic-test-only |
-| Candidate reply generation | `BUILT` Chat and five-seed Eval paths with mocked proof plus a controlled live draft | Broader live-provider quality validation remains; Chat drafts stay unsent until approval |
-| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus controlled live Eval judging | Broader live-provider quality validation remains |
+| Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text when both live switches are enabled | Deploy and smoke the automatic path; voice remains transcription-only and partial provider failure remains deterministic-test-only |
+| Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text replies with mocked proof | Broader live-provider quality validation remains; automatic voice and booking actions are unbuilt |
+| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text-reply orchestration | Broader live-provider quality validation and durable job execution remain |
 | Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |
@@ -2814,7 +2817,7 @@ candidate's immutable full-suite evidence is Ready.
 | Vector database | Two to twenty playbook files fit deterministic routing and full-text search |
 | Multi-agent orchestration | One bounded agent plus human approval is easier to inspect |
 | Fine-tuning | Playbooks, prompts, traces, and evals must work first |
-| Autonomous external send | Staff approval remains mandatory |
+| Automatic voice or booking dispatch | Text reply is automatic only for newly persisted live-agent Telegram text; voice and booking dispatch remain unbuilt |
 | Real clinical advice | Administrative work only; clinical questions hand off to staff |
 | Full analytics suite | Run traces and a small release scorecard are enough |
 | Production capacity claims | The demo proves behavior, not load or clinic readiness |
@@ -2929,10 +2932,10 @@ before the MVP. Do not start WhatsApp until the Telegram path in this table pass
 
 | Priority | Slice | User-visible result | Exit gate |
 |---|---|---|---|
-| P0 | Telegram text vertical slice | A message from any chat appears in Chat; visitor reply reaches that chat | Duplicate webhook delivery creates one message; failed send is visible and retryable |
+| P0 | Telegram text vertical slice | A message from any chat appears in Chat; a live-agent text conversation can receive one automatic reply | Duplicate webhook delivery creates one message; duplicate update creates no second agent run or delivery |
 | P0 | Inbound voice transcription | A patient voice note becomes an original-language transcript plus English staff gloss | Audio failure keeps the message and supports retry or a manual transcript |
 | P0 | Real agent draft with Dream grounding | Visitor requests a draft produced from the approved playbook version and conversation | Every draft records model, prompt, playbook version, input messages, latency, and stop reason |
-| P0 | Visitor-approved multilingual send | Visitor writes English, edits the patient-language preview, then sends Text, Voice, or Both | No external send occurs without the final visitor action |
+| P0 | Visitor-approved multilingual send | Visitor writes English, edits the patient-language preview, then sends Text, Voice, or Both | Staff-triggered delivery requires a final visitor action; automatic reply is a separate inbound-text path |
 | P0 | Production-path Eval | Eval runs the same agent runner with side effects disabled | The case stores the full run artifact and separate judge artifact |
 | P1b | Booking calendar attachment | A confirmed or rescheduled Telegram booking includes an add-to-calendar file | Reschedule uses the same event identity and a higher revision |
 | P1c | WhatsApp adapter after the P0 gate | The same draft, approval, voice, and trace flow works on WhatsApp | Direct Meta and Twilio probes decide the provider; no Chat UI rewrite |

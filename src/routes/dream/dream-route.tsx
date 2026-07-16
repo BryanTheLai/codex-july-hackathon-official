@@ -94,14 +94,21 @@ export default function DreamRoute() {
         : [],
     [selectedFile, store.state.corrections],
   );
+  const query = searchParams.toString();
+  const release = store.dreamRelease;
   const linkedDatasetId =
     store.state.evalDatasets.find((dataset) =>
       dataset.cases.some((evalCase) =>
-        corrections.some((correction) => correction.sourceCaseId === evalCase.id),
+        store.state.corrections.some(
+          (correction) =>
+            correction.status === "approved" &&
+            correction.sourceCaseId === evalCase.id,
+        ),
       ),
-    )?.id ?? null;
-  const query = searchParams.toString();
-  const release = store.dreamRelease;
+    )?.id ??
+    store.state.selections.evalDatasetId ??
+    store.state.evalDatasets[0]?.id ??
+    null;
   const localVersion = store.state.evalDatasets[0]?.candidateVersion ?? 1;
   const operationStatus: OperationStatus | null = feedback
     ? {

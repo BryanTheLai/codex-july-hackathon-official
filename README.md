@@ -6,18 +6,18 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace is deployed with live Supabase persistence, a protected Telegram webhook, live inbound text, and live Whisper voice transcription. A controlled owner-chat smoke test proved direct-OpenAI drafting, Eval judging, translation, exact SOP proposal, and Telegram text, TTS, and recorded-voice provider acceptance. The deployed server can send an idempotent Telegram .ics attachment from an already-approved Telegram booking. Dashboard authentication, booking authority, unattended automation, and broader provider-quality validation remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message runs the existing agent and sends one idempotent reply; staff handoff sends nothing. Voice waits for transcription. Dashboard authentication, booking authority, durable background jobs, and broader provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
-last_updated: "2026-07-16"
-last_verified: "2026-07-16"
+last_updated: "2026-07-17"
+last_verified: "2026-07-17"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "434 automated tests, 20 Playwright executions with seven intentional scenario/viewport skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
+  - "451 automated tests, 20 passing Playwright executions with seven intentional scenario/viewport skips, production build, and local browser smoke verification"
   - "Controlled owner-chat smoke: direct-OpenAI agent drafting, five-case Eval judging, exact SOP proposal, translation, Telegram text, TTS voice, and recorded-voice provider acceptance"
-  - "The repository has tested outbound-voice persistence/playback and live-Telegram Dream/Eval projection fixes that are not yet deployed"
+  - "Focused Telegram webhook tests prove one automatic reply for a new inbound text update, duplicate suppression, and no send on staff handoff"
 sources_consulted:
   - "PROJECT.md"
   - "SOUL.md"
@@ -92,12 +92,12 @@ bundle used by Chat, and one click restores the prior SOP as a new immutable ver
 uses mocked providers for the automated gate. A controlled test of the owner's Telegram chat has
 also verified live Supabase, protected inbound text, English voice transcription, direct-OpenAI
 agent drafting and Eval judging, exact SOP proposal generation, outbound translation, Telegram
-text, AI TTS voice, and staff-recorded voice provider acceptance. The current production build
-does not yet retain outbound voice messages after reload or refresh Dream/Eval reliably when a
-live Telegram conversation exists. The repository fixes are tested locally and must be deployed.
-The deployed `.ics` dispatch code uses the approved booking's existing Telegram conversation as
-its destination. Authentication, actual booking authority, automatic booking dispatch, and broader
-provider-quality validation remain pending.
+text, AI TTS voice, and staff-recorded voice provider acceptance. For live Telegram text, a new
+persisted update can run the active agent and deliver its reply automatically when both live
+switches are on. A duplicate update does not rerun the model or resend; a staff handoff remains in
+the thread without an outbound message. Voice stays pending until transcription completes.
+Authentication, actual booking authority, durable background jobs, automatic booking dispatch, and
+broader provider-quality validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
@@ -173,16 +173,17 @@ speech. `TTS_MODEL` and `TTS_VOICE` can override the outbound voice settings. Pr
 environment values are not stored in the repository, so the deployed text-model override must be
 checked in the deployment settings rather than inferred from this file.
 
-The agent is currently a **staff-reviewed drafting assistant**: an incoming Telegram webhook stores
-the message and speech job, but does not trigger an agent run; an agent run has no tools and cannot
-send a message or create a booking. Staff can explicitly generate a grounded draft, edit it, and
-approve delivery. This is deliberate POC scope, not autonomous booking or dispatch.
+The agent has two bounded paths. Staff can explicitly generate, edit, and approve a grounded draft.
+For a newly persisted Telegram **text** message in a live-agent conversation, the webhook can also
+start the same agent in the background and deliver one reply automatically when both
+`LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` are true. A `staff_handoff` result sends nothing;
+voice waits for transcription. The agent has no booking or clinic-system tools.
 
 ### Current capability boundary
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; manual agent drafts; server-side `.ics` documents for already-approved Telegram bookings; synthetic booking decisions; Eval-to-Dream candidate workflow | Webhook-triggered agent worker; live availability and booking creation; autonomous external sends; phone/voice-call dispatch; user authentication; durable job retries and real-time UI push |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic reply for newly persisted live-agent text messages; manual agent drafts; server-side `.ics` documents for already-approved Telegram bookings; synthetic booking decisions; Eval-to-Dream candidate workflow | Automatic voice reply after transcription; live availability and booking creation; durable job retries; phone/voice-call dispatch; user authentication; real-time UI push |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
 17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
@@ -224,9 +225,10 @@ Telegram documents `secret_token` and the matching
 `X-Telegram-Bot-Api-Secret-Token` header under
 [setWebhook](https://core.telegram.org/bots/api#setwebhook).
 
-Keep `LIVE_TELEGRAM_ENABLED=false` for a local or separate test bot. The deployed controlled demo
-currently uses `true`; staff must still explicitly approve every outbound send. Do not test a real
-outbound reply until the target chat and exact message are approved.
+Keep both `LIVE_TELEGRAM_ENABLED=false` and `LIVE_AGENT_ENABLED=false` for a local or separate test
+bot unless an automatic text reply is intended. Automatic replies require both switches; a staff
+handoff sends no Telegram message. Do not test a real outbound reply until the target chat and
+exact message are approved.
 
 If a process crashes while a delivery is `sending`, fail closed. Do not auto-resend. Inspect the
 delivery record before any manual recovery. Telegram Bot API has no request idempotency key that
@@ -250,9 +252,9 @@ GitHub repository
 ```
 
 Runtime rules: the container listens on `0.0.0.0:8080`; App Platform checks `/healthz` and
-`/readyz`; deployed Telegram uses webhooks; every provider call is bounded; agent and Eval work
-starts from a browser action and finishes in one request; no permanent worker or durable job queue
-exists in the POC.
+`/readyz`; deployed Telegram uses webhooks; every provider call is bounded; staff agent and Eval
+work starts from a browser action, while a new Telegram text update may start one background agent
+reply after the webhook responds; no permanent worker or durable job queue exists in the POC.
 
 `PORT=5173` is only for local development. Do not add it to DigitalOcean: leave `PORT` unset so
 the Docker image's `PORT=8080` is used, or explicitly set it to `8080`.
@@ -354,7 +356,7 @@ changes. TypeScript project validation is repository-wide through `npm run typec
 `npm run verify` before closing the module.
 
 The verified gate covers lint, the complete automated contract, domain, server, store, component,
-route, and regression suite, TypeScript, the production build, and 18 browser executions when the
+route, and regression suite, TypeScript, the production build, and 20 passing browser executions when the
 Playwright browser binaries are installed.
 The browser matrix exercises all three routes at 1440px, 390px, and 320px, including Axe scans,
 overflow checks, 44px mobile targets, route handoffs, reset behavior, the Telegram text refresh
@@ -364,9 +366,8 @@ and exact-send flow, and the full Chat to Eval to Dream flow with browser API fi
 
 The repository proves the local synthetic workflow, the same-origin judge contract, deterministic
 simulated-judge behavior, fixed-workspace CAS and reset behavior, the three-table PostgreSQL
-migration, responsive frontend contract, deployed DigitalOcean health/readiness, live Supabase
-persistence, protected Telegram inbound text, English Whisper transcription, and the controlled
-owner-chat provider smoke described above. It does not prove broad agent/Eval quality or
-availability, real-patient operation, automatic booking dispatch, calendar attachment delivery,
-dashboard authentication, clinical integration, or production capacity.
+migration, responsive frontend contract, and automatic Telegram text-reply control flow under
+mocked provider tests. It does not prove broad agent/Eval quality or availability, real-patient
+operation, automatic voice or booking dispatch, calendar attachment delivery, dashboard
+authentication, clinical integration, durable background execution, or production capacity.
 `PROJECT.md` section 16 separates verified behavior, deferred TODOs, and post-POC gaps.
