@@ -79,6 +79,13 @@ type SpeechArtifactView = {
   error: string | null;
 };
 
+type LiveTranslationPreview = {
+  sourceText: string;
+  targetLanguage: TranslationLanguage;
+  text: string;
+  approved: boolean;
+};
+
 function preferredTranslationLanguage(language: string): TranslationLanguage {
   if (language === "Malay" || language === "Mandarin") {
     return language;
@@ -199,9 +206,9 @@ function HandlerBadge({
 }) {
   const synthetic = !live && mode === "synthetic_agent";
   const label = live
-    ? "Live Telegram handling"
+    ? "Telegram inbox: agent drafts require staff approval"
     : synthetic
-      ? "Synthetic agent handling"
+      ? "Synthetic agent drafts require staff approval"
       : "Staff only handling";
   return (
     <span
@@ -254,6 +261,7 @@ function Composer({
   >("idle");
   const [isSending, setIsSending] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [liveTranslation, setLiveTranslation] = useState<LiveTranslationPreview | null>(null);
   const [deliveryMode, setDeliveryMode] = useState<"text" | "voice" | "both">("text");
   const [recording, setRecording] = useState<Blob | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
@@ -277,6 +285,7 @@ function Composer({
       ? translateFixtureReply(draft, translationLanguage)
       : null;
   const translationBlocked = translation?.ok === false;
+  const liveTranslationBlocked = liveTelegram && liveTranslation !== null && !liveTranslation.approved;
 
   useEffect(() => {
     generationRef.current += 1;
@@ -291,6 +300,7 @@ function Composer({
     setAgentStatus("idle");
     setIsSending(false);
     setIsTranslating(false);
+    setLiveTranslation(null);
     setAutoTranslate(false);
     setDeliveryMode("text");
     setVoiceSource("tts");
@@ -360,6 +370,7 @@ function Composer({
     }
     setKind("reply");
     setDraft(result.result.draft.patientText);
+    setLiveTranslation(null);
     setAutoTranslate(false);
     setAgentRun(result.result);
     setAgentStatus("ready");
@@ -375,7 +386,12 @@ function Composer({
     try {
       const result = await onTranslate(draft, translationLanguage);
       if (result.ok) {
-        setDraft(result.text);
+        setLiveTranslation({
+          sourceText: draft,
+          targetLanguage: translationLanguage,
+          text: result.text,
+          approved: false,
+        });
         requestRef.current = null;
       } else {
         setError(result.error);
@@ -436,6 +452,7 @@ function Composer({
       sendInFlightRef.current ||
       isGenerating ||
       translationBlocked ||
+      liveTranslationBlocked ||
       isTranslating ||
       (liveTelegram && kind === "reply" && deliveryMode !== "text" &&
         voiceSource === "recorded" && !recording)
@@ -453,6 +470,7 @@ function Composer({
       kind,
       text: draft,
       translation,
+      liveTranslation,
       deliveryMode,
       voiceSource,
       recordingSize: recording?.size ?? null,
@@ -469,8 +487,12 @@ function Composer({
           conversationId: conversation.id,
           kind,
           text: draft,
-          translation:
-            translation?.ok === true && translation.language !== "English"
+          translation: liveTranslation?.approved
+            ? {
+                language: liveTranslation.targetLanguage,
+                text: liveTranslation.text,
+              }
+            : translation?.ok === true && translation.language !== "English"
               ? {
                   language: translation.language,
                   text: translation.text,
@@ -494,6 +516,7 @@ function Composer({
       if (result.ok) {
         requestRef.current = null;
         setDraft("");
+        setLiveTranslation(null);
         setKind("reply");
         setAgentError("");
         setAgentRun(null);
@@ -530,6 +553,8 @@ function Composer({
       ? "Enter a message before sending."
     : translation?.ok === false
       ? translation.error
+      : liveTranslationBlocked
+        ? `Approve the ${liveTranslation.targetLanguage} preview before sending.`
       : liveTelegram && kind === "reply" && deliveryMode !== "text" &&
           voiceSource === "recorded" && !recording
         ? "Record a staff voice reply before sending."
@@ -612,7 +637,10 @@ function Composer({
             <span>Translate to</span>
             <select
               aria-label="Translation language"
-              onChange={(event) => setTranslationLanguage(event.target.value as TranslationLanguage)}
+              onChange={(event) => {
+                setTranslationLanguage(event.target.value as TranslationLanguage);
+                setLiveTranslation(null);
+              }}
               value={translationLanguage}
             >
               <option value="English">English</option>
@@ -673,11 +701,34 @@ function Composer({
                   {recordingUrl ? <audio controls src={recordingUrl} /> : null}
                 </>
               ) : (
-                <span className="chat-composer__voice-disclosure">AI-generated voice</span>
+                <span className="chat-composer__voice-disclosure">AI-generated voice from the approved preview</span>
               )}
             </>
           ) : null}
         </div>
+      ) : null}
+      {liveTranslation ? (
+        <section aria-label="Translated delivery preview" className="chat-composer__translation-preview">
+          <div>
+            <strong>{liveTranslation.targetLanguage} delivery preview</strong>
+            <span>{liveTranslation.approved ? "Approved for delivery" : "Review before delivery"}</span>
+          </div>
+          <p>{liveTranslation.text}</p>
+          {!liveTranslation.approved ? (
+            <button
+              className="chat-button chat-button--primary"
+              onClick={() => setLiveTranslation((current) => current ? { ...current, approved: true } : current)}
+              type="button"
+            >
+              Use {liveTranslation.targetLanguage} preview for delivery
+            </button>
+          ) : null}
+          {deliveryMode !== "text" && voiceSource === "tts" ? (
+            <span className="chat-composer__voice-disclosure">
+              Voice will synthesize this exact approved preview.
+            </span>
+          ) : null}
+        </section>
       ) : null}
       {agentRun ? (
         <section
@@ -725,7 +776,10 @@ function Composer({
           aria-describedby="composer-help"
           aria-label="Message"
           disabled={resolved || isSending || isGenerating}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setLiveTranslation(null);
+          }}
           onKeyDown={onKeyDown}
           placeholder={
             kind === "reply"
@@ -744,6 +798,7 @@ function Composer({
             isSending ||
             isGenerating ||
             translationBlocked ||
+            liveTranslationBlocked ||
             isTranslating ||
             (liveTelegram && kind === "reply" && deliveryMode !== "text" &&
               voiceSource === "recorded" && !recording)
@@ -793,8 +848,15 @@ function OutboundVoiceMessageControls({
     <section aria-label="Sent voice controls" className="message-voice-controls">
       <div className="message-voice-controls__status">
         <Mic aria-hidden="true" size={13} />
-        <span>{source} voice sent</span>
+        <span>
+          {source} voice sent{message.language ? ` in ${message.language}` : ""}
+        </span>
       </div>
+      {message.outboundVoice.spokenTextHash ? (
+        <span className="message-voice-controls__receipt">
+          Approved script checksum {message.outboundVoice.spokenTextHash.slice(0, 12)}
+        </span>
+      ) : null}
       <button onClick={() => void play()} type="button">Play sent voice</button>
       <audio
         controls
@@ -1001,6 +1063,7 @@ export function ThreadPane({
   }
 
   const resolved = conversation.workflowStatus === "resolved";
+  const serverControlledAgentMode = conversation.channel === "Telegram";
 
   return (
     <section aria-label="Selected conversation" className="chat-pane thread-pane" role="region">
@@ -1031,14 +1094,15 @@ export function ThreadPane({
         <label className="thread-header__mode">
           <span className="visually-hidden">Agent mode</span>
           <select
-            aria-label="Agent mode"
-            disabled={resolved}
+            aria-label={serverControlledAgentMode ? "Agent mode, managed by server" : "Agent mode"}
+            disabled={resolved || serverControlledAgentMode}
             onChange={(event) =>
               onSetAgentMode(conversation.id, event.target.value as AgentMode)
             }
+            title={serverControlledAgentMode ? "Telegram agent mode is managed by the server." : undefined}
             value={conversation.agentMode}
           >
-            <option value="synthetic_agent">Synthetic agent on</option>
+            <option value="synthetic_agent">Agent drafts (staff approval)</option>
             <option value="staff_only">Staff only</option>
           </select>
         </label>

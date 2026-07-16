@@ -19,6 +19,15 @@ const textSchema = z.string().trim().min(1).max(8_000);
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const timestampSchema = z.iso.datetime({ offset: true });
 
+export const evalExecutionCapabilitySchema = z
+  .object({
+    enabled: z.boolean(),
+    reason: z.string().trim().min(1).max(500).nullable(),
+  })
+  .strict();
+
+export type EvalExecutionCapability = z.infer<typeof evalExecutionCapabilitySchema>;
+
 export const evalPlaybookVersionRefSchema = z
   .object({
     fileId: idSchema,

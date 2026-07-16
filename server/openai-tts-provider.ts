@@ -24,8 +24,16 @@ export type SynthesizedVoice = {
   voice: string;
 };
 
+export type TtsSynthesisOptions = {
+  targetLanguage?: string;
+  signal?: AbortSignal;
+};
+
 export interface TtsProvider {
-  synthesize(text: string, signal?: AbortSignal): Promise<SynthesizedVoice>;
+  synthesize(
+    text: string,
+    options?: TtsSynthesisOptions,
+  ): Promise<SynthesizedVoice>;
 }
 
 export class TtsProviderError extends Error {
@@ -59,16 +67,22 @@ export function createOpenAiTtsProvider(
     maxRetries: 1,
   });
   return {
-    async synthesize(text, signal) {
+    async synthesize(text, options) {
       try {
+        const input = z.string().trim().min(1).max(4096).parse(text);
+        const instructions =
+          ttsConfig.model === "gpt-4o-mini-tts" && options?.targetLanguage
+            ? `Speak naturally in ${options.targetLanguage}. Preserve the exact input text: do not translate, paraphrase, omit, or add words.`
+            : undefined;
         const response = await client.audio.speech.create(
           {
             model: ttsConfig.model,
             voice: ttsConfig.voice,
-            input: z.string().trim().min(1).max(4096).parse(text),
+            input,
+            ...(instructions ? { instructions } : {}),
             response_format: "opus",
           },
-          { signal },
+          { signal: options?.signal },
         );
         const bytes = new Uint8Array(await response.arrayBuffer());
         if (bytes.byteLength === 0) {

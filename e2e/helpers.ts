@@ -388,6 +388,15 @@ export async function expectNoDocumentOverflow(page: Page) {
   expect(overflow.offenders).toEqual([]);
 }
 
+export async function expectNoDocumentVerticalScroll(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+}
+
 export async function expectMobileTargets(page: Page) {
   const undersized = await page.evaluate(() =>
     [

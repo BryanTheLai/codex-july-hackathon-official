@@ -25,6 +25,7 @@ const outboundTextInputSchema = z
 const outboundVoiceInputSchema = outboundTextInputSchema
   .extend({
     deliveryId: z.string().min(1).max(128),
+    spokenTextHash: z.string().regex(/^[a-f0-9]{64}$/),
     voiceSource: z.enum(["tts", "recorded"]),
   })
   .strict();
@@ -234,8 +235,9 @@ function appendOutboundMessage(
     : outboundTextInputSchema.parse(input);
   const outboundVoice = voiceCandidate.success
     ? {
-        deliveryId: voiceCandidate.data.deliveryId,
-        source: voiceCandidate.data.voiceSource,
+      deliveryId: voiceCandidate.data.deliveryId,
+      source: voiceCandidate.data.voiceSource,
+      spokenTextHash: voiceCandidate.data.spokenTextHash,
       }
     : undefined;
   const index = current.conversations.findIndex(

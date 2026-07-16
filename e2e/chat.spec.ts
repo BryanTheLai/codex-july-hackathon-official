@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   expectMobileTargets,
   expectNoDocumentOverflow,
+  expectNoDocumentVerticalScroll,
   expectNoSeriousAxeViolations,
   resetE2eWorkspace,
 } from "./helpers";
@@ -39,6 +40,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
   });
   expect(Math.round((await firstQueueRow.boundingBox())?.height ?? 0)).toBeLessThanOrEqual(68);
   await expectNoDocumentOverflow(page);
+  await expectNoDocumentVerticalScroll(page);
   await expectNoSeriousAxeViolations(page);
 
   if (mobile) {
@@ -54,7 +56,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
       .getByRole("button", { name: "Open conversation with Ahmad bin Hassan" })
       .click();
     await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
-    await expect(page.getByLabel("Synthetic agent handling")).toBeVisible();
+    await expect(page.getByLabel("Synthetic agent drafts require staff approval")).toBeVisible();
     expect(
       await page
         .getByRole("button", { name: "Send", exact: true })
@@ -62,6 +64,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     ).toBe("8px");
     await expectMobileTargets(page);
     await expectNoDocumentOverflow(page);
+    await expectNoDocumentVerticalScroll(page);
     await page.screenshot({
       fullPage: true,
       path: `test-results/screenshots/chat-${testInfo.project.name}-thread.png`,
@@ -136,4 +139,36 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     ),
   ).toEqual([]);
   await expect(runtimeErrors).toEqual([]);
+});
+
+test("a synthetic conversation can reset without resetting the demo", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "This control is verified once on desktop.");
+
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Message" }).fill("Temporary staff reply");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByLabel("Conversation messages")).toContainText("Temporary staff reply");
+
+  await page.getByRole("button", { name: "Reset this chat" }).click();
+  await page
+    .getByRole("button", { name: "Reset this synthetic conversation" })
+    .click();
+
+  await expect(page.getByLabel("Conversation messages")).not.toContainText("Temporary staff reply");
+  await expectNoDocumentVerticalScroll(page);
+});
+
+test("the transcript scrolls inside the chat workbench instead of moving the page", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "This layout contract is verified once on desktop.");
+
+  await page.setViewportSize({ width: 1440, height: 520 });
+  await page.goto("/");
+
+  const transcript = page.getByLabel("Conversation messages");
+  await expect(transcript).toBeVisible();
+  await expect(page.getByLabel("Message composer")).toBeVisible();
+  expect(await transcript.evaluate((element) => getComputedStyle(element).overflowY)).toBe("auto");
+  await expectNoDocumentVerticalScroll(page);
 });

@@ -7,7 +7,7 @@ import {
   type EvalDataset,
   type MutationResult,
 } from "../../domain";
-import { ScoreSummary, SuiteHistory } from "./eval-support";
+import { SuiteHistory } from "./eval-support";
 
 export function AnalyzeFailuresDrawer({
   corrections,
@@ -171,7 +171,6 @@ export function HistoryDrawer({
         </button>
       </header>
       <div className="eval-drawer__scroll">
-        <ScoreSummary dataset={dataset} mobile={false} onHistory={() => undefined} />
         <SuiteHistory dataset={dataset} />
       </div>
     </aside>

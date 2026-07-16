@@ -76,6 +76,9 @@ export default function ChatRoute() {
   const escalateEmergency = useAppStore((store) => store.escalateEmergency);
   const addLabel = useAppStore((store) => store.addLabel);
   const removeLabel = useAppStore((store) => store.removeLabel);
+  const resetSyntheticConversation = useAppStore(
+    (store) => store.resetSyntheticConversation,
+  );
   const setAgentMode = useAppStore((store) => store.setAgentMode);
   const simulatePatient = useAppStore((store) => store.simulatePatient);
   const playbookIdForConversation = useAppStore(
@@ -286,6 +289,9 @@ export default function ChatRoute() {
         onImportEval={openEval}
         onRejectBooking={() => rejectBooking(selectedConversation.id)}
         onRemoveLabel={(label) => removeLabel(selectedConversation.id, label)}
+        onResetSyntheticConversation={() =>
+          resetSyntheticConversation(selectedConversation.id)
+        }
         onUpdatePatient={(input: PatientUpdateInput) =>
           updatePatient(selectedConversation.id, input)
         }

@@ -33,11 +33,17 @@ import {
   type TestDockState,
 } from "./dream-model";
 import { DreamToolbar } from "./dream-toolbar";
+import { OperationStatusBanner } from "../../components/operation-status";
+import type { OperationStatus } from "../../contracts/workflow";
 import { FileListPane } from "./file-list-pane";
 import { TestDock } from "./test-dock";
 import "./dream.css";
 
 const PANES: DreamPane[] = ["files", "editor", "changes"];
+type DreamFeedback = {
+  message: string;
+  state: "succeeded" | "failed";
+};
 const fileParentPath = (path: string) => path.split("/").slice(0, -1).join("/");
 const EditorPane = lazy(async () => {
   const module = await import("./editor-pane");
@@ -68,7 +74,7 @@ export default function DreamRoute() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<DreamFeedback | null>(null);
   const [releaseBusy, setReleaseBusy] = useState(false);
   const [testDock, setTestDock] = useState<TestDockState>({ status: "closed" });
   const testToken = useRef(0);
@@ -96,6 +102,16 @@ export default function DreamRoute() {
     )?.id ?? null;
   const query = searchParams.toString();
   const release = store.dreamRelease;
+  const localVersion = store.state.evalDatasets[0]?.candidateVersion ?? 1;
+  const operationStatus: OperationStatus | null = feedback
+    ? {
+        scope: "dream",
+        state: feedback.state,
+        message: feedback.message,
+        action: null,
+        actionLabel: null,
+      }
+    : null;
 
   const clearTestTimers = () => {
     if (testTimer.current !== null) {
@@ -140,7 +156,7 @@ export default function DreamRoute() {
     setDeleteOpen(false);
     setDiscardOpen(false);
     setSaving(false);
-    setFeedback("");
+    setFeedback(null);
   }, [store.resetVersion]);
 
   useEffect(() => {
@@ -177,8 +193,14 @@ export default function DreamRoute() {
     [],
   );
 
+  const showFeedback = (message: string, state: DreamFeedback["state"] = "succeeded") => {
+    setFeedback({ message, state });
+  };
+
   const report = (result: MutationResult) => {
-    setFeedback(result.ok ? "" : result.error);
+    if (!result.ok) {
+      showFeedback(result.error, "failed");
+    }
     return result;
   };
 
@@ -275,7 +297,7 @@ export default function DreamRoute() {
             : remote;
         setSaving(false);
         if (result.ok) {
-        setFeedback(
+        showFeedback(
           remote.ok
             ? "Inactive candidate created. Replay affected Eval cases next."
             : "Draft saved locally; configure the release server to create a candidate.",
@@ -289,7 +311,7 @@ export default function DreamRoute() {
               : { message: "Saved text changed. Run Test Changes again.", status: "error" },
         );
         } else {
-          setFeedback(result.error);
+          showFeedback(result.error, "failed");
         }
       })();
     }, 140);
@@ -339,7 +361,7 @@ export default function DreamRoute() {
       const remote = await store.acceptDreamCorrection(correction.id);
       const fallback = releaseFallback(remote.ok ? "" : remote.error);
       if (remote.ok) {
-        setFeedback("Inactive candidate created from the approved correction.");
+        showFeedback("Inactive candidate created from the approved correction.");
         cancelTest();
         return;
       }
@@ -347,13 +369,13 @@ export default function DreamRoute() {
         decideCorrection(correction, store.approveCorrection);
         return;
       }
-      setFeedback(remote.error);
+      showFeedback(remote.error, "failed");
     })();
   };
 
   const runReleaseReplay = (scope: "affected" | "full") => {
     if (!release?.candidateVersionId || !linkedDatasetId) {
-      setFeedback("Link a Dream correction to an Eval dataset before replaying it.");
+      showFeedback("Link a Dream correction to an Eval dataset before replaying it.", "failed");
       return;
     }
     const candidateVersionId = release.candidateVersionId;
@@ -367,10 +389,10 @@ export default function DreamRoute() {
           scope,
         );
         if (!result.ok) {
-          setFeedback(result.error);
+          showFeedback(result.error, "failed");
           return;
         }
-        setFeedback(
+        showFeedback(
           result.replay?.ready
             ? `Full train and holdout replay: ${result.replay.passedCases}/${result.replay.totalCases} passed${
                 result.replay.beforeFailedCases > 0
@@ -398,7 +420,10 @@ export default function DreamRoute() {
       setReleaseBusy(true);
       try {
         const result = await store.activateDreamCandidate(candidateVersionId);
-        setFeedback(result.ok ? "Candidate activated. New Chat drafts use this SOP." : result.error);
+        showFeedback(
+          result.ok ? "Candidate activated. New Chat drafts use this SOP." : result.error,
+          result.ok ? "succeeded" : "failed",
+        );
       } finally {
         setReleaseBusy(false);
       }
@@ -412,7 +437,10 @@ export default function DreamRoute() {
       setReleaseBusy(true);
       try {
         const result = await store.discardDreamCandidate(candidateVersionId);
-        setFeedback(result.ok ? "Candidate discarded. Active SOP remains unchanged." : result.error);
+        showFeedback(
+          result.ok ? "Candidate discarded. Active SOP remains unchanged." : result.error,
+          result.ok ? "succeeded" : "failed",
+        );
       } finally {
         setReleaseBusy(false);
       }
@@ -424,7 +452,10 @@ export default function DreamRoute() {
       setReleaseBusy(true);
       try {
         const result = await store.rollbackDreamPlaybook();
-        setFeedback(result.ok ? "Prior SOP restored as a new immutable version." : result.error);
+        showFeedback(
+          result.ok ? "Prior SOP restored as a new immutable version." : result.error,
+          result.ok ? "succeeded" : "failed",
+        );
       } finally {
         setReleaseBusy(false);
       }
@@ -436,7 +467,7 @@ export default function DreamRoute() {
     event.target.value = "";
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".md")) {
-      setFeedback("Choose a Markdown (.md) SOP file.");
+      showFeedback("Choose a Markdown (.md) SOP file.", "failed");
       return;
     }
     void (async () => {
@@ -450,10 +481,11 @@ export default function DreamRoute() {
         file.name.replace(/\.md$/i, ""),
         await file.text(),
       );
-      setFeedback(
+      showFeedback(
         result.ok
           ? "Markdown imported as an inactive candidate. Replay affected Eval cases next."
           : result.error,
+        result.ok ? "succeeded" : "failed",
       );
     })();
   };
@@ -571,7 +603,34 @@ export default function DreamRoute() {
         releaseBusy={releaseBusy}
         saving={saving}
       />
-      {feedback ? <p className="dream-feedback" role="alert">{feedback}</p> : null}
+      <section aria-label="Dream release gate" className="dream-release-gate">
+        <div>
+          <span>Active SOP</span>
+          <strong>v{release?.activeVersionSequence ?? localVersion}</strong>
+          <small>{release ? "immutable server release" : "local demo baseline"}</small>
+        </div>
+        <div>
+          <span>Candidate</span>
+          <strong>
+            {release?.candidateVersionId
+              ? release.candidateReady
+                ? `v${release.candidateVersionSequence} ready`
+                : `v${release.candidateVersionSequence} inactive`
+              : "None"}
+          </strong>
+          <small>
+            {release?.candidateVersionId
+              ? "Replay affected cases, then full suite before activation."
+              : "Approve a correction or save a draft to create one."}
+          </small>
+        </div>
+        <div>
+          <span>Release path</span>
+          <strong>Edit → Replay → Activate</strong>
+          <small>Rollback restores the prior SOP as a new immutable version.</small>
+        </div>
+      </section>
+      <OperationStatusBanner status={operationStatus} />
       {mobile ? (
         <div aria-label="Dream panes" className="dream-tabs" role="tablist">
           {PANES.map((item) => (

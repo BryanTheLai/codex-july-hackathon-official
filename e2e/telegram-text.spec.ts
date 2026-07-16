@@ -97,7 +97,9 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
   await expect(
     selected.getByText("Boleh saya buat temujanji?"),
   ).toBeVisible();
-  await expect(page.getByLabel("Live Telegram handling")).toBeVisible();
+  await expect(
+    page.getByLabel("Telegram inbox: agent drafts require staff approval"),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Auto-translate" }),
   ).toHaveCount(0);

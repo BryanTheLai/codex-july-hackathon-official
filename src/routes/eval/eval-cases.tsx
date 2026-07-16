@@ -1,17 +1,10 @@
 import { getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
-import { Copy, Edit3, Play, Square, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Copy, Edit3, LoaderCircle, Play, Square, Trash2 } from "lucide-react";
+import { useMemo, type KeyboardEvent, type MouseEvent } from "react";
 
 import { GlossaryTerm } from "../../components/glossary-term";
 import type { EvalCase, EvalCaseId, EvalCaseType, EvalDataset } from "../../domain";
-import {
-  criteriaText,
-  EVAL_GLOSSARY,
-  formatCaseType,
-  gradeLabel,
-  inputText,
-  type EvalSort,
-} from "./eval-model";
+import { EVAL_GLOSSARY, formatCaseType, gradeLabel, type EvalSort } from "./eval-model";
 
 function CaseTypeLabel({ type }: { type: EvalCaseType }) {
   const label = formatCaseType(type);
@@ -26,70 +19,45 @@ function CaseTypeLabel({ type }: { type: EvalCaseType }) {
 }
 
 function SplitLabel({ split }: { split: EvalCase["split"] }) {
-  const verifyOnly = split === "holdout";
+  const regressionGuard = split === "holdout";
   return (
     <GlossaryTerm
       className="eval-split"
-      definition={verifyOnly ? EVAL_GLOSSARY.verifyOnly : EVAL_GLOSSARY.improveWith}
+      definition={regressionGuard ? EVAL_GLOSSARY.regressionGuard : EVAL_GLOSSARY.improveSop}
     >
-      {verifyOnly ? "Verify only" : "Improve with"}
+      {regressionGuard ? "Regression guard" : "Improve SOP"}
     </GlossaryTerm>
   );
 }
 
-function PreviewField({
-  label,
-  text,
-  compact = false,
-  glossary,
-}: {
-  label: string;
-  text: string;
-  compact?: boolean;
-  glossary?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const labelNode = glossary ? (
-    <GlossaryTerm definition={glossary}>{label}</GlossaryTerm>
-  ) : (
-    label
-  );
-  return (
-    <div className={`eval-preview${compact ? " eval-preview--compact" : ""}`}>
-      <strong>{labelNode}</strong>
-      <span className={expanded ? "eval-preview__text--expanded" : "eval-preview__text"}>
-        {text || "Not run"}
-      </span>
-      {text.length > 72 ? (
-        <button
-          aria-expanded={expanded}
-          className="eval-preview__toggle"
-          onClick={(event) => {
-            event.stopPropagation();
-            setExpanded((current) => !current);
-          }}
-          type="button"
-        >
-          {expanded ? "Show less" : `Show full ${label.toLocaleLowerCase()}`}
-        </button>
-      ) : null}
-    </div>
-  );
+function SourceLabel({ evalCase }: { evalCase: EvalCase }) {
+  if (evalCase.source.kind === "hitl") {
+    return "Resolved staff chat";
+  }
+  if (evalCase.source.kind === "manual") {
+    return "Manual test";
+  }
+  return "Synthetic scenario";
 }
 
-function Grade({
-  evalCase,
-}: {
-  evalCase: EvalCase;
-}) {
+function Result({ evalCase, running }: { evalCase: EvalCase; running: boolean }) {
+  if (running) {
+    return (
+      <span aria-live="polite" className="eval-result eval-result--running">
+        <LoaderCircle aria-hidden="true" size={14} /> Replaying...
+      </span>
+    );
+  }
+
   const label = gradeLabel(evalCase.grade);
+  const results = evalCase.grade?.criterionResults ?? [];
+  const passed = results.filter((result) => result.verdict === "pass").length;
   return (
-    <div className="eval-grade">
+    <div className="eval-result">
       <span className={`eval-status eval-status--${label.toLocaleLowerCase().replace(" ", "-")}`}>
         {label}
       </span>
-      <strong>{evalCase.grade ? evalCase.grade.judgeScore.toFixed(2) : "--"}</strong>
-      <span>{evalCase.grade?.rationale ?? "Run this case to create a rationale."}</span>
+      <small>{evalCase.grade ? `${passed}/${results.length} rules passed` : "Run to evaluate"}</small>
     </div>
   );
 }
@@ -113,47 +81,36 @@ function CaseActions({
   onRun: (caseId: EvalCaseId) => void;
   runBlocked: boolean;
 }) {
+  const stop = (callback: () => void) => (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    callback();
+  };
+
   return (
     <div aria-label="Case actions" className="eval-case-actions" role="group">
       {running ? (
-        <button aria-label="Cancel run" onClick={() => onCancel(evalCase.id)} type="button">
+        <button aria-label={`Cancel ${evalCase.title} run`} onClick={stop(() => onCancel(evalCase.id))} title="Cancel run" type="button">
           <Square aria-hidden="true" size={14} />
-          Cancel
         </button>
       ) : (
         <button
           aria-label={`Run ${evalCase.title}`}
           disabled={runBlocked}
-          onClick={() => onRun(evalCase.id)}
+          onClick={stop(() => onRun(evalCase.id))}
+          title="Run case"
           type="button"
         >
           <Play aria-hidden="true" size={14} />
-          Run
         </button>
       )}
-      <button
-        aria-label={`Edit ${evalCase.title}`}
-        onClick={() => onEdit(evalCase)}
-        type="button"
-      >
+      <button aria-label={`Edit ${evalCase.title}`} disabled={runBlocked} onClick={stop(() => onEdit(evalCase))} title="Edit case" type="button">
         <Edit3 aria-hidden="true" size={14} />
-        Edit
       </button>
-      <button
-        aria-label={`Duplicate ${evalCase.title}`}
-        onClick={() => onDuplicate(evalCase.id)}
-        type="button"
-      >
+      <button aria-label={`Duplicate ${evalCase.title}`} disabled={runBlocked} onClick={stop(() => onDuplicate(evalCase.id))} title="Duplicate case" type="button">
         <Copy aria-hidden="true" size={14} />
-        Duplicate
       </button>
-      <button
-        aria-label={`Delete ${evalCase.title}`}
-        onClick={() => onDelete(evalCase)}
-        type="button"
-      >
+      <button aria-label={`Delete ${evalCase.title}`} disabled={runBlocked} onClick={stop(() => onDelete(evalCase))} title="Delete case" type="button">
         <Trash2 aria-hidden="true" size={14} />
-        Delete
       </button>
     </div>
   );
@@ -177,19 +134,25 @@ export type EvalCasesProps = {
 };
 
 export function EvalCases(props: EvalCasesProps) {
+  const openOnKeyboard = (
+    event: KeyboardEvent<HTMLTableRowElement | HTMLElement>,
+    caseId: EvalCaseId,
+  ) => {
+    if (event.target !== event.currentTarget || props.runBlocked) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      props.onOpen(caseId);
+    }
+  };
+
   const columns = useMemo<ColumnDef<EvalCase>[]>(
     () => [
       { id: "item", accessorKey: "title" },
-      { id: "type", accessorKey: "type" },
-      { id: "language", accessorKey: "language" },
-      { id: "input", accessorFn: inputText },
-      { id: "expected", accessorKey: "expectedHumanOutput" },
-      { id: "actual", accessorKey: "actualSyntheticOutput" },
-      { id: "criteria", accessorFn: (evalCase) => criteriaText(props.dataset, evalCase) },
+      { id: "context", accessorKey: "type" },
       { id: "grade", accessorFn: (evalCase) => evalCase.grade?.judgeScore },
       { id: "actions" },
     ],
-    [props.dataset],
+    [],
   );
   const table = useReactTable({
     columns,
@@ -201,7 +164,7 @@ export function EvalCases(props: EvalCasesProps) {
     return (
       <div className="eval-empty">
         <strong>No evaluation cases match this dataset or filter.</strong>
-        <span>Add a case, import HITL evidence, or clear filters.</span>
+        <span>Import a resolved staff chat, add a test, or clear filters.</span>
       </div>
     );
   }
@@ -211,69 +174,33 @@ export function EvalCases(props: EvalCasesProps) {
       <div aria-label="Evaluation case cards" className="eval-card-list">
         {table.getRowModel().rows.map((row) => {
           const evalCase = row.original;
+          const running = props.runningCaseId === evalCase.id;
           return (
             <article
               aria-label={evalCase.title}
               className={[
                 "eval-card",
                 props.selectedCaseId === evalCase.id ? "eval-card--selected" : "",
+                running ? "eval-card--running" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
               key={evalCase.id}
+              onClick={() => !props.runBlocked && props.onOpen(evalCase.id)}
+              onKeyDown={(event) => openOnKeyboard(event, evalCase.id)}
+              tabIndex={props.runBlocked ? -1 : 0}
             >
               <header>
                 <div>
-                  <button
-                    className="eval-card__title"
-                    disabled={props.runBlocked}
-                    onClick={() => props.onOpen(evalCase.id)}
-                    type="button"
-                  >
-                    {evalCase.title}
-                  </button>
+                  <strong>{evalCase.title}</strong>
                   <span>
-                    <SplitLabel split={evalCase.split} /> | <CaseTypeLabel type={evalCase.type} /> |{" "}
-                    {evalCase.language}
+                    <SourceLabel evalCase={evalCase} /> · <SplitLabel split={evalCase.split} />
                   </span>
                 </div>
-                <Grade evalCase={evalCase} />
+                <Result evalCase={evalCase} running={running} />
               </header>
-              <div
-                aria-disabled={props.runBlocked}
-                className="eval-card__body"
-                onClick={() => {
-                  if (!props.runBlocked) {
-                    props.onOpen(evalCase.id);
-                  }
-                }}
-              >
-                <PreviewField compact label="Input" text={inputText(evalCase)} />
-                <PreviewField
-                  compact
-                  glossary={EVAL_GLOSSARY.expectedHitl}
-                  label="Expected human HITL"
-                  text={evalCase.expectedHumanOutput}
-                />
-                <PreviewField
-                  compact
-                  glossary={EVAL_GLOSSARY.actualSynthetic}
-                  label="Actual synthetic agent"
-                  text={evalCase.actualSyntheticOutput ?? "Not run"}
-                />
-                <div className="eval-card__support-fields">
-                  <PreviewField
-                    compact
-                    glossary={EVAL_GLOSSARY.scoringRules}
-                    label="Checks"
-                    text={criteriaText(props.dataset, evalCase)}
-                  />
-                  <PreviewField
-                    compact
-                    label="Rationale"
-                    text={evalCase.grade?.rationale ?? "Not run"}
-                  />
-                </div>
+              <div className="eval-card__context">
+                <CaseTypeLabel type={evalCase.type} /> · {evalCase.language}
               </div>
               <CaseActions
                 evalCase={evalCase}
@@ -283,7 +210,7 @@ export function EvalCases(props: EvalCasesProps) {
                 onEdit={props.onEdit}
                 onRun={props.onRun}
                 runBlocked={props.runBlocked}
-                running={props.runningCaseId === evalCase.id}
+                running={running}
               />
             </article>
           );
@@ -300,95 +227,50 @@ export function EvalCases(props: EvalCasesProps) {
       <table aria-label="Evaluation cases" className="eval-table">
         <colgroup>
           <col className="eval-col-item" />
-          <col className="eval-col-type" />
-          <col className="eval-col-language" />
-          <col className="eval-col-input" />
-          <col className="eval-col-expected" />
-          <col className="eval-col-actual" />
-          <col className="eval-col-criteria" />
-          <col className="eval-col-grade" />
+          <col className="eval-col-context" />
+          <col className="eval-col-result" />
           <col className="eval-col-actions" />
         </colgroup>
         <thead>
-          <tr className="eval-table__groups">
-            <th colSpan={3}>Item metadata</th>
-            <th colSpan={3}>Sample</th>
-            <th colSpan={2}>Testing</th>
-            <th rowSpan={2}>Actions</th>
-          </tr>
           <tr>
             <th aria-sort={ariaSort("item")}>
-              <button onClick={() => props.onSort("item")} type="button">
-                Item
-              </button>
+              <button onClick={() => props.onSort("item")} type="button">Case</button>
             </th>
-            <th>
-              <GlossaryTerm definition={EVAL_GLOSSARY.typeColumn}>Type</GlossaryTerm>
-            </th>
-            <th>Language</th>
-            <th>
-              <GlossaryTerm definition={EVAL_GLOSSARY.input}>Input</GlossaryTerm>
-            </th>
-            <th>
-              <GlossaryTerm definition={EVAL_GLOSSARY.expectedHitl}>Expected HITL</GlossaryTerm>
-            </th>
-            <th>
-              <GlossaryTerm definition={EVAL_GLOSSARY.actualSynthetic}>Actual synthetic</GlossaryTerm>
-            </th>
-            <th>
-              <GlossaryTerm definition={EVAL_GLOSSARY.scoringRules}>Checks</GlossaryTerm>
-            </th>
+            <th>Patient context</th>
             <th aria-sort={ariaSort("grade")}>
-              <button onClick={() => props.onSort("grade")} type="button">
-                Grade
-              </button>
+              <button onClick={() => props.onSort("grade")} type="button">Result</button>
             </th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {table.getRowModel().rows.map((row) => {
             const evalCase = row.original;
+            const running = props.runningCaseId === evalCase.id;
             return (
               <tr
-                className={props.selectedCaseId === evalCase.id ? "eval-table__row--selected" : ""}
+                className={[
+                  props.selectedCaseId === evalCase.id ? "eval-table__row--selected" : "",
+                  running ? "eval-table__row--running" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 key={evalCase.id}
+                onClick={() => !props.runBlocked && props.onOpen(evalCase.id)}
+                onKeyDown={(event) => openOnKeyboard(event, evalCase.id)}
+                tabIndex={props.runBlocked ? -1 : 0}
               >
                 <td>
-                  <button
-                    className="eval-table__title"
-                    disabled={props.runBlocked}
-                    onClick={() => props.onOpen(evalCase.id)}
-                    type="button"
-                  >
-                    {evalCase.title}
-                  </button>
-                  <SplitLabel split={evalCase.split} />
+                  <strong className="eval-table__title">{evalCase.title}</strong>
+                  <span className="eval-table__meta">
+                    <SourceLabel evalCase={evalCase} /> · <SplitLabel split={evalCase.split} />
+                  </span>
                 </td>
                 <td>
                   <CaseTypeLabel type={evalCase.type} />
+                  <span className="eval-table__meta">{evalCase.language}</span>
                 </td>
-                <td>{evalCase.language}</td>
-                <td>
-                  <PreviewField label="Input" text={inputText(evalCase)} />
-                </td>
-                <td>
-                  <PreviewField
-                    glossary={EVAL_GLOSSARY.expectedHitl}
-                    label="Expected human HITL"
-                    text={evalCase.expectedHumanOutput}
-                  />
-                </td>
-                <td>
-                  <PreviewField
-                    glossary={EVAL_GLOSSARY.actualSynthetic}
-                    label="Actual synthetic"
-                    text={evalCase.actualSyntheticOutput ?? "Not run"}
-                  />
-                </td>
-                <td>{criteriaText(props.dataset, evalCase)}</td>
-                <td>
-                  <Grade evalCase={evalCase} />
-                </td>
+                <td><Result evalCase={evalCase} running={running} /></td>
                 <td>
                   <CaseActions
                     evalCase={evalCase}
@@ -398,7 +280,7 @@ export function EvalCases(props: EvalCasesProps) {
                     onEdit={props.onEdit}
                     onRun={props.onRun}
                     runBlocked={props.runBlocked}
-                    running={props.runningCaseId === evalCase.id}
+                    running={running}
                   />
                 </td>
               </tr>

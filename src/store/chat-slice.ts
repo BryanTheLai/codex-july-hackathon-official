@@ -5,6 +5,7 @@ import {
   escalateEmergency,
   rejectBooking,
   removeLabel,
+  resetSyntheticConversation,
   reopenConversation,
   resolveConversation,
   sendStaffReply,
@@ -88,6 +89,13 @@ export function createChatActions({ getState, set, repository }: ChatSliceDeps) 
 
     removeLabel(conversationId: ConversationId, label: string) {
       return run(removeLabel(getState(), conversationId, label), "Label removed.");
+    },
+
+    resetSyntheticConversation(conversationId: ConversationId) {
+      return run(
+        resetSyntheticConversation(getState(), conversationId),
+        "Synthetic conversation reset.",
+      );
     },
 
     setAgentMode(input: SetAgentModeInput) {

@@ -203,6 +203,24 @@ afterEach(async () => {
 });
 
 describe("workspace-backed Eval endpoints", () => {
+  it("reports whether Eval execution is configured before a run starts", async () => {
+    const enabled = await configuredServer();
+    await expect(fetch(`${enabled.baseUrl}/api/eval/capability`)).resolves.toMatchObject({
+      status: 200,
+    });
+    await expect(
+      (await fetch(`${enabled.baseUrl}/api/eval/capability`)).json(),
+    ).resolves.toEqual({ enabled: true, reason: null });
+
+    const disabled = await configuredServer({ evalEnabled: false });
+    await expect(
+      (await fetch(`${disabled.baseUrl}/api/eval/capability`)).json(),
+    ).resolves.toEqual({
+      enabled: false,
+      reason: "Eval execution is not configured.",
+    });
+  });
+
   it("freezes a suite then commits one case through sandbox agent and internal judge", async () => {
     const { agent, baseUrl, judge, repository } =
       await configuredServer();

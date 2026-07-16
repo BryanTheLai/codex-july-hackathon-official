@@ -14,7 +14,7 @@ import type { ChatFilter, ChatView } from "./chat-model";
 const FILTER_OPTIONS: Array<{ value: ChatFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "needs_review", label: "Needs review" },
-  { value: "ai_handling", label: "AI handling" },
+  { value: "ai_handling", label: "Agent drafts" },
   { value: "resolved", label: "Resolved" },
 ];
 

@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useMediaQuery } from "../../app/use-media-query";
 import type { EvalCase, EvalCaseId, MutationResult } from "../../domain";
 import { useAppStore } from "../../store/app-store-context";
+import { OperationStatusBanner } from "../../components/operation-status";
+import type { OperationStatus } from "../../contracts/workflow";
 import { CaseDialog } from "./case-dialog";
 import { CaseEvidence } from "./case-evidence";
 import { CriteriaDialog } from "./criteria-dialog";
@@ -18,7 +20,7 @@ import {
   type EvalFilters,
   type EvalSort,
 } from "./eval-model";
-import { ScoreSummary, SuiteHistory } from "./eval-support";
+import { ScoreSummary } from "./eval-support";
 import { EvalToolbar } from "./eval-toolbar";
 import { ImportHitlDialog } from "./import-hitl-dialog";
 import "./eval.css";
@@ -32,7 +34,7 @@ const CLEAR_FILTERS: EvalFilters = {
 
 type ActiveOperation =
   | { kind: "case"; caseId: EvalCaseId; completed: number; total: number }
-  | { kind: "suite"; completed: number; total: number }
+  | { kind: "suite"; completed: number; runningCaseId: EvalCaseId | null; total: number }
   | null;
 
 type Drawer = "analyze" | "evidence" | "filters" | "history" | null;
@@ -42,7 +44,6 @@ export default function EvalRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mobile = useMediaQuery("(max-width: 899px)");
-  const middle = useMediaQuery("(min-width: 900px) and (max-width: 1199px)");
   const narrowMobile = useMediaQuery("(max-width: 339px)");
   const [filters, setFilters] = useState<EvalFilters>(CLEAR_FILTERS);
   const [sort, setSort] = useState<EvalSort>({ column: "item", direction: "asc" });
@@ -60,6 +61,10 @@ export default function EvalRoute() {
   const [preferredImportId, setPreferredImportId] = useState<string | null>(null);
   const [operation, setOperation] = useState<ActiveOperation>(null);
   const [feedback, setFeedback] = useState("");
+  const [executionCapability, setExecutionCapability] = useState({
+    enabled: true,
+    reason: null as string | null,
+  });
   const operationToken = useRef(0);
   const operationController = useRef<AbortController | null>(null);
   const activeOperation = useRef<ActiveOperation>(null);
@@ -82,8 +87,16 @@ export default function EvalRoute() {
   useEffect(() => {
     const controller = new AbortController();
     void store.refreshEvalWorkspace(controller.signal);
+    void store.getEvalExecutionCapability(controller.signal).then((capability) => {
+      if (!controller.signal.aborted) {
+        setExecutionCapability(capability);
+        if (!capability.enabled) {
+          setFeedback(capability.reason ?? "Eval execution is unavailable.");
+        }
+      }
+    });
     return () => controller.abort();
-  }, [store.refreshEvalWorkspace]);
+  }, [store.getEvalExecutionCapability, store.refreshEvalWorkspace]);
 
   useEffect(() => {
     if (selectedCaseId && !dataset?.cases.some((evalCase) => evalCase.id === selectedCaseId)) {
@@ -180,9 +193,14 @@ export default function EvalRoute() {
     active: Exclude<ActiveOperation, null>,
     execute: (
       signal: AbortSignal,
+      onCaseStart: (caseId: EvalCaseId, completed: number, total: number) => void,
       onProgress: (completed: number, total: number) => void,
     ) => Promise<MutationResult>,
   ) => {
+    if (!executionCapability.enabled) {
+      setFeedback(executionCapability.reason ?? "Eval execution is unavailable.");
+      return;
+    }
     if (activeOperation.current) {
       setFeedback("Finish or cancel the active evaluation operation first.");
       return;
@@ -205,7 +223,17 @@ export default function EvalRoute() {
       setOperation(next);
     };
 
-    void execute(controller.signal, updateProgress).then((result) => {
+    const updateCaseStart = (caseId: EvalCaseId, completed: number, total: number) => {
+      const current = activeOperation.current;
+      if (!current || current.kind !== "suite") {
+        return;
+      }
+      const next = { ...current, completed, runningCaseId: caseId, total };
+      activeOperation.current = next;
+      setOperation(next);
+    };
+
+    void execute(controller.signal, updateCaseStart, updateProgress).then((result) => {
       if (operationToken.current !== token) {
         return;
       }
@@ -254,8 +282,36 @@ export default function EvalRoute() {
     }
   };
 
-  const staleSnapshot =
-    dataset.candidateVersion > 1 && dataset.suiteSnapshots.length === 0;
+  const runningCaseId = operation?.kind === "case"
+    ? operation.caseId
+    : operation?.kind === "suite"
+      ? operation.runningCaseId
+      : null;
+  const runningCase = runningCaseId
+    ? dataset.cases.find((evalCase) => evalCase.id === runningCaseId)
+    : null;
+  const operationStatus: OperationStatus | null = operation
+    ? {
+        scope: "eval",
+        state: "running",
+        message:
+          operation.kind === "case"
+            ? "Running case judge"
+            : runningCase
+              ? `Replaying ${runningCase.title} / ${operation.completed + 1} of ${operation.total}`
+              : `Preparing suite replay / ${operation.completed} of ${operation.total}`,
+        action: "cancel",
+        actionLabel: "Cancel",
+      }
+    : feedback
+      ? {
+          scope: "eval",
+          state: feedback === "Evaluation canceled." ? "canceled" : "failed",
+          message: feedback,
+          action: null,
+          actionLabel: null,
+        }
+      : null;
 
   return (
     <section aria-labelledby="eval-route-title" className="eval-route">
@@ -280,9 +336,9 @@ export default function EvalRoute() {
         onRenameDataset={() => setDatasetDialog("rename")}
         onRunSuite={() =>
           schedule(
-            { completed: 0, kind: "suite", total: dataset.cases.length },
-            (signal, onProgress) =>
-              store.runEvalSuite(dataset.id, { onProgress, signal }),
+            { completed: 0, kind: "suite", runningCaseId: null, total: dataset.cases.length },
+            (signal, onCaseStart, onProgress) =>
+              store.runEvalSuite(dataset.id, { onCaseStart, onProgress, signal }),
           )
         }
         onSelectDataset={(datasetId) => {
@@ -293,73 +349,46 @@ export default function EvalRoute() {
           setFilters(CLEAR_FILTERS);
         }}
         selectedId={dataset.id}
-        suiteBlocked={dataset.cases.length === 0 || operation !== null}
+        suiteBlocked={
+          dataset.cases.length === 0 || operation !== null || !executionCapability.enabled
+        }
+        suiteBlockedReason={
+          !executionCapability.enabled
+            ? executionCapability.reason ?? "Eval execution is unavailable."
+            : undefined
+        }
         suiteRunning={operation?.kind === "suite"}
       />
 
-      {!middle ? (
-        <EvalFiltersBar
-          filters={filters}
-          languages={languages}
-          onChange={setFilters}
-          onOpenDrawer={() => setDrawer("filters")}
-        />
-      ) : null}
+      <section aria-label="Eval overview" className="eval-overview">
+        <ScoreSummary dataset={dataset} />
+      </section>
 
-      {mobile ? (
-        <div className="eval-mobile-support">
-          <ScoreSummary
-            dataset={dataset}
-            mobile
-            onHistory={() => setDrawer("history")}
-          />
-        </div>
-      ) : null}
+      <EvalFiltersBar
+        filters={filters}
+        languages={languages}
+        onChange={setFilters}
+        onOpenDrawer={() => setDrawer("filters")}
+      />
 
-      {operation ? (
-        <div aria-live="assertive" className="eval-run-status" role="status">
-          {operation.kind === "case"
-            ? "Running case judge"
-            : `Running suite judge ${operation.completed} of ${operation.total}`}
-          <button
-            aria-label={`Cancel active ${operation.kind} operation`}
-            onClick={cancelOperation}
-            type="button"
-          >
-            Cancel
-          </button>
-        </div>
-      ) : null}
-      {feedback ? (
-        <div aria-live="polite" className="eval-feedback" role="status">
-          {feedback}
-        </div>
-      ) : null}
+      <OperationStatusBanner
+        actionAriaLabel={
+          operation ? `Cancel active ${operation.kind} operation` : undefined
+        }
+        onAction={operation ? cancelOperation : undefined}
+        status={operationStatus}
+      />
 
-      <div className={`eval-workbench${middle ? " eval-workbench--middle" : ""}`}>
-        {middle ? (
-          <section aria-label="Evaluation support" className="eval-middle-support">
-            <ScoreSummary dataset={dataset} mobile={false} onHistory={() => setDrawer("history")} />
-            <SuiteHistory dataset={dataset} />
-          </section>
-        ) : null}
-        {middle ? (
-          <EvalFiltersBar
-            filters={filters}
-            languages={languages}
-            onChange={setFilters}
-            onOpenDrawer={() => setDrawer("filters")}
-          />
-        ) : null}
+      <div className="eval-workbench">
         <section aria-label="Raw evaluation cases" className="eval-case-surface">
           <div className="eval-case-surface__heading">
             <div>
-              <strong>Raw cases</strong>
+              <strong>Cases</strong>
               <span>
                 {cases.length} of {dataset.cases.length} visible
               </span>
             </div>
-            <span>Expected human HITL and actual synthetic output stay separate.</span>
+            <span>Open a case for the full replay and evidence.</span>
           </div>
           <EvalCases
             cases={cases}
@@ -376,7 +405,7 @@ export default function EvalRoute() {
             onRun={(caseId) =>
               schedule(
                 { caseId, completed: 0, kind: "case", total: 1 },
-                async (signal, onProgress) => {
+                async (signal, _onCaseStart, onProgress) => {
                   const result = await store.runEvalCase(caseId, { signal });
                   if (result.ok) {
                     onProgress(1, 1);
@@ -386,24 +415,12 @@ export default function EvalRoute() {
               )
             }
             onSort={(column) => setSort((current) => nextSort(current, column))}
-            runningCaseId={operation?.kind === "case" ? operation.caseId : null}
-            runBlocked={operation !== null}
+            runningCaseId={runningCaseId}
+            runBlocked={operation !== null || !executionCapability.enabled}
             selectedCaseId={selectedCaseId}
             sort={sort}
           />
         </section>
-        {!mobile && !middle ? (
-          <aside aria-label="Evaluation support" className="eval-support-rail">
-            <ScoreSummary dataset={dataset} mobile={false} onHistory={() => setDrawer("history")} />
-            {staleSnapshot ? (
-              <p className="eval-stale">
-                Stale suite snapshot: candidate v{dataset.candidateVersion} has not run as a
-                suite.
-              </p>
-            ) : null}
-            <SuiteHistory dataset={dataset} />
-          </aside>
-        ) : null}
       </div>
 
       {drawer === "filters" && narrowMobile ? (
@@ -434,7 +451,7 @@ export default function EvalRoute() {
           corrections={store.state.corrections}
           dataset={dataset}
           evalCase={selectedCase}
-          operationBlocked={operation !== null}
+          operationBlocked={operation !== null || !executionCapability.enabled}
           onCancel={cancelOperation}
           onClose={() => setDrawer(null)}
           onDelete={setDeleteCase}
@@ -447,7 +464,7 @@ export default function EvalRoute() {
           onRun={(caseId) =>
             schedule(
               { caseId, completed: 0, kind: "case", total: 1 },
-              async (signal, onProgress) => {
+                async (signal, _onCaseStart, onProgress) => {
                 const result = await store.runEvalCase(caseId, { signal });
                 if (result.ok) {
                   onProgress(1, 1);

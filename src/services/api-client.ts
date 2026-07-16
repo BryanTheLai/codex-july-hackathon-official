@@ -37,10 +37,12 @@ import {
 import {
   evalCaseRunRequestSchema,
   evalCaseRunResultSchema,
+  evalExecutionCapabilitySchema,
   evalSuiteCreateRequestSchema,
   evalSuiteCreateResultSchema,
   type EvalCaseRunRequest,
   type EvalCaseRunResult,
+  type EvalExecutionCapability,
   type EvalSuiteCreateRequest,
   type EvalSuiteCreateResult,
 } from "../contracts/eval";
@@ -92,6 +94,7 @@ export interface AgentClient {
 }
 
 export interface EvalClient {
+  executionCapability?(signal?: AbortSignal): Promise<EvalExecutionCapability>;
   createSuite(
     request: EvalSuiteCreateRequest,
     signal?: AbortSignal,
@@ -304,6 +307,18 @@ export function createHttpEvalClient(
   fetcher: Fetcher = fetch,
 ): EvalClient {
   return {
+    executionCapability(signal) {
+      return requestJson({
+        fetcher,
+        input: "/api/eval/capability",
+        init: { signal },
+        schema: evalExecutionCapabilitySchema,
+        networkError: "The Eval server could not be reached.",
+        invalidResponseError: "The Eval server returned an invalid capability response.",
+        requestError: "The Eval capability check failed.",
+      });
+    },
+
     createSuite(input, signal) {
       const request = evalSuiteCreateRequestSchema.parse(input);
       return requestJson({

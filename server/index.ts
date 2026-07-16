@@ -1296,6 +1296,18 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       }
     },
   );
+  app.get(
+    "/api/eval/capability",
+    (_request: Request, response: Response) => {
+      if (!requireWorkspace(workspace, response)) {
+        return;
+      }
+      response.status(200).json({
+        enabled: Boolean(evalService),
+        reason: evalService ? null : "Eval execution is not configured.",
+      });
+    },
+  );
   app.post(
     "/api/eval/suites",
     async (request: Request, response: Response) => {

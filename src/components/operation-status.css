@@ -1,0 +1,34 @@
+.operation-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--kaunter-hairline);
+  background: var(--kaunter-quiet);
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
+}
+
+.operation-status--failed,
+.operation-status--partial {
+  border-color: var(--kaunter-risk-fg);
+  background: var(--kaunter-risk-bg);
+  color: var(--kaunter-risk-fg);
+}
+
+.operation-status--succeeded {
+  border-color: var(--kaunter-success-fg);
+  background: var(--kaunter-success-bg);
+  color: var(--kaunter-success-fg);
+}
+
+.operation-status button {
+  min-height: 28px;
+  border: 1px solid currentColor;
+  border-radius: var(--kaunter-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}

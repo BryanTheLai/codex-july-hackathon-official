@@ -32,7 +32,9 @@ import type {
 
 export type DreamReleaseState = {
   activeVersionId: string;
+  activeVersionSequence: number;
   candidateVersionId: string | null;
+  candidateVersionSequence: number | null;
   candidateReady: boolean;
   rollbackTargetVersionId: string | null;
   workspaceRevision: number;
@@ -57,12 +59,17 @@ type DreamSliceDeps = {
 
 function releaseFrom(result: WorkspaceCommandResult): DreamReleaseState {
   const history = result.workspace.state.playbookHistory;
+  const active = history.versions.find(
+    (version) => version.id === history.activeVersionId,
+  );
   const candidate = history.candidateVersionId
     ? history.versions.find((version) => version.id === history.candidateVersionId)
     : null;
   return {
     activeVersionId: history.activeVersionId,
+    activeVersionSequence: active?.sequence ?? 1,
     candidateVersionId: history.candidateVersionId,
+    candidateVersionSequence: candidate?.sequence ?? null,
     candidateReady: Boolean(candidate?.passingSuiteId),
     rollbackTargetVersionId: history.rollbackTargetVersionId,
     workspaceRevision: result.workspace.revision,

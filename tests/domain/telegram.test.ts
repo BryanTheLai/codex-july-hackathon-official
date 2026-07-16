@@ -202,6 +202,7 @@ describe("Telegram aggregate mutations", () => {
       conversationId: "telegram-conversation:-10042",
       messageId: "telegram-delivery:voice-42:voice",
       deliveryId: "voice-42",
+      spokenTextHash: "a".repeat(64),
       text: "AI-generated voice reply.",
       language: "Malay",
       sentAt: "2026-07-13T12:03:00.000Z",
@@ -214,13 +215,18 @@ describe("Telegram aggregate mutations", () => {
     expect(sent.state.conversations[0]?.messages.at(-1)).toMatchObject({
       id: "telegram-delivery:voice-42:voice",
       role: "staff",
-      outboundVoice: { deliveryId: "voice-42", source: "tts" },
+      outboundVoice: {
+        deliveryId: "voice-42",
+        source: "tts",
+        spokenTextHash: "a".repeat(64),
+      },
     });
     expect(
       linkAcceptedTelegramOutboundVoice(sent.state, {
         conversationId: "telegram-conversation:-10042",
         messageId: "telegram-delivery:voice-42:voice",
         deliveryId: "voice-42",
+        spokenTextHash: "a".repeat(64),
         text: "AI-generated voice reply.",
         language: "Malay",
         sentAt: "2026-07-13T12:03:00.000Z",

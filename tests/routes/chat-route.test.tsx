@@ -186,7 +186,9 @@ describe("Chat Control route", () => {
       ),
     ).toHaveAttribute("data-message-side", "outgoing");
     expect(within(selected).getByText("Synthetic agent")).toBeInTheDocument();
-    expect(within(selected).getByLabelText("Synthetic agent handling")).toBeInTheDocument();
+    expect(
+      within(selected).getByLabelText("Synthetic agent drafts require staff approval"),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open conversation with Rajesh Kumar" }));
     expect(within(selected).getByText("Conversation resolved by staff.")).toHaveAttribute(
@@ -479,7 +481,7 @@ describe("Chat Control route", () => {
       within(selected).queryByRole("button", { name: "Auto-translate" }),
     ).not.toBeInTheDocument();
     expect(
-      within(selected).getByLabelText("Live Telegram handling"),
+      within(selected).getByLabelText("Telegram inbox: agent drafts require staff approval"),
     ).toBeInTheDocument();
     expect(
       within(selected).getByRole("button", { name: "Generate draft" }),
@@ -497,6 +499,7 @@ describe("Chat Control route", () => {
       conversationId: "telegram-conversation:-10042",
       messageId: "telegram-delivery:voice-42:voice",
       deliveryId: "voice-42",
+      spokenTextHash: "a".repeat(64),
       text: "AI-generated voice reply.",
       language: "Malay",
       sentAt: "2026-07-13T12:01:00.000Z",
@@ -522,11 +525,106 @@ describe("Chat Control route", () => {
       }),
     );
     const selected = screen.getByRole("region", { name: "Selected conversation" });
-    expect(within(selected).getByText("AI-generated voice sent")).toBeInTheDocument();
+    expect(within(selected).getByText("AI-generated voice sent in Malay")).toBeInTheDocument();
+    expect(within(selected).getByText("Approved script checksum aaaaaaaaaaaa")).toBeInTheDocument();
     expect(within(selected).getByRole("button", { name: "Play sent voice" })).toBeInTheDocument();
     expect(
       container.querySelector('audio[src="/api/outbound/deliveries/voice-42/voice/audio"]'),
     ).toBeInTheDocument();
+  });
+
+  it("requires approval of a live translated preview before voice delivery", async () => {
+    const inbound = await telegramServerState();
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 1,
+        state: inbound,
+      }),
+    };
+    const outboundClient: TelegramOutboundClient = {
+      prepareVoice: vi.fn().mockResolvedValue({
+        requestId: "voice-translation-42",
+        source: "tts",
+        status: "ready",
+      }),
+      send: vi.fn().mockResolvedValue({
+        deliveryIds: ["voice-translation-42"],
+        status: "sent",
+        voice: {
+          providerMessageId: "9002",
+          acceptedAt: "2026-07-13T12:01:00.000Z",
+        },
+      }),
+      reconcile: vi.fn(),
+      translate: vi.fn().mockResolvedValue({
+        translatedText: "请在抵达前十五分钟携带身份证。",
+        targetLanguage: "Mandarin",
+        model: "test-translation",
+      }),
+    };
+    const store = createAppStore(new MemoryStorage(), {
+      outboundClient,
+      workspaceClient,
+    });
+    const user = userEvent.setup();
+    renderChat({ store });
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open conversation with Aina Zulkifli",
+      }),
+    );
+    const selected = screen.getByRole("region", {
+      name: "Selected conversation",
+    });
+    const message = within(selected).getByRole("textbox", { name: "Message" });
+    await user.selectOptions(
+      within(selected).getByRole("combobox", { name: "Telegram delivery mode" }),
+      "voice",
+    );
+    await user.selectOptions(
+      within(selected).getByRole("combobox", { name: "Translation language" }),
+      "Mandarin",
+    );
+    await user.type(
+      message,
+      "Bring your identity card fifteen minutes before arrival.",
+    );
+    await user.click(within(selected).getByRole("button", { name: "Translate" }));
+
+    const preview = await within(selected).findByRole("region", {
+      name: "Translated delivery preview",
+    });
+    expect(preview).toHaveTextContent("请在抵达前十五分钟携带身份证。");
+    expect(message).toHaveValue("Bring your identity card fifteen minutes before arrival.");
+    expect(within(selected).getByRole("button", { name: "Send" })).toBeDisabled();
+
+    await user.click(
+      within(preview).getByRole("button", {
+        name: "Use Mandarin preview for delivery",
+      }),
+    );
+    expect(preview).toHaveTextContent("Approved for delivery");
+    await user.click(within(selected).getByRole("button", { name: "Send" }));
+
+    await vi.waitFor(() => {
+      expect(outboundClient.prepareVoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approvedPatientText: "请在抵达前十五分钟携带身份证。",
+          source: "tts",
+          targetLanguage: "Mandarin",
+        }),
+        expect.any(AbortSignal),
+      );
+      expect(outboundClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approvedPatientText: "请在抵达前十五分钟携带身份证。",
+          mode: "voice",
+          targetLanguage: "Mandarin",
+        }),
+        expect.any(AbortSignal),
+      );
+    });
   });
 
   it("sends exact visitor-approved Telegram text then refreshes provider-linked state", async () => {

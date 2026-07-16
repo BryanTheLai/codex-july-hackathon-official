@@ -2,15 +2,11 @@ import { expect, test } from "@playwright/test";
 
 import {
   expectNoDocumentOverflow,
-  installMockEval,
-  installMockJudge,
   resetE2eWorkspace,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await resetE2eWorkspace(page);
-  await installMockJudge(page);
-  await installMockEval(page);
   await page.addInitScript(() => {
     localStorage.clear();
   });
@@ -49,12 +45,12 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
   ).toBeChecked();
   await importDialog.getByRole("button", { name: "Import 1 conversation" }).click();
 
-  let evidence = page.getByRole("complementary", { name: "Case evidence" });
+  let evidence = page.getByRole("dialog", { name: "Case details" });
   await expect(evidence).toContainText("HITL Nurul Aisyah");
-  await expect(evidence).toContainText("Hidden from candidate generation");
-  await evidence.getByRole("button", { name: "Run Case" }).click();
+  await expect(evidence).toContainText("The agent never sees this reply during replay.");
+  await evidence.getByRole("button", { name: "Run case" }).click();
   await expect(evidence).toContainText("Fail");
-  await evidence.getByRole("button", { name: "Close case evidence" }).click();
+  await evidence.getByRole("button", { name: "Close case details" }).click();
 
   await page.getByRole("button", { name: "Analyze failures" }).click();
   const analysis = page.getByRole("complementary", { name: "Analyze failures" });
@@ -63,8 +59,8 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
   await expect(analysis).toContainText("Analysis complete.");
   await analysis.getByRole("button", { name: "Close analysis" }).click();
 
-  await page.getByRole("button", { name: "HITL Nurul Aisyah", exact: true }).click();
-  evidence = page.getByRole("complementary", { name: "Case evidence" });
+  await page.getByRole("row", { name: /HITL Nurul Aisyah/ }).click();
+  evidence = page.getByRole("dialog", { name: "Case details" });
   const linkedCorrection = evidence.locator(".eval-linked-correction");
   await expect(linkedCorrection).toContainText("pending");
   await expect(evidence).toContainText(
@@ -117,7 +113,7 @@ test("mobile cross-route workbenches restore their last focused pane", async ({
   await page.goto("/dream?correction=corr-triage");
   await expect(page.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "Eval case case-emergency-train" }).click();
-  await expect(page.getByRole("complementary", { name: "Case evidence" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Case details" })).toBeVisible();
 
   await page.goBack();
   await expect(page.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");

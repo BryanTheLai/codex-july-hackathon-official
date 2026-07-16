@@ -22,9 +22,9 @@ function FilterFields({
           }
           value={filters.split}
         >
-          <option value="all">All uses</option>
-          <option value="train">Improve with</option>
-          <option value="holdout">Verify only</option>
+          <option value="all">All case roles</option>
+          <option value="train">Improve SOP</option>
+          <option value="holdout">Regression guard</option>
         </select>
       </label>
       <label className="eval-filters__field eval-filters__language">

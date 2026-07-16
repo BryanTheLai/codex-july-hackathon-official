@@ -466,6 +466,11 @@ describe("visitor-approved Telegram text", () => {
 
   it("prepares AI voice once and sends only the requested voice part", async () => {
     const artifacts = new Map<string, Uint8Array>();
+    const synthesize = vi.fn().mockResolvedValue({
+      bytes: new Uint8Array([1, 2, 3]),
+      model: "gpt-4o-mini-tts",
+      voice: "coral",
+    });
     const configured = await configuredOutbound({
       voice: {
         artifactStore: {
@@ -486,11 +491,7 @@ describe("visitor-approved Telegram text", () => {
           convertToOgg: vi.fn(),
         },
         tts: {
-          synthesize: vi.fn().mockResolvedValue({
-            bytes: new Uint8Array([1, 2, 3]),
-            model: "gpt-4o-mini-tts",
-            voice: "coral",
-          }),
+          synthesize,
         },
       },
     });
@@ -524,6 +525,10 @@ describe("visitor-approved Telegram text", () => {
     });
     expect(configured.adapter.sendText).not.toHaveBeenCalled();
     expect(configured.adapter.sendVoice).toHaveBeenCalledTimes(1);
+    expect(synthesize).toHaveBeenCalledWith(
+      request.approvedPatientText,
+      { targetLanguage: request.targetLanguage, signal: undefined },
+    );
     expect(await configured.deliveryRepository.read("send-42", "voice")).toMatchObject({
       status: "sent",
       workspaceSyncStatus: "synced",
@@ -538,7 +543,11 @@ describe("visitor-approved Telegram text", () => {
     ).toMatchObject({
       id: "telegram-delivery:send-42:voice",
       role: "staff",
-      outboundVoice: { deliveryId: "send-42", source: "tts" },
+      outboundVoice: {
+        deliveryId: "send-42",
+        source: "tts",
+        spokenTextHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
     });
   });
 

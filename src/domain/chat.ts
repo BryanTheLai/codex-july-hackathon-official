@@ -16,6 +16,7 @@ import {
   createBookingNotification,
   previewBookingNotification,
 } from "./booking-notifications";
+import { createCanonicalSeed } from "./seed";
 import {
   cloneState,
   err,
@@ -29,7 +30,7 @@ import {
 } from "./shared";
 
 function agentModeLabel(mode: AgentMode): string {
-  return mode === "staff_only" ? "Staff only" : "Synthetic agent on";
+  return mode === "staff_only" ? "Staff only" : "Agent drafts (staff approval)";
 }
 
 export function sendStaffReply(state: AppState, input: SendStaffReplyInput): MutationResult {
@@ -388,6 +389,47 @@ export function setAgentMode(state: AppState, input: SetAgentModeInput): Mutatio
     ],
   }));
   return ok(next);
+}
+
+export function resetSyntheticConversation(
+  state: AppState,
+  conversationId: ConversationId,
+): MutationResult {
+  const conversation = findConversation(state, conversationId);
+  if (!conversation) {
+    return err(state, "Conversation not found");
+  }
+
+  const canonical = createCanonicalSeed().conversations.find(
+    (item) => item.id === conversationId,
+  );
+  if (canonical) {
+    const next: AppState = {
+      ...cloneState(state),
+      conversations: state.conversations.map((item) =>
+        item.id === conversationId ? canonical : item,
+      ),
+    };
+    return ok(next);
+  }
+
+  if (conversationId.startsWith("sim-")) {
+    const remaining = state.conversations.filter((item) => item.id !== conversationId);
+    const next: AppState = {
+      ...cloneState(state),
+      conversations: remaining,
+      selections: {
+        ...state.selections,
+        conversationId:
+          state.selections.conversationId === conversationId
+            ? (remaining[0]?.id ?? null)
+            : state.selections.conversationId,
+      },
+    };
+    return ok(next);
+  }
+
+  return err(state, "Only synthetic demo conversations can be reset individually");
 }
 
 const SIMULATED_CONVERSATIONS: Record<SimulateScenario, AppState["conversations"][number]> = {

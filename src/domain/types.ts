@@ -183,6 +183,13 @@ export type RunEvalCaseOptions = {
 
 export type RunEvalSuiteOptions = {
   signal?: AbortSignal;
+  onCaseStart?: (caseId: EvalCaseId, completed: number, total: number) => void;
+  onCaseComplete?: (
+    state: AppState,
+    caseId: EvalCaseId,
+    completed: number,
+    total: number,
+  ) => void;
   onProgress?: (completed: number, total: number) => void;
 };
 

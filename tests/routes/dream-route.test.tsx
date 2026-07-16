@@ -4,6 +4,7 @@ import { forwardRef } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createCanonicalServerState } from "../../src/domain";
 import DreamRoute from "../../src/routes/dream/dream-route";
 import { AppStoreProvider } from "../../src/store/app-store-context";
 import { createAppStore, type AppStore } from "../../src/store/use-app-store";
@@ -96,6 +97,9 @@ describe("Dream route", () => {
     renderDream();
 
     expect(screen.getByRole("heading", { name: "Dream" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Dream release gate" })).toHaveTextContent(
+      "Active SOPv1",
+    );
     expect(screen.getByRole("navigation", { name: "Playbook files" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Playbook editor" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Proposed changes" })).toBeInTheDocument();
@@ -222,6 +226,43 @@ describe("Dream route", () => {
     expect(results).toHaveTextContent("After");
     expect(results).toHaveTextContent("Call 999 guidance for chest pain with sweating.");
     expect(results).toHaveTextContent("Saved line 3 matches the approved text.");
+  });
+
+  it("does not claim an approved correction caused a stale proposal after an ordinary save", async () => {
+    const user = userEvent.setup();
+    renderDream();
+    const editor = await screen.findByRole("textbox", { name: "Playbook Markdown editor" });
+
+    await user.clear(editor);
+    await user.type(editor, "# Triage\n\nCall 999 guidance for chest pain with sweating.\n");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const stale = await screen.findByText(/Saved text no longer contains the proposed line/i);
+    expect(stale).toHaveTextContent("Re-run analysis");
+    expect(stale).not.toHaveTextContent("approved correction changed");
+    expect(screen.getByRole("button", { name: "Approve correction" })).toBeDisabled();
+  });
+
+  it("renders every server command failure as a failed operation", async () => {
+    const user = userEvent.setup();
+    const state = await createCanonicalServerState();
+    const store = createAppStore(new MemoryStorage(), {
+      workspaceClient: {
+        async load() {
+          return { revision: 1, state, workspaceId: "demo" };
+        },
+      },
+      workspaceCommandClient: {
+        async execute() {
+          throw new Error("Workspace revision is stale.");
+        },
+      },
+    });
+    renderDream({ store });
+
+    await user.click(await screen.findByRole("button", { name: "Approve correction" }));
+    const message = await screen.findByText("Workspace revision is stale.");
+    expect(message.closest(".operation-status")).toHaveClass("operation-status--failed");
   });
 
   it("renders one pane on mobile and follows file, changes, then Focus Line choreography", async () => {

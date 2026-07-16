@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createCanonicalSeed } from "../../src/domain";
+import { createCanonicalSeed, createCanonicalServerState } from "../../src/domain";
 import EvalRoute from "../../src/routes/eval/eval-route";
 import { AppStoreProvider } from "../../src/store/app-store-context";
 import { createAppStore, type AppStore } from "../../src/store/use-app-store";
@@ -93,114 +93,99 @@ describe("Evaluation Lab route", () => {
     cleanup();
   });
 
-  it("keeps raw cases dominant with grouped columns and supporting metrics", () => {
+  it("keeps cases dominant and reduces the overview to release decisions", () => {
     renderEval();
 
     expect(screen.getByRole("heading", { name: "Evaluation Lab" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Eval overview" })).toHaveTextContent("Regression guard");
+    expect(screen.getByRole("region", { name: "Eval overview" })).toHaveTextContent("Open failures");
     expect(screen.getByRole("table", { name: "Evaluation cases" })).toBeInTheDocument();
-    expect(screen.getByText("Item metadata")).toBeInTheDocument();
-    expect(screen.getByText("Sample")).toBeInTheDocument();
-    expect(screen.getByText("Testing")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Case" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Patient context" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Result" })).toBeInTheDocument();
     expect(screen.getByText("Emergency chest pain")).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Evaluation support" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Score summary" })).toHaveTextContent(
-      "Improve with",
-    );
-    expect(screen.getByRole("region", { name: "Score summary" })).toHaveTextContent(
-      "Verify only",
-    );
     expect(screen.getByRole("combobox", { name: "Filter by evaluation use" })).toHaveDisplayValue(
-      "All uses",
+      "All case roles",
     );
-    expect(screen.getByRole("region", { name: "Suite history" })).toHaveTextContent(
-      "Run the suite to create history.",
+    expect(screen.queryByRole("complementary", { name: "Evaluation support" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Mean judge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last delta")).not.toBeInTheDocument();
+  });
+
+  it("blocks Eval runs when the configured server reports execution is unavailable", async () => {
+    const state = await createCanonicalServerState();
+    const store = createAppStore(new MemoryStorage(), {
+      evalClient: {
+        async executionCapability() {
+          return { enabled: false, reason: "Eval execution is not configured." };
+        },
+        async createSuite() {
+          throw new Error("should not run");
+        },
+        async runCase() {
+          throw new Error("should not run");
+        },
+      },
+      workspaceClient: {
+        async load() {
+          return { revision: 1, state, workspaceId: "demo" };
+        },
+      },
+    });
+    renderEval({ store });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Run Suite" })).toBeDisabled(),
     );
-    expect(screen.queryByText(/dashboard|overview/i)).not.toBeInTheDocument();
+    const status = screen.getByText("Eval execution is not configured.").closest(".operation-status");
+    expect(status).toHaveClass("operation-status--failed");
   });
 
   it("defines evaluation terms on hover or focus without adding explanation panels", async () => {
     const user = userEvent.setup();
     renderEval();
 
-    const verifyOnly = screen.getAllByRole("term", { name: "Verify only" })[0]!;
-    act(() => verifyOnly.focus());
+    const regressionGuard = screen.getAllByRole("term", { name: "Regression guard" })[0]!;
+    act(() => regressionGuard.focus());
     await waitFor(() =>
       expect(
-        screen.getByRole("tooltip", { name: /kept out while improving/i }),
+        screen.getByRole("tooltip", { name: /held out from SOP improvement/i }),
       ).toBeInTheDocument(),
     );
-    act(() => verifyOnly.blur());
+    act(() => regressionGuard.blur());
 
-    await user.hover(screen.getAllByRole("term", { name: /expected/i })[0]!);
+    const row = screen.getByRole("row", { name: /Emergency chest pain/i });
+    row.focus();
+    await user.keyboard("{Enter}");
+    const details = screen.getByRole("dialog", { name: "Case details" });
+    await user.hover(within(details).getByRole("term", { name: "Staff-approved reply" }));
     const expectedTooltip = screen.getByRole("tooltip", {
-      name: /human-approved reply used only as the grading reference/i,
+      name: /staff-approved reply used only as grading reference evidence/i,
     });
     expect(expectedTooltip).toBeInTheDocument();
     expect(expectedTooltip.parentElement).toBe(document.body);
-    await user.unhover(screen.getAllByRole("term", { name: /expected/i })[0]!);
-
-    await user.hover(screen.getAllByRole("term", { name: /actual synthetic/i })[0]!);
-    expect(
-      screen.getByRole("tooltip", { name: /agent-generated reply produced without reading/i }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getAllByRole("term", { name: /actual synthetic/i })[0]!);
-
-    await user.hover(screen.getAllByRole("term", { name: /emergency triage/i })[0]!);
-    expect(
-      screen.getByRole("tooltip", { name: /urgent escalation language/i }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getAllByRole("term", { name: /emergency triage/i })[0]!);
-
-    await user.hover(screen.getAllByRole("term", { name: "booking" })[0]!);
-    expect(
-      screen.getByRole("tooltip", { name: /appointment scheduling and confirmation/i }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getAllByRole("term", { name: "booking" })[0]!);
-
-    await user.hover(screen.getByRole("term", { name: "prescription" }));
-    expect(
-      screen.getByRole("tooltip", { name: /medication renewal and approval checks/i }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getByRole("term", { name: "prescription" }));
-
-    await user.hover(screen.getByRole("term", { name: "lab follow up" }));
-    expect(
-      screen.getByRole("tooltip", { name: /laboratory result availability/i }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getByRole("term", { name: "lab follow up" }));
-
-    await user.hover(screen.getByRole("term", { name: "Type" }));
-    expect(
-      screen.getByRole("tooltip", {
-        name: /emergency triage, booking, prescription, lab follow up, and general/i,
-      }),
-    ).toBeInTheDocument();
-    await user.unhover(screen.getByRole("term", { name: "Type" }));
-
-    await user.hover(screen.getByRole("term", { name: "Input" }));
-    expect(
-      screen.getByRole("tooltip", { name: /ordered conversation context/i }),
-    ).toBeInTheDocument();
+    expect(within(details).getByText("Patient conversation")).toBeInTheDocument();
   });
 
-  it("runs one case with visible progress and keeps HITL separate from synthetic output", async () => {
+  it("runs one case with visible progress and keeps staff evidence inside case details", async () => {
     const user = userEvent.setup();
     renderEval({ store: createPendingEvalStore() });
 
     const row = screen.getByRole("row", { name: /Emergency chest pain/i });
-    expect(within(row).getByText("Expected human HITL")).toBeInTheDocument();
-    expect(within(row).getByText("Actual synthetic")).toBeInTheDocument();
+    expect(within(row).queryByText("Expected human HITL")).not.toBeInTheDocument();
+    expect(within(row).queryByText("Actual synthetic")).not.toBeInTheDocument();
     await user.click(within(row).getByRole("button", { name: "Run Emergency chest pain" }));
-    expect(within(row).getByRole("button", { name: "Cancel run" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Cancel Emergency chest pain run" })).toBeInTheDocument();
+    expect(within(row).getByText("Replaying...")).toBeInTheDocument();
 
     await waitFor(() => expect(within(row).getByText("Fail")).toBeInTheDocument());
-    expect(within(row).getByText(/Synthetic demo response/)).toBeInTheDocument();
-    expect(within(row).getByText(/Simulated fixture verdict/)).toBeInTheDocument();
-    await user.click(within(row).getByRole("button", { name: "Emergency chest pain" }));
-    const evidence = screen.getByRole("complementary", { name: "Case evidence" });
+    await user.click(row);
+    const evidence = screen.getByRole("dialog", { name: "Case details" });
+    expect(evidence).toHaveTextContent(/Synthetic demo response/);
+    expect(evidence).toHaveTextContent(/Simulated fixture verdict/);
     expect(evidence).toHaveTextContent(/Emergency direction.*fail/i);
     expect(evidence).toHaveTextContent("Fixture required rubric failed");
-    await user.click(within(evidence).getByText("Judge details"));
+    await user.click(within(evidence).getByText("Run details"));
     expect(evidence).toHaveTextContent(/ModeSimulated/);
   });
 
@@ -241,42 +226,59 @@ describe("Evaluation Lab route", () => {
     await waitFor(() =>
       expect(screen.getByText("Judge temporarily unavailable")).toBeInTheDocument(),
     );
-    expect(within(row).getAllByText("Not run")).toHaveLength(2);
+    expect(within(row).getAllByText("Not run")).toHaveLength(1);
 
     await user.click(within(row).getByRole("button", { name: "Run Emergency chest pain" }));
     await waitFor(() => expect(within(row).getByText("Fail")).toBeInTheDocument());
     expect(attempts).toBe(2);
   });
 
-  it("runs the suite and turns snapshots into supporting history", async () => {
+  it("runs the suite and exposes history only on request", async () => {
     const user = userEvent.setup();
     renderEval();
 
     await user.click(screen.getByRole("button", { name: "Run Suite" }));
     expect(screen.getByRole("button", { name: "Cancel suite" })).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByRole("region", { name: "Suite history" })).not.toHaveTextContent(
-        "Run the suite to create history.",
-      ),
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel suite" })).not.toBeInTheDocument());
+    expect(screen.getByRole("region", { name: "Evaluation summary" })).toHaveTextContent(/Regression guard/);
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "History" }));
+    expect(screen.getByRole("region", { name: "Suite history" })).not.toHaveTextContent(
+      "Run the suite to create history.",
     );
-    expect(screen.getByRole("region", { name: "Score summary" })).toHaveTextContent(/Overall/);
   });
 
-  it("blocks case-evidence mutations while another evaluation operation runs", async () => {
+  it("marks the active suite row while completed rows keep their results", async () => {
+    const user = userEvent.setup();
+    const store = createAppStore(new MemoryStorage(), {
+      judgeClient: createFixtureJudgeClient({ delayMs: 500 }),
+    });
+    renderEval({ store });
+
+    const emergencyRow = screen.getByRole("row", { name: /Emergency chest pain/i });
+    const bookingRow = screen.getByRole("row", { name: /Malay booking/i });
+    await user.click(screen.getByRole("button", { name: "Run Suite" }));
+
+    expect(within(emergencyRow).getByText("Replaying...")).toBeInTheDocument();
+    expect(within(bookingRow).getByText("Not run")).toBeInTheDocument();
+    await waitFor(() => expect(within(emergencyRow).getByText("Fail")).toBeInTheDocument());
+    await waitFor(() => expect(within(bookingRow).getByText("Replaying...")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Cancel suite" }));
+  });
+
+  it("blocks opening a case while another evaluation operation runs", async () => {
     const user = userEvent.setup();
     renderEval();
     const row = screen.getByRole("row", { name: /Emergency chest pain/i });
 
-    await user.click(within(row).getByRole("button", { name: "Emergency chest pain" }));
-    const evidence = screen.getByRole("complementary", { name: "Case evidence" });
     await user.click(screen.getByRole("button", { name: "Run Suite" }));
 
-    expect(within(evidence).getByRole("button", { name: "Run Case" })).toBeDisabled();
-    expect(within(evidence).getByRole("button", { name: "Edit" })).toBeDisabled();
-    expect(within(evidence).getByRole("button", { name: "More" })).toBeDisabled();
-    expect(
-      within(evidence).getByRole("button", { name: /English emergency train case failed/ }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel suite" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Edit Emergency chest pain" })).toBeDisabled();
+    expect(within(row).getByRole("button", { name: "Duplicate Emergency chest pain" })).toBeDisabled();
+    expect(within(row).getByRole("button", { name: "Delete Emergency chest pain" })).toBeDisabled();
+    await user.click(row);
+    expect(screen.queryByRole("dialog", { name: "Case details" })).not.toBeInTheDocument();
   });
 
   it("supports case CRUD with explicit destructive confirmation", async () => {
@@ -531,7 +533,7 @@ describe("Evaluation Lab route", () => {
     await user.click(screen.getByRole("button", { name: "Cancel suite" }));
   });
 
-  it("uses complete case cards and support drawers on 320px", async () => {
+  it("uses compact case cards and a scrollable details dialog on 320px", async () => {
     const user = userEvent.setup();
     renderEval({ width: 320 });
 
@@ -541,16 +543,17 @@ describe("Evaluation Lab route", () => {
 
     expect(screen.queryByRole("table", { name: "Evaluation cases" })).not.toBeInTheDocument();
     const card = screen.getByRole("article", { name: "Emergency chest pain" });
-    expect(card).toHaveTextContent(/Input|Expected|Actual|Criteria|Rationale/);
+    expect(card).toHaveTextContent(/Synthetic scenario|Improve SOP|Not run/);
     const actions = within(card).getByRole("group", { name: "Case actions" });
     expect(within(actions).getAllByRole("button")).toHaveLength(4);
 
-    await user.click(screen.getByRole("button", { name: "History" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "History" }));
     expect(screen.getByRole("complementary", { name: "Evaluation history" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close history" }));
 
-    await user.click(within(card).getByRole("button", { name: "Emergency chest pain" }));
-    expect(screen.getByRole("complementary", { name: "Case evidence" })).toBeInTheDocument();
+    await user.click(card);
+    expect(screen.getByRole("dialog", { name: "Case details" })).toBeInTheDocument();
   });
 
   it("cancels an in-flight suite when the global demo resets", async () => {
@@ -581,7 +584,7 @@ describe("Evaluation Lab route", () => {
 
     renderEval({ entry: "/eval?case=case-emergency-train" });
     expect(
-      await screen.findByRole("complementary", { name: "Case evidence" }),
+      await screen.findByRole("dialog", { name: "Case details" }),
     ).toHaveTextContent("Emergency chest pain");
   });
 

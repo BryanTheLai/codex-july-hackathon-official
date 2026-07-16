@@ -224,6 +224,25 @@ describe("HTTP agent client", () => {
 });
 
 describe("HTTP Eval client", () => {
+  it("reads whether server-side Eval execution is available", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ enabled: false, reason: "Eval execution is not configured." }),
+        { status: 200 },
+      ),
+    );
+    const client = createHttpEvalClient(fetcher);
+
+    await expect(client.executionCapability?.()).resolves.toEqual({
+      enabled: false,
+      reason: "Eval execution is not configured.",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/eval/capability",
+      expect.objectContaining({ signal: undefined }),
+    );
+  });
+
   it("freezes a suite then runs one strict case request", async () => {
     const fetcher = vi
       .fn()

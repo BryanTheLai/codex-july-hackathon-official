@@ -15,7 +15,7 @@ last_verified: "2026-07-16"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "430 automated tests, 18 Playwright executions with three intentional skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
+  - "434 automated tests, 20 Playwright executions with seven intentional scenario/viewport skips, DigitalOcean health/readiness checks, and live protected Telegram inbound text and voice verification"
   - "Controlled owner-chat smoke: direct-OpenAI agent drafting, five-case Eval judging, exact SOP proposal, translation, Telegram text, TTS voice, and recorded-voice provider acceptance"
   - "The repository has tested outbound-voice persistence/playback and live-Telegram Dream/Eval projection fixes that are not yet deployed"
 sources_consulted:
@@ -163,6 +163,29 @@ Inbound Telegram voice additionally uses the same direct OpenAI credentials with
 verbose transcription produces the original transcript and detected language, and the translation
 endpoint produces an English staff gloss for non-English speech. The host must provide `ffmpeg`
 with the Opus encoder; the adapter stores no audio file after the request completes.
+
+### Voice and agent boundary
+
+The checked-in defaults are `gpt-5.5` for text generation and judging, `whisper-1` for inbound
+Telegram speech transcription, and `gpt-4o-mini-tts` with the `coral` voice for approved outbound
+speech. `TTS_MODEL` and `TTS_VOICE` can override the outbound voice settings. Production
+environment values are not stored in the repository, so the deployed text-model override must be
+checked in the deployment settings rather than inferred from this file.
+
+The agent is currently a **staff-reviewed drafting assistant**: an incoming Telegram webhook stores
+the message and speech job, but does not trigger an agent run; an agent run has no tools and cannot
+send a message or create a booking. Staff can explicitly generate a grounded draft, edit it, and
+approve delivery. This is deliberate POC scope, not autonomous booking or dispatch.
+
+### Current capability boundary
+
+| Works now | Not built yet |
+| --- | --- |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; manual agent drafts; synthetic booking decisions; Eval-to-Dream candidate workflow | Webhook-triggered agent worker; live availability and booking creation; autonomous external sends; calendar `.ics` documents; phone/voice-call dispatch; user authentication; durable job retries and real-time UI push |
+
+For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
+17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
+session.
 
 ### Telegram
 

@@ -20,6 +20,7 @@ export const messageSchema = z.object({
     .object({
       deliveryId: z.string().min(1).max(128),
       source: z.enum(["tts", "recorded"]),
+      spokenTextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     })
     .strict()
     .optional(),

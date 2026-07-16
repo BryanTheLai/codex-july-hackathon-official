@@ -86,6 +86,7 @@ export function createEvalActions({
     datasetId: EvalDatasetId,
     caseIds: EvalCaseId[],
     signal?: AbortSignal,
+    onCaseStart?: (caseId: EvalCaseId, completed: number, total: number) => void,
     onProgress?: (completed: number, total: number) => void,
   ): Promise<MutationResult> => {
     if (!evalClient || !workspaceClient) {
@@ -130,6 +131,7 @@ export function createEvalActions({
       let workspaceRevision = suite.workspaceRevision;
       let latestServerState = initial.state;
       for (const [index, caseId] of caseIds.entries()) {
+        onCaseStart?.(caseId, index, caseIds.length);
         const baseState = getState();
         const result = await evalClient.runCase(
           {
@@ -207,6 +209,17 @@ export function createEvalActions({
   };
 
   return {
+    async getEvalExecutionCapability(signal?: AbortSignal) {
+      if (!evalClient?.executionCapability) {
+        return { enabled: true, reason: null };
+      }
+      try {
+        return await evalClient.executionCapability(signal);
+      } catch (failure) {
+        return { enabled: false, reason: failureMessage(failure) };
+      }
+    },
+
     async refreshEvalWorkspace(signal?: AbortSignal) {
       if (!evalClient || !workspaceClient) {
         return {
@@ -364,11 +377,41 @@ export function createEvalActions({
           dataset.id,
           dataset.cases.map((evalCase) => evalCase.id),
           options?.signal,
+          options?.onCaseStart,
           options?.onProgress,
         );
       }
-      return runAsync(
-        (baseState) => runEvalSuite(baseState, datasetId, judgeClient, options),
+      let sourceState = getState();
+      let incrementalFailure: string | null = null;
+      const result = await runEvalSuite(sourceState, datasetId, judgeClient, {
+        ...options,
+        onCaseComplete: (completedState, caseId, completed, total) => {
+          if (incrementalFailure) return;
+          const projected = rebaseAsyncMutationResult(sourceState, getState(), {
+            ok: true,
+            state: completedState,
+          });
+          if (!projected.ok) {
+            incrementalFailure = projected.error;
+            return;
+          }
+          const applied = run(projected, null);
+          if (!applied.ok) {
+            incrementalFailure = applied.error;
+            return;
+          }
+          sourceState = completedState;
+          options?.onCaseComplete?.(completedState, caseId, completed, total);
+        },
+      });
+      if (incrementalFailure) {
+        return run({ ok: false, state: getState(), error: incrementalFailure }, null);
+      }
+      if (!result.ok) {
+        return run({ ok: false, state: getState(), error: result.error }, null);
+      }
+      return run(
+        rebaseAsyncMutationResult(sourceState, getState(), result),
         "Evaluation suite run completed.",
       );
     },

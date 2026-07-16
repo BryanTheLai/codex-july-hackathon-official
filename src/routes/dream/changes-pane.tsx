@@ -95,8 +95,9 @@ export function ChangesPane({
                         <span className="dream-correction__manual">Manual correction</span>
                       )}
                       {stale ? (
-                        <p className="dream-stale" role="alert">
-                          Saved text no longer contains this line.
+                        <p className="dream-stale" role="status">
+                          Saved text no longer contains the proposed line. Re-run analysis to create a
+                          fresh proposal; approval is intentionally disabled.
                         </p>
                       ) : null}
                       <div className="dream-correction__actions">

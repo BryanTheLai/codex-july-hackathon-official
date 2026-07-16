@@ -1,4 +1,3 @@
-import { History } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   CartesianGrid,
@@ -10,9 +9,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { GlossaryTerm } from "../../components/glossary-term";
 import type { EvalDataset } from "../../domain";
-import { EVAL_GLOSSARY, metricsForDataset } from "./eval-model";
+import { metricsForDataset } from "./eval-model";
 
 function Metric({
   count,
@@ -36,52 +34,28 @@ function Metric({
 
 export function ScoreSummary({
   dataset,
-  mobile,
-  onHistory,
 }: {
   dataset: EvalDataset;
-  mobile: boolean;
-  onHistory: () => void;
 }) {
   const metrics = metricsForDataset(dataset);
-  const delta =
-    metrics.lastRunDelta === null
-      ? "N/A"
-      : `${metrics.lastRunDelta >= 0 ? "+" : ""}${metrics.lastRunDelta}pp`;
+  const guard = metrics.regressionGuard;
 
   return (
-    <section
-      aria-label="Score summary"
-      className={`eval-summary${mobile ? " eval-summary--mobile" : ""}`}
-      role="region"
-    >
+    <section aria-label="Evaluation summary" className="eval-summary" role="region">
       <Metric
-        count={metrics.overallCount}
-        label="Overall"
-        value={`${metrics.overallPassPercent}%`}
+        count={
+          guard.evaluated === 0
+            ? `${guard.total} regression guards waiting`
+            : `${guard.passed}/${guard.evaluated} passed · ${guard.total} total`
+        }
+        label="Regression guard"
+        value={guard.percent === null ? "Not run" : `${guard.percent}%`}
       />
       <Metric
-        count={metrics.trainCount}
-        label={<GlossaryTerm definition={EVAL_GLOSSARY.improveWith}>Improve with</GlossaryTerm>}
-        value={`${metrics.trainPassPercent}%`}
+        count={metrics.openFailures === 1 ? "1 case needs attention" : `${metrics.openFailures} cases need attention`}
+        label="Open failures"
+        value={String(metrics.openFailures)}
       />
-      <Metric
-        count={metrics.holdoutCount}
-        label={<GlossaryTerm definition={EVAL_GLOSSARY.verifyOnly}>Verify only</GlossaryTerm>}
-        value={`${metrics.holdoutPassPercent}%`}
-      />
-      <Metric
-        className="eval-metric--supporting"
-        label="Mean judge"
-        value={metrics.meanJudgeScore === null ? "N/A" : metrics.meanJudgeScore.toFixed(2)}
-      />
-      <Metric className="eval-metric--supporting" label="Last delta" value={delta} />
-      {mobile ? (
-        <button className="eval-summary__history" onClick={onHistory} type="button">
-          <History aria-hidden="true" size={15} />
-          History
-        </button>
-      ) : null}
     </section>
   );
 }
@@ -90,15 +64,13 @@ export function SuiteHistory({ dataset }: { dataset: EvalDataset }) {
   const data = dataset.suiteSnapshots.map((snapshot, index) => ({
     label: `R${index + 1}`,
     overall: snapshot.overallPassPercent,
-    train: snapshot.trainPassPercent,
-    holdout: snapshot.holdoutPassPercent,
   }));
 
   return (
     <section aria-label="Suite history" className="eval-history" role="region">
       <header>
         <strong>Suite history</strong>
-        <span>Pass rate, 0-100%</span>
+        <span>All-case pass rate, 0-100%</span>
       </header>
       {data.length === 0 ? (
         <div className="eval-history__empty">Run the suite to create history.</div>
@@ -121,24 +93,6 @@ export function SuiteHistory({ dataset }: { dataset: EvalDataset }) {
                 stroke="#0b6b5f"
                 strokeWidth={2}
                 type="linear"
-              />
-              <Line
-                dataKey="train"
-                dot={{ r: 2 }}
-                isAnimationActive={false}
-                stroke="#285d85"
-                strokeWidth={1.5}
-                type="linear"
-                name="Improve with"
-              />
-              <Line
-                dataKey="holdout"
-                dot={{ r: 2 }}
-                isAnimationActive={false}
-                stroke="#7a5111"
-                strokeWidth={1.5}
-                type="linear"
-                name="Verify only"
               />
             </LineChart>
           </ResponsiveContainer>

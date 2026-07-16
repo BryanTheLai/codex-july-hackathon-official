@@ -8,7 +8,7 @@ export const QUEUE_GROUPS = [
   "Emergency",
   "Needs approval",
   "Waiting",
-  "AI handling",
+  "Agent drafts",
   "Done",
 ] as const;
 
@@ -25,7 +25,7 @@ export function conversationGroup(conversation: Conversation): QueueGroup {
     return "Done";
   }
   if (conversation.agentMode === "synthetic_agent") {
-    return "AI handling";
+    return "Agent drafts";
   }
   return "Waiting";
 }

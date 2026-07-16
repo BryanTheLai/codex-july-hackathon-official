@@ -1,5 +1,4 @@
 import {
-  summarizeEvalDataset,
   type EvalCase,
   type EvalCaseType,
   type EvalDataset,
@@ -8,17 +7,16 @@ import {
 } from "../../domain";
 
 export const EVAL_GLOSSARY = {
-  actualSynthetic: "Agent-generated reply produced without reading expected output.",
+  actualSynthetic: "Agent-generated reply produced without reading the staff-approved reply.",
   booking: "Appointment scheduling and confirmation requests.",
   emergencyTriage: "Case type for urgent escalation language and routing.",
-  expectedHitl: "Human-approved reply used only as the grading reference.",
-  improveWith: "Examples the improvement step may use while proposing a better playbook.",
-  verifyOnly: "Examples kept out while improving and used only afterward to check the change.",
+  expectedHitl: "Staff-approved reply used only as grading reference evidence. The agent never sees it during replay.",
+  improveSop: "A failure here can produce a reviewable Dream SOP proposal. It does not train or condition the agent.",
+  regressionGuard: "Held out from SOP improvement and used afterward to check that a proposed change did not cause a regression.",
   input: "Ordered conversation context supplied to the synthetic agent for replay.",
   labFollowUp: "Laboratory result availability and clinician follow-up questions.",
   prescription: "Medication renewal and approval checks.",
-  scoringRules:
-    "Plain-language requirements an LLM judge applies after the synthetic reply is generated.",
+  scoringRules: "Plain-language requirements the judge applies after the agent reply is generated.",
   typeColumn:
     "Case intent: emergency triage, booking, prescription, lab follow up, and general.",
 } as const;
@@ -34,33 +32,27 @@ export type EvalFilters = {
 };
 
 export type EvalMetrics = {
-  overallPassPercent: number;
-  trainPassPercent: number;
-  holdoutPassPercent: number;
-  meanJudgeScore: number | null;
-  lastRunDelta: number | null;
-  overallCount: string;
-  trainCount: string;
-  holdoutCount: string;
+  openFailures: number;
+  regressionGuard: { evaluated: number; passed: number; percent: number | null; total: number };
 };
 
 export function metricsForDataset(dataset: EvalDataset): EvalMetrics {
-  const summary = summarizeEvalDataset(dataset);
-  const snapshots = dataset.suiteSnapshots;
-  const lastRunDelta =
-    snapshots.length < 2
-      ? null
-      : snapshots.at(-1)!.overallPassPercent - snapshots.at(-2)!.overallPassPercent;
+  const metric = (cases: EvalCase[]) => {
+    const evaluated = cases.filter((evalCase) => evalCase.grade !== undefined);
+    const passed = evaluated.filter((evalCase) => evalCase.grade?.pass).length;
+    return {
+      evaluated: evaluated.length,
+      passed,
+      percent: evaluated.length === 0 ? null : Math.round((passed / evaluated.length) * 100),
+      total: cases.length,
+    };
+  };
 
   return {
-    overallPassPercent: summary.overall.passPercent,
-    trainPassPercent: summary.train.passPercent,
-    holdoutPassPercent: summary.holdout.passPercent,
-    meanJudgeScore: summary.meanJudgeScore,
-    lastRunDelta,
-    overallCount: `${summary.overall.passed}/${summary.overall.total}`,
-    trainCount: `${summary.train.passed}/${summary.train.total}`,
-    holdoutCount: `${summary.holdout.passed}/${summary.holdout.total}`,
+    openFailures: dataset.cases.filter(
+      (evalCase) => evalCase.grade !== undefined && evalCase.grade.pass === false,
+    ).length,
+    regressionGuard: metric(dataset.cases.filter((evalCase) => evalCase.split === "holdout")),
   };
 }
 

@@ -144,11 +144,11 @@ function PatientIdentity({
           </div>
           <div>
             <dt>Phone</dt>
-            <dd>{conversation.patient.phone}</dd>
+            <dd>{conversation.patient.phone || "Not provided by patient"}</dd>
           </div>
           <div>
             <dt>MRN</dt>
-            <dd>{conversation.patient.medicalRecordNumber}</dd>
+            <dd>{conversation.patient.medicalRecordNumber || "Not assigned"}</dd>
           </div>
           <div>
             <dt>Language</dt>
@@ -157,7 +157,9 @@ function PatientIdentity({
           <div>
             <dt>Agent</dt>
             <dd>
-              {conversation.agentMode === "synthetic_agent" ? "Synthetic agent on" : "Staff only"}
+              {conversation.agentMode === "synthetic_agent"
+                ? "Agent drafts (staff approval)"
+                : "Staff only"}
             </dd>
           </div>
         </dl>
@@ -179,6 +181,7 @@ export function PatientRail({
   onImportEval,
   onRejectBooking,
   onRemoveLabel,
+  onResetSyntheticConversation,
   onUpdatePatient,
 }: {
   conversation: Conversation;
@@ -193,18 +196,23 @@ export function PatientRail({
   onImportEval: () => MutationResult;
   onRejectBooking: () => MutationResult;
   onRemoveLabel: (label: string) => MutationResult;
+  onResetSyntheticConversation: () => MutationResult;
   onUpdatePatient: (input: PatientUpdateInput) => MutationResult;
 }) {
   const availableLabels = useMemo(
     () => AVAILABLE_LABELS.filter((label) => !conversation.labels.includes(label)),
     [conversation.labels],
   );
+  const systemLabels = conversation.labels.filter((label) => label === "telegram");
+  const staffLabels = conversation.labels.filter((label) => label !== "telegram");
   const [newLabel, setNewLabel] = useState(availableLabels[0] ?? "");
   const [error, setError] = useState("");
   const importReady = hasResolvedStaffReply(conversation);
   const approvalPreview = previewBookingDecision(conversation, "approve");
   const rejectionPreview = previewBookingDecision(conversation, "reject");
   const cancellationPreview = previewBookingCancellation(conversation);
+  const canResetSyntheticConversation =
+    conversation.id.startsWith("convo-") || conversation.id.startsWith("sim-");
   const importBlockedReason =
     conversation.workflowStatus !== "resolved"
       ? "Resolve this conversation before adding it to Evals."
@@ -375,8 +383,22 @@ export function PatientRail({
           <header className="rail-section__header">
             <h3>Labels</h3>
           </header>
-          <div className="rail-labels">
-            {conversation.labels.map((label) => (
+          {systemLabels.length > 0 ? (
+            <div className="rail-label-group">
+              <span>System labels</span>
+              <div className="rail-labels">
+                {systemLabels.map((label) => (
+                  <span className="rail-label" key={label}>
+                    Telegram · channel
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="rail-label-group">
+            <span>Staff labels</span>
+            <div className="rail-labels">
+            {staffLabels.map((label) => (
               <span className="rail-label" key={label}>
                 {label}
                 <button
@@ -388,6 +410,7 @@ export function PatientRail({
                 </button>
               </span>
             ))}
+            </div>
           </div>
           <div className="rail-label-add">
             <select
@@ -436,6 +459,27 @@ export function PatientRail({
                 }
               />
             )}
+          </section>
+        ) : null}
+
+        {canResetSyntheticConversation ? (
+          <section className="rail-section">
+            <header className="rail-section__header">
+              <h3>Demo controls</h3>
+            </header>
+            <ConfirmAction
+              confirmLabel="Reset this synthetic conversation"
+              description="Restores this fixture only. It does not reset the rest of the demo and never affects Telegram conversations."
+              onConfirm={() => {
+                run(onResetSyntheticConversation);
+              }}
+              title={`Reset ${conversation.patient.name}'s synthetic conversation?`}
+              trigger={
+                <button className="chat-button" type="button">
+                  Reset this chat
+                </button>
+              }
+            />
           </section>
         ) : null}
 

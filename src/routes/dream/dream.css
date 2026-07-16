@@ -124,6 +124,34 @@
   font-size: var(--kaunter-text-meta);
 }
 
+.dream-release-gate {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--kaunter-hairline);
+  background: var(--kaunter-quiet);
+}
+
+.dream-release-gate > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 7px 10px;
+  border-right: 1px solid var(--kaunter-hairline);
+}
+
+.dream-release-gate span,
+.dream-release-gate small {
+  overflow: hidden;
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dream-release-gate strong {
+  font-size: 13px;
+}
+
 .dream-workbench {
   display: grid;
   grid-template-columns: 190px minmax(480px, 1fr) 280px;
@@ -1047,6 +1075,20 @@
 }
 
 @media (max-width: 999px) {
+  .dream-release-gate {
+    grid-template-columns: 1fr;
+  }
+
+  .dream-release-gate > div {
+    padding: 5px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--kaunter-hairline);
+  }
+
+  .dream-release-gate > div:last-child {
+    border-bottom: 0;
+  }
+
   .dream-files .dream-pane-heading {
     min-height: 52px;
   }

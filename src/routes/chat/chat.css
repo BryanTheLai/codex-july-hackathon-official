@@ -963,13 +963,26 @@
 .chat-composer__translation-preview {
   margin: 0 0 6px;
   padding: 5px 8px;
-  overflow: hidden;
+  display: grid;
+  gap: 6px;
   border-left: 2px solid var(--kaunter-info-fg);
   background: var(--kaunter-info-bg);
   color: var(--kaunter-info-fg);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.chat-composer__translation-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-composer__translation-preview p {
+  margin: 0;
+}
+
+.chat-composer__translation-preview .chat-button {
+  justify-self: start;
 }
 
 .chat-composer__translation-preview--error {
@@ -1114,6 +1127,17 @@
   flex-wrap: wrap;
   gap: 5px;
   margin-bottom: 8px;
+}
+
+.rail-label-group {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.rail-label-group > span {
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
 }
 
 .rail-label {

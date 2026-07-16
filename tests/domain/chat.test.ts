@@ -11,6 +11,7 @@ import {
   escalateEmergency,
   rejectBooking,
   removeLabel,
+  resetSyntheticConversation,
   reopenConversation,
   resolveConversation,
   resetDemo,
@@ -569,6 +570,70 @@ describe("simulatePatient", () => {
       (conversation) => conversation.id === "sim-mandarin-voice",
     );
     expect(simulated?.messages.every((message) => message.sentAt === state.fixtureTime)).toBe(true);
+  });
+});
+
+describe("resetSyntheticConversation", () => {
+  it("restores one canonical fixture without changing another conversation", () => {
+    const seed = createCanonicalSeed();
+    const target = seed.conversations.find((conversation) => conversation.id === "convo-booking")!;
+    const untouched = seed.conversations.find((conversation) => conversation.id === "convo-emergency")!;
+    const changed = updateBooking(seed, target.id, {
+      expectedRevision: target.booking!.revision,
+      provider: "Dr. Amir Lee",
+      reason: "Medication review",
+      slotIso: "2026-07-10T14:30:00+08:00",
+    });
+
+    expect(changed.ok).toBe(true);
+    if (!changed.ok) return;
+    const reset = resetSyntheticConversation(changed.state, target.id);
+
+    expect(reset.ok).toBe(true);
+    if (!reset.ok) return;
+    expect(reset.state.conversations.find((conversation) => conversation.id === target.id)).toEqual(
+      createCanonicalSeed().conversations.find((conversation) => conversation.id === target.id),
+    );
+    expect(reset.state.conversations.find((conversation) => conversation.id === untouched.id)).toEqual(
+      untouched,
+    );
+  });
+
+  it("removes one simulated fixture and selects a remaining conversation", () => {
+    const simulated = simulatePatient(createCanonicalSeed(), "malay_booking");
+    expect(simulated.ok).toBe(true);
+    if (!simulated.ok) return;
+
+    const reset = resetSyntheticConversation(simulated.state, "sim-malay-booking");
+
+    expect(reset.ok).toBe(true);
+    if (!reset.ok) return;
+    expect(reset.state.conversations.some((conversation) => conversation.id === "sim-malay-booking")).toBe(
+      false,
+    );
+    expect(reset.state.selections.conversationId).not.toBe("sim-malay-booking");
+  });
+
+  it("refuses to reset a non-synthetic conversation", () => {
+    const seed = createCanonicalSeed();
+    const telegramLike = {
+      ...seed,
+      conversations: [
+        {
+          ...seed.conversations[0]!,
+          id: "telegram-conversation:123",
+          channel: "Telegram",
+        },
+        ...seed.conversations.slice(1),
+      ],
+    };
+
+    const result = resetSyntheticConversation(telegramLike, "telegram-conversation:123");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/synthetic demo/i);
+    }
   });
 });
 

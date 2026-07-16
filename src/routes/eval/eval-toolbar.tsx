@@ -18,6 +18,7 @@ export function EvalToolbar({
   selectedId,
   suiteRunning,
   suiteBlocked,
+  suiteBlockedReason,
   onAddCase,
   onCancelSuite,
   onDeleteDataset,
@@ -36,6 +37,7 @@ export function EvalToolbar({
   selectedId: EvalDatasetId;
   suiteRunning: boolean;
   suiteBlocked: boolean;
+  suiteBlockedReason?: string;
   onAddCase: () => void;
   onCancelSuite: () => void;
   onDeleteDataset: () => void;
@@ -96,7 +98,11 @@ export function EvalToolbar({
             className={`eval-button${caseSelected ? "" : " eval-button--primary"}`}
             disabled={suiteBlocked}
             onClick={onRunSuite}
-            title={suiteBlocked ? "Add at least one case before running the suite." : undefined}
+            title={
+              suiteBlocked
+                ? suiteBlockedReason ?? "Add at least one case before running the suite."
+                : undefined
+            }
             type="button"
           >
             <FlaskConical aria-hidden="true" size={15} />

@@ -49,6 +49,7 @@ export {
   escalateEmergency,
   addLabel,
   removeLabel,
+  resetSyntheticConversation,
   setAgentMode,
   simulatePatient,
 } from "./chat";

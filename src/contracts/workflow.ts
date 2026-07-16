@@ -18,6 +18,14 @@ const commandBase = {
   expectedWorkspaceRevision: revisionSchema,
 };
 
+export const operationStatusSchema = z.object({
+  scope: z.enum(["chat", "telegram", "eval", "dream"]),
+  state: z.enum(["running", "succeeded", "failed", "canceled", "partial"]),
+  message: z.string().trim().min(1).max(500),
+  action: z.enum(["cancel", "retry"]).nullable().default(null),
+  actionLabel: z.string().trim().min(1).max(80).nullable().default(null),
+}).strict();
+
 export const workspaceCommandRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     ...commandBase,
@@ -95,3 +103,4 @@ export const workspaceCommandResultSchema = z.object({
 
 export type WorkspaceCommandRequest = z.infer<typeof workspaceCommandRequestSchema>;
 export type WorkspaceCommandResult = z.infer<typeof workspaceCommandResultSchema>;
+export type OperationStatus = z.infer<typeof operationStatusSchema>;

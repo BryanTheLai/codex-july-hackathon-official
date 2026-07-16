@@ -382,6 +382,7 @@ export function createTelegramOutboundService({
             : "AI-generated voice reply.",
         language: delivery.targetLanguage,
         sentAt: receiptFromDelivery(delivery).acceptedAt,
+        spokenTextHash: delivery.approvedTextHash,
         voiceSource: delivery.voiceSource ?? "tts",
       });
       if (!mutation.ok) {
@@ -516,7 +517,7 @@ export function createTelegramOutboundService({
       }
       const synthesized = await requireVoice(voice).tts.synthesize(
         request.approvedPatientText,
-        signal,
+        { targetLanguage: request.targetLanguage, signal },
       );
       const artifact = await requireVoice(voice).artifactStore.upload(
         voiceArtifactObjectPath(request.requestId),

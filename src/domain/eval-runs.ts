@@ -135,11 +135,13 @@ export async function runEvalSuite(
 
   let next = cloneState(state);
   for (const [index, evalCase] of dataset.cases.entries()) {
+    options?.onCaseStart?.(evalCase.id, index, dataset.cases.length);
     const result = await runEvalCase(next, evalCase.id, judgeClient, options);
     if (!result.ok) {
       return err(state, result.error);
     }
     next = result.state;
+    options?.onCaseComplete?.(next, evalCase.id, index + 1, dataset.cases.length);
     options?.onProgress?.(index + 1, dataset.cases.length);
     if (options?.signal?.aborted) {
       return err(state, "Evaluation canceled");
