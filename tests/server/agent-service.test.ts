@@ -400,6 +400,74 @@ describe("shared agent service", () => {
     );
   });
 
+  it("preserves a non-availability handoff when availability also failed", async () => {
+    const safetyHandoff = {
+      ...providerResult,
+      proposedAction: "staff_handoff" as const,
+      handoffReason: "Customer reported exposed electrical wiring.",
+    };
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        responseId: "response-safety-1",
+        outputText: "",
+        usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+        toolCalls: [
+          {
+            callId: "call-safety-1",
+            name: "list_available_slots",
+            argumentsJson: '{"date":null}',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(safetyHandoff),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(providerResult),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      });
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      toolExecutor: vi.fn().mockResolvedValue({
+        status: "failed",
+        summary: "Live availability is temporarily unavailable.",
+        conversationRevision: null,
+        output: {
+          success: false,
+          error_type: "provider_failed",
+          message: "Live availability is temporarily unavailable.",
+          reason_code: "availability_unavailable",
+        },
+      }),
+      tools: [
+        {
+          type: "function",
+          name: "list_available_slots",
+          description: "Find slots",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      createRunId: () => "agent-run-safety-handoff",
+    });
+
+    await expect(
+      runAgentTurn({
+        ...request,
+        toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+      }),
+    ).resolves.toMatchObject({
+      proposedAction: "staff_handoff",
+      handoffReason: safetyHandoff.handoffReason,
+      stopReason: "handoff",
+    });
+    expect(createResponse).toHaveBeenCalledTimes(2);
+  });
+
   it("exposes a server-created feedback Eval candidate in the action trace", async () => {
     const createResponse = vi
       .fn()

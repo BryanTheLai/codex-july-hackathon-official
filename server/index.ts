@@ -510,11 +510,6 @@ function latestWaitingTelegramEvent(
   ) {
     return null;
   }
-  const handoffIndex = conversation.messages.findLastIndex(
-    (message) =>
-      message.role === "system" &&
-      message.text.startsWith("Staff handoff requested:"),
-  );
   let patientIndex = -1;
   for (let index = conversation.messages.length - 1; index >= 0; index -= 1) {
     if (conversation.messages[index]?.role === "patient") {
@@ -523,10 +518,8 @@ function latestWaitingTelegramEvent(
     }
   }
   if (patientIndex < 0) return null;
-  const replySearchStart =
-    handoffIndex > patientIndex ? handoffIndex + 1 : patientIndex + 1;
   const alreadyAnswered = conversation.messages
-    .slice(replySearchStart)
+    .slice(patientIndex + 1)
     .some(
       (message) =>
         message.role === "staff" || message.role === "synthetic_agent",
@@ -644,7 +637,7 @@ async function runTelegramAutoReply(input: {
   telegram: TelegramAppOptions;
   webhookRequestId?: string;
   workspace: WorkspaceAppOptions | null;
-}): Promise<void> {
+}): Promise<boolean> {
   const { agent, agentTimeoutMs, event, telegram, webhookRequestId, workspace } = input;
   const logContext = {
     externalEventId: event.externalEventId,
@@ -663,7 +656,7 @@ async function runTelegramAutoReply(input: {
             ? "outbound_unconfigured"
             : "workspace_unconfigured",
     });
-    return;
+    return false;
   }
     const loaded = await workspace.repository.load(workspace.workspaceId);
     const conversation = loaded?.state.conversations.find(
@@ -678,7 +671,7 @@ async function runTelegramAutoReply(input: {
         reason: "conversation_not_persisted",
         workspaceId: workspace.workspaceId,
       });
-      return;
+      return false;
     }
     if (conversation.workflowStatus === "resolved" || conversation.agentMode !== "live_agent") {
       log.info("telegram_auto_reply_skipped", {
@@ -689,7 +682,7 @@ async function runTelegramAutoReply(input: {
             ? "conversation_resolved"
             : "agent_mode_disabled",
       });
-      return;
+      return false;
     }
     if (event.message.kind === "voice") {
       const artifact = loaded.state.speechArtifacts.find(
@@ -701,7 +694,7 @@ async function runTelegramAutoReply(input: {
           conversationId: conversation.id,
           reason: "voice_transcript_not_ready",
         });
-        return;
+        return false;
       }
     }
 
@@ -816,7 +809,7 @@ async function runTelegramAutoReply(input: {
         requestId,
         runId: result.runId,
       });
-      return;
+      return true;
     }
     throw new TelegramOutboundError(
       "provider_failed",
@@ -1337,6 +1330,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       })
     : null;
   const app = express();
+  const telegramReplyNowInFlight = new Set<string>();
   app.disable("x-powered-by");
   app.use(requestLogging);
   app.use(express.json({ limit: "64kb" }));
@@ -2072,23 +2066,45 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
           });
           return;
         }
-        await runTelegramAutoReply({
-          agent,
-          agentTimeoutMs,
-          event,
-          telegram,
-          workspace,
-        });
-        const updated = await workspace.repository.load(workspace.workspaceId);
-        if (!updated) {
-          throw new Error("Workspace was not found after Telegram reply.");
+        if (telegramReplyNowInFlight.has(conversation.id)) {
+          sendApiError(response, 409, {
+            code: "duplicate",
+            error: "A reply is already being generated for this conversation.",
+            retryable: true,
+          });
+          return;
         }
-        response.status(200).json(
-          saveWorkspaceResultSchema.parse({
-            ok: true,
-            workspace: updated,
-          }),
-        );
+        telegramReplyNowInFlight.add(conversation.id);
+        try {
+          const sent = await runTelegramAutoReply({
+            agent,
+            agentTimeoutMs,
+            event,
+            telegram,
+            workspace,
+          });
+          if (!sent) {
+            sendApiError(response, 409, {
+              code: "revision_conflict",
+              error:
+                "The conversation changed before the reply could start. Review the refreshed thread and retry.",
+              retryable: true,
+            });
+            return;
+          }
+          const updated = await workspace.repository.load(workspace.workspaceId);
+          if (!updated) {
+            throw new Error("Workspace was not found after Telegram reply.");
+          }
+          response.status(200).json(
+            saveWorkspaceResultSchema.parse({
+              ok: true,
+              workspace: updated,
+            }),
+          );
+        } finally {
+          telegramReplyNowInFlight.delete(conversation.id);
+        }
       } catch (error) {
         sendAgentFailure(response, error);
       }

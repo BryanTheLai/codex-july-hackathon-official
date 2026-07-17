@@ -411,6 +411,20 @@ export function createTelegramOutboundService({
     return null;
   };
 
+  const readNormalizedVoiceAudio = async (
+    objectPath: string,
+  ): Promise<Uint8Array> => {
+    const dependencies = requireVoice(voice);
+    const bytes = await dependencies.artifactStore.download(objectPath);
+    if (isOgg(bytes)) return bytes;
+    const converted = await dependencies.converter.convertToOgg(bytes);
+    try {
+      return new Uint8Array(await readFile(converted.filePath));
+    } finally {
+      await converted.cleanup();
+    }
+  };
+
   const sendPart = async (
     request: OutboundSendRequest,
     target: Target,
@@ -469,7 +483,7 @@ export function createTelegramOutboundService({
           : await adapter.sendVoice(
               target.externalConversationId,
               {
-                bytes: await requireVoice(voice).artifactStore.download(
+                bytes: await readNormalizedVoiceAudio(
                   claimed.audioObjectPath!,
                 ),
                 contentType: "audio/ogg",
@@ -611,17 +625,7 @@ export function createTelegramOutboundService({
           false,
         );
       }
-      const dependencies = requireVoice(voice);
-      const bytes = await dependencies.artifactStore.download(
-        delivery.audioObjectPath,
-      );
-      if (isOgg(bytes)) return bytes;
-      const converted = await dependencies.converter.convertToOgg(bytes);
-      try {
-        return new Uint8Array(await readFile(converted.filePath));
-      } finally {
-        await converted.cleanup();
-      }
+      return readNormalizedVoiceAudio(delivery.audioObjectPath);
     },
 
     async send(input) {

@@ -628,7 +628,19 @@ describe("visitor-approved Telegram text", () => {
     await expect(configured.outbound.readVoiceAudio("send-42")).resolves.toEqual(
       convertedBytes,
     );
-    expect(convertToOgg).toHaveBeenCalledTimes(2);
+    await expect(
+      configured.outbound.send({
+        ...sendRequest,
+        mode: "voice",
+        voiceSource: "tts",
+      }),
+    ).resolves.toMatchObject({ status: "sent" });
+    expect(configured.adapter.sendVoice).toHaveBeenCalledWith(
+      "-10042",
+      expect.objectContaining({ bytes: convertedBytes }),
+      "send-42",
+    );
+    expect(convertToOgg).toHaveBeenCalledTimes(3);
   });
 
   it("retries a partial text and voice delivery without resending accepted text", async () => {

@@ -162,6 +162,17 @@ function hasTemporaryAvailabilityFailure(
   );
 }
 
+function isAvailabilityFailureHandoff(result: ProviderAgentResult): boolean {
+  const reason = result.handoffReason?.toLowerCase() ?? "";
+  return (
+    reason.includes("calendar") ||
+    (reason.includes("availability") &&
+      ["disconnected", "failed", "not connected", "unavailable"].some(
+        (term) => reason.includes(term),
+      ))
+  );
+}
+
 function validateEvidence(
   request: AgentRunRequest,
   result: ProviderAgentResult,
@@ -368,6 +379,7 @@ export function createAgentService({
     }
     if (
       providerResult.proposedAction === "staff_handoff" &&
+      isAvailabilityFailureHandoff(providerResult) &&
       hasTemporaryAvailabilityFailure(toolHistory)
     ) {
       response = await createResponse(
