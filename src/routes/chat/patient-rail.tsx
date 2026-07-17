@@ -1,6 +1,7 @@
 import { ExternalLink, Pencil, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { CALENDAR_INVITATION_SENT_AUDIT_PREFIX } from "../../contracts/calendar";
 import {
   previewBookingCancellation,
   type Conversation,
@@ -175,13 +176,18 @@ function BookingTimeline({ conversation }: { conversation: Conversation }) {
   const booking = conversation.booking;
   if (!booking) return null;
 
-  const agentAudit = conversation.messages
-    .filter((message) => message.role === "system")
-    .map((message) => message.text)
-    .join(" ")
-    .toLocaleLowerCase();
-  const availabilityChecked = agentAudit.includes("checked demo availability");
-  const rescheduled = agentAudit.includes("rescheduled the appointment");
+  const calendarSent = conversation.messages.some(
+    (message) =>
+      message.role === "system" &&
+      message.text ===
+        `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${booking.revision}.`,
+  );
+  const availabilityChecked = booking.status === "approved" || booking.status === "cancelled";
+  const rescheduled = conversation.messages.some(
+    (message) =>
+      message.role === "system" &&
+      message.text.toLocaleLowerCase().includes("rescheduled"),
+  );
   const cancelled = booking.status === "cancelled";
   const confirmed = booking.status === "approved" || cancelled;
   const finalLabel = cancelled ? "Cancelled" : rescheduled ? "Rescheduled" : "Confirmed";
@@ -194,6 +200,10 @@ function BookingTimeline({ conversation }: { conversation: Conversation }) {
     {
       label: finalLabel,
       state: confirmed ? "active" : "pending",
+    },
+    {
+      label: "Calendar invite sent",
+      state: calendarSent ? "active" : "pending",
     },
   ];
 

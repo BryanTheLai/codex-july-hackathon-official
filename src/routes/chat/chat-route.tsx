@@ -124,6 +124,20 @@ export default function ChatRoute() {
   }, [refreshTelegramWorkspace, telegramWorkspaceStatus]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshTelegramWorkspace().catch(() => undefined);
+      }
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshTelegramWorkspace]);
+
+  useEffect(() => {
     updateRouteUi({ chatMobilePane: mobilePane });
   }, [mobilePane, updateRouteUi]);
 

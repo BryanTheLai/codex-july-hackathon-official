@@ -491,7 +491,7 @@ async function runTelegramAutoReply(input: {
     }
 
     const autonomousAction = autonomousActionRevision(result);
-    const expectedConversationRevision =
+    let expectedConversationRevision =
       autonomousAction?.conversationRevision ?? conversation.revision;
     if (autonomousAction?.calendar && telegram.calendar) {
       try {
@@ -499,6 +499,7 @@ async function runTelegramAutoReply(input: {
           conversationId: conversation.id,
           expectedConversationRevision,
         });
+        expectedConversationRevision = calendar.conversationRevision;
         log.info("telegram_auto_reply_calendar_sent", {
           ...logContext,
           conversationId: conversation.id,

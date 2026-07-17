@@ -14,7 +14,7 @@ import type {
 } from "./agent-service";
 import type { WorkspaceRepository } from "./workspace-repository";
 
-const PROVIDERS = ["Dr. Farah", "Dr. Lim"] as const;
+const PROVIDERS = ["Dr. Farah", "Dr. Lim", "Dr. Siti Rahman"] as const;
 const SLOT_TIMES = ["09:00", "10:30", "14:00", "15:30"] as const;
 const MAX_CAS_ATTEMPTS = 3;
 const KUALA_LUMPUR_TIME_ZONE = "Asia/Kuala_Lumpur";

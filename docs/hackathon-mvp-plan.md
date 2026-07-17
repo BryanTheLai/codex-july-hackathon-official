@@ -28,7 +28,7 @@ to prove tool-using autonomy.
 | Agent reply | The agent service accepts structured output and bounded function-call rounds. | Real model quality, cost, and rate limits need a live owner test. |
 | Booking | The server lists deterministic demo slots, rechecks a chosen slot at mutation time, writes an audit message, and suppresses duplicate function calls. | It is not an external clinic, calendar, or PMS authority. |
 | Calendar | Create/reschedule constructs an RFC 5545 `.ics` attachment and the Telegram path has an idempotent document-delivery record. | It does not create a Google or Outlook event; a fresh real receipt needs a test chat. |
-| UI | The patient rail has no Approve/Reject gate and renders Requested -> Availability checked -> Confirmed/Rescheduled/Cancelled. Manual runs render the action trace. | The UI is not pushed live from Telegram; refresh/reload obtains server state. |
+| UI | The patient rail has no Approve/Reject gate and renders Requested -> Availability checked -> Confirmed/Rescheduled/Cancelled. Manual runs render the action trace. The inbox polls every 8 seconds and refreshes immediately when the browser regains focus or visibility. | Sub-second server push from Telegram remains deferred. |
 | Eval progress | A suite shows `Replaying <case> / <n> of <total>`, marks the active row, disables competing actions, and exposes Cancel. | The output is deterministic in local tests; a live judge run is optional demo proof, not needed for the booking story. |
 | Feedback | The model can call `flag_autonomous_action_wrong`; the server creates an `autonomous_feedback` Eval case once. | A human must write the expected answer before Eval/Dream can use it. |
 | Delivery | Text and calendar sends use idempotency records. | The post-webhook agent work is background work, so a process crash can lose an in-flight reply. |
@@ -129,6 +129,13 @@ service, no new database table, and no automatic policy mutation.
    requirement.
 5. Capture a short screen recording. Every 20 seconds show a distinct proof: multilingual intent,
    tool trace, confirmed timeline/calendar, wrong-action flag, then the Eval candidate.
+
+### 60-second demo choreography
+
+- 0:00-0:20: Send one concise Malay voice note; show the detected language, transcript, and English gloss.
+- 0:20-0:40: Let the agent check availability and book; keep the action trace visible while the timeline advances.
+- 0:40-1:00: Show the short text reply, matching TTS voice reply, and `.ics` delivery receipt; if voice fails, show text preserved and retry only voice.
+- 1:00-1:20: Send a correction; show the agent flag the wrong action and route the case to Eval with a human-reference requirement.
 
 Do not send an unsolicited live Telegram message: the bot owner should initiate the test from the
 known chat so the audience and consequence are explicit.

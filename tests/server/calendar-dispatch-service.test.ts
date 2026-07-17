@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChannelAdapter } from "../../src/contracts/channel";
+import { CALENDAR_INVITATION_SENT_AUDIT_PREFIX } from "../../src/contracts/calendar";
 import { createCanonicalServerState, mergeTelegramInboundText } from "../../src/domain";
 import {
   createCalendarDeliveryRepository,
@@ -98,7 +99,11 @@ describe("calendar dispatch service", () => {
       expectedConversationRevision: 1,
     });
 
-    expect(first).toMatchObject({ status: "sent", providerMessageId: "9003" });
+    expect(first).toMatchObject({
+      status: "sent",
+      providerMessageId: "9003",
+      conversationRevision: 2,
+    });
     expect(duplicate).toEqual(first);
     expect(sendDocument).toHaveBeenCalledTimes(1);
     expect(sendDocument).toHaveBeenCalledWith(
@@ -109,6 +114,73 @@ describe("calendar dispatch service", () => {
     expect(new TextDecoder().decode(sendDocument.mock.calls[0]?.[1].bytes)).not.toContain(
       "Routine review",
     );
+    const saved = await workspaceRepository.load("demo");
+    const conversation = saved?.state.conversations.find(
+      (candidate) => candidate.id === "telegram-conversation:-10042",
+    );
+    expect(conversation?.messages.at(-1)).toMatchObject({
+      role: "system",
+      text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision 1.`,
+    });
+  });
+
+  it("does not attach a calendar trace to a conversation changed after provider acceptance", async () => {
+    const workspaceRepository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
+    await workspaceRepository.bootstrap("demo", await workspaceWithApprovedTelegramBooking());
+    const sendDocument = vi.fn<ChannelAdapter["sendDocument"]>(async () => {
+      const workspace = await workspaceRepository.load("demo");
+      if (!workspace) throw new Error("Workspace missing");
+      const changed = structuredClone(workspace.state);
+      const index = changed.conversations.findIndex(
+        (candidate) => candidate.id === "telegram-conversation:-10042",
+      );
+      const conversation = changed.conversations[index];
+      if (!conversation) throw new Error("Conversation missing");
+      changed.conversations[index] = {
+        ...conversation,
+        revision: conversation.revision + 1,
+        messages: [
+          ...conversation.messages,
+          {
+            id: "new-patient-message",
+            role: "patient",
+            text: "Actually, please use a later time.",
+            sentAt: "2026-07-13T12:01:00.000Z",
+          },
+        ],
+      };
+      await workspaceRepository.save("demo", workspace.revision, changed);
+      return { acceptedAt: "2026-07-13T12:01:00.000Z", providerMessageId: "9004" };
+    });
+    const service = createCalendarDispatchService({
+      adapter: { sendDocument },
+      config: {
+        defaultDurationMinutes: 30,
+        enabled: true,
+        location: null,
+        uidDomain: "calendar.kaunterai.test",
+      },
+      deliveryRepository: createCalendarDeliveryRepository(new InMemoryCalendarDataSource()),
+      now: () => new Date("2026-07-13T12:00:00.000Z"),
+      workspaceId: "demo",
+      workspaceRepository,
+    });
+
+    await expect(
+      service.send({
+        conversationId: "telegram-conversation:-10042",
+        expectedConversationRevision: 1,
+      }),
+    ).rejects.toMatchObject({ code: "revision_conflict" });
+
+    const saved = await workspaceRepository.load("demo");
+    const conversation = saved?.state.conversations.find(
+      (candidate) => candidate.id === "telegram-conversation:-10042",
+    );
+    expect(sendDocument).toHaveBeenCalledTimes(1);
+    expect(conversation?.messages.some((message) =>
+      message.text.startsWith(CALENDAR_INVITATION_SENT_AUDIT_PREFIX),
+    )).toBe(false);
   });
 
   it("fails closed after a provider timeout instead of attempting a resend", async () => {

@@ -11,6 +11,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentRunResult } from "../../src/contracts/agent";
+import { CALENDAR_INVITATION_SENT_AUDIT_PREFIX } from "../../src/contracts/calendar";
 import type {
   AgentClient,
   TelegramOutboundClient,
@@ -170,6 +171,33 @@ describe("Chat Control route", () => {
     expect(screen.getAllByText("Ahmad bin Hassan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Demo simulation").length).toBeGreaterThan(0);
     expect(screen.queryByText(/overview|welcome back|total conversations/i)).not.toBeInTheDocument();
+  });
+
+  it("refreshes Telegram state when the browser regains focus or visibility", async () => {
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 1,
+        state: await telegramServerState(),
+      }),
+    };
+    const store = createAppStore(new MemoryStorage(), { workspaceClient });
+    renderChat({ store });
+
+    await vi.waitFor(() => {
+      expect(workspaceClient.load).toHaveBeenCalled();
+    });
+    const callsAfterMount = vi.mocked(workspaceClient.load).mock.calls.length;
+
+    fireEvent(window, new Event("focus"));
+    await vi.waitFor(() => {
+      expect(workspaceClient.load).toHaveBeenCalledTimes(callsAfterMount + 1);
+    });
+
+    fireEvent(document, new Event("visibilitychange"));
+    await vi.waitFor(() => {
+      expect(workspaceClient.load).toHaveBeenCalledTimes(callsAfterMount + 2);
+    });
   });
 
   it("renders real message sides, centered audit rows, and explicit handler identity", async () => {
@@ -1204,6 +1232,44 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("region", { name: "Booking status timeline" })).toHaveTextContent(
       "Availability checked",
     );
+  });
+
+  it("shows the provider-accepted calendar invitation in the booking timeline", async () => {
+    const user = userEvent.setup();
+    const store = createAppStore(new MemoryStorage());
+    store.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        conversations: state.state.conversations.map((conversation) =>
+        conversation.id === "convo-booking"
+          ? {
+              ...conversation,
+              booking: conversation.booking
+                ? { ...conversation.booking, status: "approved" as const }
+                : conversation.booking,
+              messages: [
+                ...conversation.messages,
+                {
+                  id: "calendar-receipt",
+                  role: "system" as const,
+                  text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${conversation.booking?.revision ?? 1}.`,
+                  sentAt: "2026-07-17T01:00:00.000Z",
+                },
+              ],
+            }
+          : conversation,
+        ),
+      },
+    }));
+    renderChat({ store });
+
+    await user.click(screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }));
+
+    const timeline = screen.getByRole("region", { name: "Booking status timeline" });
+    expect(timeline).toHaveTextContent("Availability checked");
+    expect(timeline).toHaveTextContent("Confirmed");
+    expect(timeline).toHaveTextContent("Calendar invite sent");
   });
 
   it("previews and saves a pending booking update in the synthetic workspace", async () => {

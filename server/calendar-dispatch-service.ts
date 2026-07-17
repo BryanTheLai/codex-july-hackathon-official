@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { type ApiErrorCode } from "../src/contracts/api";
-import { type ChannelAdapter } from "../src/contracts/channel";
+import { CALENDAR_INVITATION_SENT_AUDIT_PREFIX } from "../src/contracts/calendar";
+import { type ChannelAdapter, type DeliveryReceipt } from "../src/contracts/channel";
 import { createCalendarInvitation } from "./calendar-ics";
 import type {
   CalendarDeliveryRecord,
@@ -31,6 +32,7 @@ const configSchema = z
 export type CalendarDispatchConfig = z.infer<typeof configSchema>;
 export type CalendarDispatchRequest = z.infer<typeof requestSchema>;
 export type CalendarDispatchResult = {
+  conversationRevision: number;
   requestId: string;
   status: "sent";
   providerMessageId: string;
@@ -81,7 +83,10 @@ function requestId(uid: string, sequence: number, kind: "publish" | "cancel"): s
   return `calendar-${sha256(`${uid}\u0000${sequence}\u0000${kind}`).slice(0, 48)}`;
 }
 
-function accepted(record: CalendarDeliveryRecord): CalendarDispatchResult {
+function accepted(
+  record: CalendarDeliveryRecord,
+  conversationRevision: number,
+): CalendarDispatchResult {
   if (
     record.status !== "sent" ||
     record.providerMessageId === null ||
@@ -94,11 +99,16 @@ function accepted(record: CalendarDeliveryRecord): CalendarDispatchResult {
     );
   }
   return {
+    conversationRevision,
     requestId: record.requestId,
     status: "sent",
     providerMessageId: record.providerMessageId,
     providerAcceptedAt: record.providerAcceptedAt,
   };
+}
+
+function calendarAuditMessageId(requestId: string): string {
+  return `calendar-action-${sha256(requestId).slice(0, 32)}`;
 }
 
 export function createCalendarDispatchService({
@@ -110,6 +120,66 @@ export function createCalendarDispatchService({
   workspaceRepository,
 }: CalendarDispatchServiceOptions) {
   const config = configSchema.parse(unparsedConfig);
+
+  async function recordCalendarDelivery(
+    conversationId: string,
+    requestId: string,
+    bookingRevision: number,
+    expectedConversationRevision: number,
+  ): Promise<number> {
+    const auditMessageId = calendarAuditMessageId(requestId);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const workspace = await workspaceRepository.load(workspaceId);
+      if (!workspace) {
+        throw new CalendarDispatchError("not_found", "Workspace was not found.", false);
+      }
+      const index = workspace.state.conversations.findIndex(
+        (candidate) => candidate.id === conversationId,
+      );
+      if (index < 0) {
+        throw new CalendarDispatchError("not_found", "Conversation was not found.", false);
+      }
+      const conversation = workspace.state.conversations[index]!;
+      if (conversation.messages.some((message) => message.id === auditMessageId)) {
+        return conversation.revision;
+      }
+      if (conversation.revision !== expectedConversationRevision) {
+        throw new CalendarDispatchError(
+          "revision_conflict",
+          "Calendar invitation was accepted after the conversation changed, so its action trace was not recorded.",
+          true,
+        );
+      }
+      const nextState = structuredClone(workspace.state);
+      const current = nextState.conversations[index]!;
+      nextState.conversations[index] = {
+        ...current,
+        revision: current.revision + 1,
+        messages: [
+          ...current.messages,
+          {
+            id: auditMessageId,
+            role: "system",
+            text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${bookingRevision}.`,
+            sentAt: now().toISOString(),
+          },
+        ],
+      };
+      const saved = await workspaceRepository.save(
+        workspaceId,
+        workspace.revision,
+        nextState,
+      );
+      if (saved.ok) {
+        return saved.workspace.state.conversations[index]!.revision;
+      }
+    }
+    throw new CalendarDispatchError(
+      "revision_conflict",
+      "Calendar invitation was accepted but its action trace could not be saved.",
+      true,
+    );
+  }
 
   return {
     async send(unparsedRequest: CalendarDispatchRequest): Promise<CalendarDispatchResult> {
@@ -130,13 +200,6 @@ export function createCalendarDispatchService({
       );
       if (!conversation) {
         throw new CalendarDispatchError("not_found", "Conversation was not found.", false);
-      }
-      if (conversation.revision !== request.expectedConversationRevision) {
-        throw new CalendarDispatchError(
-          "revision_conflict",
-          "Conversation changed before calendar delivery.",
-          true,
-        );
       }
       if (
         conversation.channel !== "telegram" ||
@@ -186,6 +249,25 @@ export function createCalendarDispatchService({
         uid,
       });
       const id = requestId(uid, sequence, kind);
+      const existing = await deliveryRepository.read(id);
+      if (existing?.status === "sent") {
+        return accepted(
+          existing,
+          await recordCalendarDelivery(
+            conversation.id,
+            id,
+            booking.revision,
+            request.expectedConversationRevision,
+          ),
+        );
+      }
+      if (conversation.revision !== request.expectedConversationRevision) {
+        throw new CalendarDispatchError(
+          "revision_conflict",
+          "Conversation changed before calendar delivery.",
+          true,
+        );
+      }
       const delivery = await deliveryRepository.createOrLoad({
         requestId: id,
         workspaceId,
@@ -195,7 +277,17 @@ export function createCalendarDispatchService({
         kind,
         contentHash: sha256(content),
       });
-      if (delivery.record.status === "sent") return accepted(delivery.record);
+      if (delivery.record.status === "sent") {
+        return accepted(
+          delivery.record,
+          await recordCalendarDelivery(
+            conversation.id,
+            id,
+            booking.revision,
+            request.expectedConversationRevision,
+          ),
+        );
+      }
       if (delivery.record.status === "sending" || delivery.record.status === "unknown") {
         throw new CalendarDispatchError(
           "duplicate",
@@ -211,8 +303,9 @@ export function createCalendarDispatchService({
           true,
         );
       }
+      let receipt: DeliveryReceipt;
       try {
-        const receipt = await adapter.sendDocument(
+        receipt = await adapter.sendDocument(
           conversation.externalConversationId,
           {
             bytes: new TextEncoder().encode(content),
@@ -221,7 +314,6 @@ export function createCalendarDispatchService({
           },
           id,
         );
-        return accepted(await deliveryRepository.markSent(id, receipt));
       } catch (error) {
         const code = error instanceof TelegramAdapterError ? error.code : "provider_failed";
         if (code === "provider_timeout") {
@@ -239,6 +331,15 @@ export function createCalendarDispatchService({
           true,
         );
       }
+      return accepted(
+        await deliveryRepository.markSent(id, receipt),
+        await recordCalendarDelivery(
+          conversation.id,
+          id,
+          booking.revision,
+          request.expectedConversationRevision,
+        ),
+      );
     },
   };
 }

@@ -200,6 +200,7 @@ export const calendarDispatchResultSchema = z
     status: z.literal("sent"),
     providerMessageId: z.string().min(1).max(128),
     providerAcceptedAt: z.iso.datetime({ offset: true }),
+    conversationRevision: revisionSchema,
   })
   .strict();
 

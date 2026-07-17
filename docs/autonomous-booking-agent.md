@@ -69,7 +69,7 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |
-| `list_available_slots` | provider, local date or `null` | provider is `Dr. Farah` or `Dr. Lim` | Returns up to eight future unreserved demo slots |
+| `list_available_slots` | provider, local date or `null` | provider is `Dr. Farah`, `Dr. Lim`, or `Dr. Siti Rahman` | Returns up to eight future unreserved demo slots |
 | `create_booking` | provider, returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking |
 | `reschedule_booking` | provider, returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |

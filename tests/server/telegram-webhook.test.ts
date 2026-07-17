@@ -481,6 +481,7 @@ describe("Telegram webhook", () => {
   it("uses the booking mutation revision for autonomous calendar and Telegram delivery", async () => {
     const calendar = {
       send: vi.fn(async () => ({
+        conversationRevision: 3,
         requestId: "calendar-1",
         status: "sent" as const,
         providerMessageId: "calendar-message-1",
@@ -542,7 +543,7 @@ describe("Telegram webhook", () => {
       expectedConversationRevision: 2,
     });
     expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ expectedConversationRevision: 2 }),
+      expect.objectContaining({ expectedConversationRevision: 3 }),
     );
   });
 

@@ -122,6 +122,26 @@ describe("autonomous booking tools", () => {
     expect(conversation?.booking?.slotIso).toBe(slotIso);
   });
 
+  it("supports the seeded Malay booking provider", async () => {
+    const { executor, request } = await configuredWorkspace();
+    const availability = await executor({
+      request,
+      call: {
+        callId: "call-list-siti-1",
+        name: "list_available_slots",
+        argumentsJson: '{"date":null,"provider":"Dr. Siti Rahman"}',
+      },
+    });
+
+    expect(availability).toMatchObject({
+      status: "completed",
+      output: {
+        success: true,
+        action: "availability_listed",
+      },
+    });
+  });
+
   it("turns agent-decided patient feedback into one pending Eval candidate", async () => {
     const { executor, repository, request } = await configuredWorkspace();
     const first = await executor({
