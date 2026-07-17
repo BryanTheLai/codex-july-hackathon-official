@@ -98,7 +98,7 @@ function buildSeedState(): AppState {
           msg(
             "complaint-3",
             "patient",
-            "Are u sure? i thought this would cost RM160?",
+            "ei i thought rm160 for chemical wash??",
             undefined,
             "English",
           ),

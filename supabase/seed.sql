@@ -92,7 +92,7 @@ insert into public.demo_seed_templates (
         {
           "id": "complaint-3",
           "role": "patient",
-          "text": "Are u sure? i thought this would cost RM160?",
+          "text": "ei i thought rm160 for chemical wash??",
           "language": "English",
           "sentAt": "2026-07-18T08:00:00+08:00"
         }

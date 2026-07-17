@@ -267,7 +267,7 @@ describe("Chat Control route", () => {
     ).toBeInTheDocument();
     expect(within(selected).getByText("General service is RM99 per unit.")).toBeInTheDocument();
     expect(
-      within(selected).getByText("Are u sure? i thought this would cost RM160?"),
+      within(selected).getByText("ei i thought rm160 for chemical wash??"),
     ).toBeInTheDocument();
   });
 

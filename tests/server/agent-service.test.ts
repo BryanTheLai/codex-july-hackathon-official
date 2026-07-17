@@ -69,12 +69,12 @@ const providerResult = {
 } as const;
 
 describe("shared agent service", () => {
-  it("requires the customer reply language to match the preferred language", () => {
+  it("requires the customer reply language to match the latest customer message", () => {
     expect(AGENT_INSTRUCTIONS).toContain(
-      "draft.patientLanguage must exactly equal patientContext.preferredLanguage",
+      "detect the language used in the customer's latest substantive message",
     );
     expect(AGENT_INSTRUCTIONS).toContain(
-      "draft.patientText must be written in that preferred language",
+      "draft.patientText entirely in that language",
     );
   });
 
