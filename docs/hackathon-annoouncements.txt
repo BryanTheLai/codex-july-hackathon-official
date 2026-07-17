@@ -117,3 +117,18 @@ All projects must be submitted through the official submission form. (which will
 ---
 
 *For more information, visit codexhackathon.my or join the discord at discord.gg/nEexnkUwp.*
+
+
+
+---
+
+@everyone  In case any on who is not sure for presentation slot how the flow is like for your group
+
+Here is a suggested format from our end for preliminary roundings for Top 10 selections
+Eg.
+Team 1
+3min -> Plays video from youtube/ slides deck [Business side/ stats]
+3min -> here is how it works from our laptop real time [technical - plugin, live webapp]
+4min -> any qna?
+
+Hope its clear 
