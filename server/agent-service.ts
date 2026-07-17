@@ -132,6 +132,36 @@ function parseProviderResult(outputText: string): ProviderAgentResult {
   }
 }
 
+function hasTemporaryAvailabilityFailure(
+  rounds: AgentProviderToolRound[],
+): boolean {
+  return rounds.some((round) =>
+    round.calls.some((call) => {
+      if (
+        call.name !== "list_available_slots" &&
+        call.name !== "create_booking" &&
+        call.name !== "reschedule_booking"
+      ) {
+        return false;
+      }
+      const output = round.outputs.find(
+        (candidate) => candidate.callId === call.callId,
+      );
+      if (!output) return false;
+      try {
+        const parsed = JSON.parse(output.output) as Record<string, unknown>;
+        return (
+          parsed.success === false &&
+          parsed.error_type === "provider_failed" &&
+          parsed.reason_code === "availability_unavailable"
+        );
+      } catch {
+        return false;
+      }
+    }),
+  );
+}
+
 function validateEvidence(
   request: AgentRunRequest,
   result: ProviderAgentResult,
@@ -332,6 +362,39 @@ export function createAgentService({
         throw new AgentServiceError(
           "provider_failed",
           "Agent provider returned invalid structured output twice. Retry validation; if it repeats, verify the configured model supports strict JSON schema output.",
+          true,
+        );
+      }
+    }
+    if (
+      providerResult.proposedAction === "staff_handoff" &&
+      hasTemporaryAvailabilityFailure(toolHistory)
+    ) {
+      response = await createResponse(
+        {
+          ...baseInput,
+          instructions: `${baseInput.instructions}
+<availability_recovery>
+Live availability is temporarily unavailable. Do not mention Calendar configuration and do not hand off. Reply that a time cannot be confirmed yet, ask for one useful missing service detail when available, and remain active.
+</availability_recovery>`,
+          tools: [],
+          toolChoice: "none",
+        },
+        signal,
+      );
+      usage = addUsage(usage, response.usage);
+      if (response.toolCalls?.length) {
+        throw new AgentServiceError(
+          "provider_failed",
+          "Agent requested a tool during availability recovery.",
+          false,
+        );
+      }
+      providerResult = parseProviderResult(response.outputText);
+      if (providerResult.proposedAction !== "reply") {
+        throw new AgentServiceError(
+          "provider_failed",
+          "Agent could not produce a safe availability fallback.",
           true,
         );
       }

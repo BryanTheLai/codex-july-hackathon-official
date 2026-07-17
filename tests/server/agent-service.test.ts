@@ -310,6 +310,96 @@ describe("shared agent service", () => {
     );
   });
 
+  it("turns a Calendar availability handoff into a customer-safe reply", async () => {
+    const fallback = {
+      ...providerResult,
+      draft: {
+        englishText:
+          "I cannot confirm a time yet. Could you confirm the unit horsepower?",
+        patientLanguage: "Malay",
+        patientText:
+          "Saya belum dapat mengesahkan masa. Boleh sahkan kuasa kuda unit?",
+      },
+    };
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        responseId: "response-calendar-1",
+        outputText: "",
+        usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+        toolCalls: [
+          {
+            callId: "call-calendar-1",
+            name: "list_available_slots",
+            argumentsJson: '{"date":null}',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify({
+          ...providerResult,
+          proposedAction: "staff_handoff",
+          handoffReason: "Google Calendar is disconnected.",
+        }),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(fallback),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      });
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      toolExecutor: vi.fn().mockResolvedValue({
+        status: "failed",
+        summary: "Live availability is temporarily unavailable.",
+        conversationRevision: null,
+        output: {
+          success: false,
+          error_type: "provider_failed",
+          message: "Live availability is temporarily unavailable.",
+          reason_code: "availability_unavailable",
+          suggestion:
+            "Tell the customer a time cannot be confirmed yet, continue collecting service details, and remain active.",
+        },
+      }),
+      tools: [
+        {
+          type: "function",
+          name: "list_available_slots",
+          description: "Find slots",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      createRunId: () => "agent-run-calendar-recovery",
+    });
+
+    await expect(
+      runAgentTurn({
+        ...request,
+        toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+      }),
+    ).resolves.toMatchObject({
+      proposedAction: "reply",
+      handoffReason: null,
+      draft: fallback.draft,
+      stopReason: "completed",
+    });
+    expect(createResponse).toHaveBeenCalledTimes(3);
+    expect(createResponse).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining(
+          "Do not mention Calendar configuration and do not hand off",
+        ),
+        tools: [],
+        toolChoice: "none",
+      }),
+      undefined,
+    );
+  });
+
   it("exposes a server-created feedback Eval candidate in the action trace", async () => {
     const createResponse = vi
       .fn()

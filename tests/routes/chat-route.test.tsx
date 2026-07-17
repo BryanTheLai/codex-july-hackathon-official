@@ -1226,6 +1226,70 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
 
+  it("shows the handoff reason and a direct recovery action", async () => {
+    const user = userEvent.setup();
+    const storage = new MemoryStorage();
+    const state = createCanonicalSeed();
+    const booking = state.conversations.find(
+      (conversation) => conversation.id === "convo-aircon-booking",
+    )!;
+    booking.agentMode = "staff_only";
+    booking.labels = [...booking.labels, "staff-handoff"];
+    booking.messages.push({
+      id: "agent-handoff:demo",
+      role: "system",
+      text: "Staff handoff requested: Unsupported repair quote",
+      sentAt: "2026-07-18T08:05:00+08:00",
+    });
+    saveAppState(storage, state);
+    renderChat({ store: createAppStore(storage) });
+
+    const recovery = screen.getByRole("status", { name: "Staff handoff recovery" });
+    expect(recovery).toHaveTextContent("Unsupported repair quote");
+    await user.click(within(recovery).getByRole("button", { name: "Resume agent handling" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("status", { name: "Staff handoff recovery" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("combobox", { name: "Agent mode" })).toHaveValue(
+      "synthetic_agent",
+    );
+  });
+
+  it("offers reply-now recovery for a handed-off Telegram conversation", async () => {
+    const inbound = await telegramServerState();
+    const conversation = inbound.conversations.find(
+      (candidate) => candidate.id === "telegram-conversation:-10042",
+    )!;
+    conversation.agentMode = "staff_only";
+    conversation.labels = [...conversation.labels, "staff-handoff"];
+    conversation.messages.push({
+      id: "agent-handoff:calendar",
+      role: "system",
+      text: "Staff handoff requested: Live availability was unavailable",
+      sentAt: "2026-07-18T08:05:00+08:00",
+    });
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 4,
+        state: inbound,
+      }),
+    };
+    renderChat({
+      store: createAppStore(new MemoryStorage(), { workspaceClient }),
+    });
+
+    await userEvent.setup().click(await screen.findByRole("button", {
+      name: "Open conversation with Aina Zulkifli",
+    }));
+    expect(
+      screen.getByRole("button", { name: "Resume and reply now" }),
+    ).toBeInTheDocument();
+  });
+
   it("edits patient details, hides booking gates, labels, and handles emergency escalation", async () => {
     const user = userEvent.setup();
     const storage = new MemoryStorage();

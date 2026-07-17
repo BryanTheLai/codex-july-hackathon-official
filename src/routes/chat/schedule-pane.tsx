@@ -1,6 +1,11 @@
 import { CalendarPlus, Link2, Pencil } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  googleCalendarConnectResponseSchema,
+  googleCalendarStatusSchema,
+  type GoogleCalendarStatus,
+} from "../../contracts/calendar";
 import type { Conversation, ConversationId } from "../../domain";
 import { formatBookingSlot, scheduleDays } from "./chat-model";
 
@@ -39,28 +44,80 @@ export function SchedulePane({
   const [bookingCandidateId, setBookingCandidateId] = useState(
     bookingCandidates[0]?.id ?? "",
   );
-  const [calendarMode, setCalendarMode] = useState<"demo" | "google">("demo");
+  const [calendarStatus, setCalendarStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [calendarConnectOpen, setCalendarConnectOpen] = useState(false);
+  const [calendarAdminToken, setCalendarAdminToken] = useState("");
+  const [calendarAuthorizationUrl, setCalendarAuthorizationUrl] = useState<string | null>(null);
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarWorking, setCalendarWorking] = useState(false);
+
+  const loadCalendarStatus = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetch("/api/calendar/google/status", { signal });
+      const parsed = googleCalendarStatusSchema.safeParse(await response.json());
+      if (!response.ok || !parsed.success) {
+        throw new Error("Calendar status is unavailable.");
+      }
+      setCalendarStatus(parsed.data);
+      setCalendarError("");
+      if (parsed.data.status === "connected") {
+        setCalendarConnectOpen(false);
+        setCalendarAuthorizationUrl(null);
+      }
+    } catch (error) {
+      if (signal?.aborted) return;
+      setCalendarError(
+        error instanceof Error ? error.message : "Calendar status is unavailable.",
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/calendar/google/status", { signal: controller.signal })
-      .then(async (response) => response.ok ? response.json() : null)
-      .then((status: unknown) => {
-        if (
-          status &&
-          typeof status === "object" &&
-          "mode" in status &&
-          status.mode === "google"
-        ) {
-          setCalendarMode("google");
-        }
-      })
-      .catch(() => undefined);
+    void loadCalendarStatus(controller.signal);
     return () => controller.abort();
-  }, []);
-  const calendarLabel = calendarMode === "google"
-    ? "Google Calendar synced"
-    : "Demo schedule fallback";
+  }, [loadCalendarStatus]);
+
+  const calendarNeedsConnection =
+    calendarStatus?.configured === true &&
+    calendarStatus.status !== "connected";
+  const calendarLabel =
+    calendarStatus?.status === "connected"
+      ? "Google Calendar synced"
+      : calendarNeedsConnection
+        ? "Google Calendar needs connection"
+        : "Demo schedule fallback";
+
+  const startCalendarConnection = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const token = calendarAdminToken.trim();
+    if (!token) {
+      setCalendarError("Enter the Calendar admin token.");
+      return;
+    }
+    setCalendarWorking(true);
+    setCalendarError("");
+    try {
+      const response = await fetch("/api/admin/calendar/google/connect", {
+        method: "POST",
+        headers: { "x-kaunter-admin-token": token },
+      });
+      const parsed = googleCalendarConnectResponseSchema.safeParse(await response.json());
+      if (!response.ok || !parsed.success) {
+        throw new Error("Google Calendar connection could not be started.");
+      }
+      setCalendarAuthorizationUrl(parsed.data.authorizationUrl);
+      setCalendarAdminToken("");
+    } catch (error) {
+      setCalendarError(
+        error instanceof Error
+          ? error.message
+          : "Google Calendar connection could not be started.",
+      );
+    } finally {
+      setCalendarWorking(false);
+    }
+  };
 
   useEffect(() => {
     if (!days.some((day) => day.isoDate === selectedDate)) {
@@ -78,6 +135,65 @@ export function SchedulePane({
     (conversation) => conversation.booking?.slotIso.slice(0, 10) === selectedDate,
   );
   const selectedDay = days.find((day) => day.isoDate === selectedDate);
+  const calendarStatusControl = (
+    <div className="schedule-calendar-status">
+      <span className="chat-badge chat-badge--info">
+        <Link2 aria-hidden="true" size={13} />
+        {calendarLabel}
+      </span>
+      {calendarNeedsConnection ? (
+        <button
+          className="chat-button"
+          onClick={() => setCalendarConnectOpen((open) => !open)}
+          type="button"
+        >
+          Connect Google Calendar
+        </button>
+      ) : null}
+    </div>
+  );
+  const calendarConnectPanel =
+    calendarConnectOpen && calendarNeedsConnection ? (
+      <form
+        aria-label="Connect Google Calendar"
+        className="schedule-calendar-connect"
+        onSubmit={(event) => void startCalendarConnection(event)}
+      >
+        <label>
+          <span>Calendar admin token</span>
+          <input
+            aria-label="Calendar admin token"
+            autoComplete="off"
+            onChange={(event) => setCalendarAdminToken(event.target.value)}
+            type="password"
+            value={calendarAdminToken}
+          />
+        </label>
+        <button className="chat-button" disabled={calendarWorking} type="submit">
+          {calendarWorking ? "Starting connection" : "Get authorization link"}
+        </button>
+        {calendarAuthorizationUrl ? (
+          <>
+            <a
+              className="chat-button chat-button--primary"
+              href={calendarAuthorizationUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Continue with Google
+            </a>
+            <button
+              className="chat-button"
+              onClick={() => void loadCalendarStatus()}
+              type="button"
+            >
+              Check connection
+            </button>
+          </>
+        ) : null}
+        {calendarError ? <span role="alert">{calendarError}</span> : null}
+      </form>
+    ) : null;
   const createBookingControls = bookingCandidates.length > 0 ? (
     <div className="schedule-pane__create-booking">
       <label>
@@ -185,8 +301,9 @@ export function SchedulePane({
               ))}
             </select>
           </label>
-          <strong>{calendarLabel}</strong>
+          {calendarStatusControl}
         </header>
+        {calendarConnectPanel}
         {createBookingControls}
         {bookingList}
       </section>
@@ -242,12 +359,10 @@ export function SchedulePane({
             </div>
             <div className="schedule-pane__header-actions">
               {createBookingControls}
-              <span className="chat-badge chat-badge--info">
-                <Link2 aria-hidden="true" size={13} />
-                {calendarLabel}
-              </span>
+              {calendarStatusControl}
             </div>
           </header>
+          {calendarConnectPanel}
           {bookingList}
         </section>
       </div>

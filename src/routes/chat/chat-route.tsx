@@ -77,6 +77,9 @@ export default function ChatRoute() {
   const setTelegramAgentMode = useAppStore(
     (store) => store.setTelegramAgentMode,
   );
+  const replyToLatestTelegramMessage = useAppStore(
+    (store) => store.replyToLatestTelegramMessage,
+  );
   const telegramSpeechArtifacts = useAppStore(
     (store) => store.telegramWorkspace.speechArtifacts,
   );
@@ -372,6 +375,9 @@ export default function ChatRoute() {
         generateAgentDraft(conversationId, signal)
       }
       onReopen={(conversationId) => reopenConversation(conversationId)}
+      onReplyNow={(conversationId) =>
+        replyToLatestTelegramMessage(conversationId)
+      }
       onResolve={(conversationId) => resolveConversation(conversationId)}
       onSend={(input, signal) => sendVisitorReply(input, signal)}
       onTranslate={(text, targetLanguage, signal) =>

@@ -1055,6 +1055,41 @@ function SpeechMessageControls({
   );
 }
 
+const STAFF_HANDOFF_PREFIX = "Staff handoff requested:";
+
+function activeStaffHandoff(conversation: Conversation): { reason: string | null } | null {
+  if (!conversation.labels.includes("staff-handoff")) {
+    return null;
+  }
+  if (
+    conversation.channel !== "Telegram" &&
+    conversation.agentMode !== "staff_only"
+  ) {
+    return null;
+  }
+  const audit = [...conversation.messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "system" &&
+        message.text.startsWith(STAFF_HANDOFF_PREFIX),
+    );
+  const reason = audit?.text.slice(STAFF_HANDOFF_PREFIX.length).trim() || null;
+  if (
+    conversation.channel === "Telegram" &&
+    audit &&
+    conversation.messages
+      .slice(conversation.messages.indexOf(audit) + 1)
+      .some(
+        (message) =>
+          message.role === "staff" || message.role === "synthetic_agent",
+      )
+  ) {
+    return null;
+  }
+  return { reason };
+}
+
 export function ThreadPane({
   conversation,
   feedbackEvalCaseId = null,
@@ -1064,6 +1099,7 @@ export function ThreadPane({
   onDetails,
   onGenerateDraft,
   onReopen,
+  onReplyNow,
   onResolve,
   onSend,
   onSetAgentMode,
@@ -1083,6 +1119,7 @@ export function ThreadPane({
     signal?: AbortSignal,
   ) => Promise<GenerateAgentDraftResult>;
   onReopen: (conversationId: string) => MutationResult;
+  onReplyNow: (conversationId: string) => Promise<MutationResult>;
   onResolve: (conversationId: string) => MutationResult;
   onSend: (
     input: SendVisitorReplyInput,
@@ -1125,6 +1162,7 @@ export function ThreadPane({
 
   const resolved = conversation.workflowStatus === "resolved";
   const liveTelegram = conversation.channel === "Telegram";
+  const staffHandoff = activeStaffHandoff(conversation);
 
   return (
     <section aria-label="Selected conversation" className="chat-pane thread-pane" role="region">
@@ -1233,6 +1271,44 @@ export function ThreadPane({
           ))}
         </div>
       </div>
+
+      {staffHandoff ? (
+        <section
+          aria-label="Staff handoff recovery"
+          className="chat-learning-banner chat-handoff-banner"
+          role="status"
+        >
+          <strong>Agent handling paused for staff review</strong>
+          <p>
+            {staffHandoff.reason
+              ? `Reason: ${staffHandoff.reason}`
+              : "Review the conversation before returning it to the agent."}
+          </p>
+          <button
+            className="chat-button"
+            disabled={resolved}
+            onClick={async () => {
+              const resumed =
+                conversation.agentMode === "staff_only"
+                  ? await onSetAgentMode(
+                      conversation.id,
+                      "synthetic_agent",
+                    )
+                  : { ok: true as const };
+              if (resumed.ok && liveTelegram) {
+                await onReplyNow(conversation.id);
+              }
+            }}
+            type="button"
+          >
+            {liveTelegram
+              ? conversation.agentMode === "staff_only"
+                ? "Resume and reply now"
+                : "Reply now"
+              : "Resume agent handling"}
+          </button>
+        </section>
+      ) : null}
 
       {feedbackEvalCaseId ? (
         <section aria-label="Learning signal" className="chat-learning-banner">

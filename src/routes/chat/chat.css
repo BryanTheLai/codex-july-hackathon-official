@@ -319,6 +319,23 @@
   color: var(--kaunter-muted);
 }
 
+.chat-handoff-banner {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-color: var(--kaunter-warning-fg);
+  background: var(--kaunter-warning-bg);
+}
+
+.chat-handoff-banner strong,
+.chat-handoff-banner p {
+  grid-column: 1;
+}
+
+.chat-handoff-banner .chat-button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .chat-route--single .chat-workbench {
   display: block;
 }
@@ -1490,6 +1507,46 @@
   flex-direction: row !important;
 }
 
+.schedule-calendar-status,
+.schedule-calendar-connect {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-calendar-status {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.schedule-calendar-connect {
+  flex-wrap: wrap;
+  padding: 8px;
+  border-bottom: 1px solid var(--kaunter-hairline);
+  background: var(--kaunter-warning-bg);
+}
+
+.schedule-calendar-connect label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
+}
+
+.schedule-calendar-connect input {
+  min-height: 32px;
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: var(--kaunter-radius-sm);
+  background: var(--kaunter-raised);
+  color: var(--kaunter-ink);
+}
+
+.schedule-calendar-connect [role="alert"] {
+  width: 100%;
+  color: var(--kaunter-risk-fg);
+}
+
 .schedule-pane__create-booking {
   display: flex;
   align-items: center;
@@ -1532,7 +1589,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 44px;
+  min-height: 44px;
   padding: 0 8px;
   border-bottom: 1px solid var(--kaunter-hairline);
 }
@@ -1551,10 +1608,8 @@
   color: var(--kaunter-ink);
 }
 
-.schedule-pane__compact-header strong {
-  color: var(--kaunter-info-fg);
-  font-size: var(--kaunter-text-meta);
-  white-space: nowrap;
+.schedule-pane__compact-header .schedule-calendar-status {
+  max-width: 60%;
 }
 
 .schedule-pane--compact .schedule-pane__create-booking {

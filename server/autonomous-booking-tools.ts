@@ -158,6 +158,7 @@ type ToolFailure = {
   success: false;
   error_type: "invalid_arguments" | "invalid_state" | "revision_conflict" | "slot_unavailable" | "not_found" | "provider_failed";
   message: string;
+  reason_code?: "availability_unavailable";
   suggestion: string;
 };
 
@@ -165,13 +166,29 @@ function failure(
   error_type: ToolFailure["error_type"],
   message: string,
   suggestion: string,
+  reason_code?: ToolFailure["reason_code"],
 ): AgentToolExecution {
   return {
     status: "failed",
     summary: message,
     conversationRevision: null,
-    output: { success: false, error_type, message, suggestion } satisfies ToolFailure,
+    output: {
+      success: false,
+      error_type,
+      message,
+      ...(reason_code ? { reason_code } : {}),
+      suggestion,
+    } satisfies ToolFailure,
   };
+}
+
+function availabilityUnavailable(): AgentToolExecution {
+  return failure(
+    "provider_failed",
+    "Live availability is temporarily unavailable.",
+    "Tell the customer a time cannot be confirmed yet, continue collecting service details, and remain active.",
+    "availability_unavailable",
+  );
 }
 
 function success(
@@ -325,18 +342,10 @@ export function createAutonomousBookingToolExecutor({
           ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
           : { source: "demo", slots: demoSlots };
       } catch {
-        return failure(
-          "provider_failed",
-          "Calendar availability could not be confirmed.",
-          "Retry the availability lookup before offering a slot.",
-        );
+        return availabilityUnavailable();
       }
       if (requireConnectedCalendar && availability.source !== "google") {
-        return failure(
-          "provider_failed",
-          "Live booking requires a connected Google Calendar.",
-          "Ask staff to connect Google Calendar before offering a slot.",
-        );
+        return availabilityUnavailable();
       }
       const slots = availability.slots;
       const summary =
@@ -552,18 +561,10 @@ export function createAutonomousBookingToolExecutor({
             ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
             : { source: "demo", slots: demoSlots };
         } catch {
-          return failure(
-            "provider_failed",
-            "Calendar availability could not be confirmed.",
-            "Retry the availability lookup before confirming a booking.",
-          );
+          return availabilityUnavailable();
         }
         if (requireConnectedCalendar && availability.source !== "google") {
-          return failure(
-            "provider_failed",
-            "Live booking requires a connected Google Calendar.",
-            "Ask staff to connect Google Calendar before confirming a booking.",
-          );
+          return availabilityUnavailable();
         }
         const slots = availability.slots;
         if (!slots.some((slot) => slot.slotIso === argumentsValue.slotIso)) {
