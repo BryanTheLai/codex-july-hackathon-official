@@ -38,6 +38,7 @@ export function BookingDialog({
 }) {
   const [dateTime, setDateTime] = useState("");
   const [reason, setReason] = useState("");
+  const [serviceAddress, setServiceAddress] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -48,9 +49,11 @@ export function BookingDialog({
     if (conversation.booking) {
       setDateTime(toDateTimeLocal(conversation.booking.slotIso));
       setReason(conversation.booking.reason);
+      setServiceAddress(conversation.booking.serviceAddress ?? "");
     } else {
       setDateTime(toDateTimeLocal(defaultSlotIso));
       setReason("");
+      setServiceAddress("");
     }
     setError("");
   }, [conversation, defaultSlotIso, open]);
@@ -61,14 +64,15 @@ export function BookingDialog({
       ? {
           expectedRevision: conversation.booking.revision,
           reason,
+          ...(serviceAddress.trim() ? { serviceAddress } : {}),
           slotIso: toMalaysiaIso(dateTime),
         }
-      : { reason, slotIso: toMalaysiaIso(dateTime) }
+      : { reason, serviceAddress, slotIso: toMalaysiaIso(dateTime) }
     : null;
   const previewResult =
     conversation && input
       ? isCreate
-        ? previewNewBookingNotification(conversation, input)
+        ? previewNewBookingNotification(conversation, input as CreateBookingInput)
         : previewBookingNotification(conversation, input as UpdateBookingInput)
       : null;
   const preview = previewResult?.ok ? previewResult.preview : null;
@@ -109,6 +113,15 @@ export function BookingDialog({
                 ? "Create this synthetic booking and preview the customer message. Nothing is sent to Telegram or Google Calendar. Times use Malaysia Time (MYT)."
                 : "Update this synthetic booking and preview the customer message. Nothing is sent to Telegram. Times use Malaysia Time (MYT)."}
           </Dialog.Description>
+          {conversation ? (
+            <section aria-label="Booking customer" className="booking-customer-summary">
+              <strong>{conversation.patient.name}</strong>
+              <span>
+                {conversation.channel} ·{" "}
+                {conversation.patient.phone || `${conversation.channel} contact`}
+              </span>
+            </section>
+          ) : null}
           <label className="chat-dialog__field">
             Date and time
             <input
@@ -124,6 +137,14 @@ export function BookingDialog({
               aria-label="Booking reason"
               onChange={(event) => setReason(event.target.value)}
               value={reason}
+            />
+          </label>
+          <label className="chat-dialog__field">
+            Service address
+            <input
+              aria-label="Service address"
+              onChange={(event) => setServiceAddress(event.target.value)}
+              value={serviceAddress}
             />
           </label>
           <section aria-live="polite" className="booking-notification-preview">

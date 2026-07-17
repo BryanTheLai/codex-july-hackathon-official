@@ -110,10 +110,12 @@ export function createBookingNotification(
 
 function bookingUpdateEvent(
   booking: Booking,
-  next: Pick<Booking, "slotIso" | "reason">,
+  next: Pick<Booking, "slotIso" | "reason" | "serviceAddress">,
 ): BookingNotificationEvent | null {
   const slotChanged = booking.slotIso !== next.slotIso;
-  const detailsChanged = booking.reason !== next.reason;
+  const detailsChanged =
+    booking.reason !== next.reason ||
+    booking.serviceAddress !== next.serviceAddress;
   if (!slotChanged && !detailsChanged) {
     return null;
   }
@@ -142,6 +144,10 @@ export function previewBookingNotification(
   }
 
   const reason = trimOrEmpty(input.reason);
+  const serviceAddress =
+    input.serviceAddress === undefined
+      ? booking.serviceAddress
+      : trimOrEmpty(input.serviceAddress);
   const slotIso = trimOrEmpty(input.slotIso);
   if (!reason) {
     return { ok: false, error: "Booking reason cannot be empty" };
@@ -149,8 +155,16 @@ export function previewBookingNotification(
   if (!slotIso || Number.isNaN(Date.parse(slotIso))) {
     return { ok: false, error: "Booking date and time is invalid" };
   }
+  if (input.serviceAddress !== undefined && !serviceAddress) {
+    return { ok: false, error: "Service address cannot be empty" };
+  }
 
-  const nextBooking = { ...booking, reason, slotIso };
+  const nextBooking = {
+    ...booking,
+    reason,
+    ...(serviceAddress ? { serviceAddress } : {}),
+    slotIso,
+  };
   const event = bookingUpdateEvent(booking, nextBooking);
   if (!event) {
     return { ok: false, error: "Booking details did not change" };
@@ -174,6 +188,7 @@ export function previewNewBookingNotification(
   }
 
   const reason = trimOrEmpty(input.reason);
+  const serviceAddress = trimOrEmpty(input.serviceAddress);
   const slotIso = trimOrEmpty(input.slotIso);
   if (!reason) {
     return { ok: false, error: "Booking reason cannot be empty" };
@@ -181,9 +196,13 @@ export function previewNewBookingNotification(
   if (!slotIso || Number.isNaN(Date.parse(slotIso))) {
     return { ok: false, error: "Booking date and time is invalid" };
   }
+  if (!serviceAddress) {
+    return { ok: false, error: "Service address cannot be empty" };
+  }
 
   const booking: Booking = {
     reason,
+    serviceAddress,
     slotIso,
     status: "approved",
     revision: (conversation.booking?.revision ?? 0) + 1,

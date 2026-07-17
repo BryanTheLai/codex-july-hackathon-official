@@ -233,7 +233,7 @@ export function createCalendarDispatchService({
       }
       const event = createAppointmentCalendarEvent({
         durationMinutes: config.defaultDurationMinutes,
-        location: config.location,
+        location: booking.serviceAddress ?? config.location,
         slotIso: booking.slotIso,
       });
       const start = new Date(event.startIso);

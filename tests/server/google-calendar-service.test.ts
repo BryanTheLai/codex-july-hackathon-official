@@ -39,6 +39,7 @@ async function configuredService(fetcher: typeof fetch) {
     booking: {
       reason: "Routine checkup",
       revision: 1,
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
       slotIso: "2026-07-17T10:30:00+08:00",
       status: "approved",
     },
@@ -172,7 +173,7 @@ describe("Google Calendar service", () => {
       summary: string;
     };
     expect(event).toMatchObject({
-      location: "KaunterAI Aircon Service Hub",
+      location: "12 Jalan SS2/24, Petaling Jaya",
       summary: "Aircon service visit",
       start: { timeZone: "Asia/Kuala_Lumpur" },
       end: { timeZone: "Asia/Kuala_Lumpur" },

@@ -101,6 +101,8 @@ demo_state.workspace_id
   -> ServerDomainState
 
 Conversation.booking
+  -> owning customer through Conversation.id
+  -> required service address for new bookings
   -> Google calendar mapping by workspace + conversation
   -> Telegram/calendar delivery audit
 
@@ -136,6 +138,7 @@ The primary artifact is the selected customer conversation.
 - queue, thread, and customer context stay visible together on desktop
 - mobile renders one working pane at a time
 - generated replies cite exact text from the active Knowledge bundle
+- every new booking visibly names its existing customer conversation and requires a service address
 - booking claims require a successful booking tool result
 - unsupported scope or safety concerns use owner handoff
 - customer feedback can create an Eval candidate exactly once
@@ -242,20 +245,54 @@ pattern.
 
 ## 10. Demo reset
 
-The migration `20260718010000_demo_seed_templates.sql` must exist in the target
-database before reset.
+The migration `supabase/migrations/20260718010000_demo_seed_templates.sql` must
+exist in the target database before reset. Without it, `demo:seed` and
+`demo:reset` fail because `public.demo_seed_templates` is missing.
 
-Safe operator order:
+Safe operator order (exact):
 
-1. stop the app and Telegram worker
-2. apply migrations and `supabase/seed.sql`
-3. compile the template with `npm run demo:seed`
-4. set `LIVE_TELEGRAM_ENABLED=false`
-5. run the guarded reset with explicit `RESET_DEMO` confirmation
-6. restart the app and verify the five seeded Eval cases and three aircon SOPs
+1. Stop the app/worker and disable live Telegram.
+2. Apply `supabase/migrations/20260718010000_demo_seed_templates.sql`.
+3. Run `supabase/seed.sql`.
+4. Run `npm run demo:seed`.
+5. Run:
+
+```bash
+KAUNTER_ALLOW_DEMO_RESET=1 \
+LIVE_TELEGRAM_ENABLED=false \
+npm run demo:reset -- \
+  --workspace demo \
+  --seed msme-aircon-v1 \
+  --confirm RESET_DEMO
+```
+
+6. Restart the app and verify the five seeded Eval cases and three aircon SOPs.
+
+Copy-paste form:
+
+```bash
+# Stop the app/worker and set LIVE_TELEGRAM_ENABLED=false first.
+
+# Apply:
+# supabase/migrations/20260718010000_demo_seed_templates.sql
+
+# Then:
+# supabase/seed.sql
+npm run demo:seed
+
+KAUNTER_ALLOW_DEMO_RESET=1 \
+LIVE_TELEGRAM_ENABLED=false \
+npm run demo:reset -- \
+  --workspace demo \
+  --seed msme-aircon-v1 \
+  --confirm RESET_DEMO
+
+# Restart the app.
+```
 
 The reset preserves Google OAuth and sent Telegram audit, removes pending work,
-and clears mapped Google events through the guarded CLI path.
+and clears mapped Google events through the guarded CLI path. See also
+`README.md` → Supabase setup.
 
 ## 11. Demo beats
 

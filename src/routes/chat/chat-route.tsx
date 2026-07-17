@@ -574,6 +574,9 @@ export default function ChatRoute() {
                     expectedBookingRevision: input.expectedRevision,
                     expectedConversationRevision: serverRevision,
                     reason: input.reason,
+                    ...(input.serviceAddress
+                      ? { serviceAddress: input.serviceAddress }
+                      : {}),
                     slotIso: input.slotIso,
                   }
                 : {
@@ -581,6 +584,7 @@ export default function ChatRoute() {
                     conversationId: bookingEditId,
                     expectedConversationRevision: serverRevision,
                     reason: input.reason,
+                    serviceAddress: input.serviceAddress,
                     slotIso: input.slotIso,
                   },
             );

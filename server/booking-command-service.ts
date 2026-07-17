@@ -118,6 +118,7 @@ export function createBookingCommandService(input: {
       const booking = request.action === "create"
         ? {
             reason: request.reason,
+            serviceAddress: request.serviceAddress,
             slotIso: request.slotIso,
             status: "approved" as const,
             revision: (conversation.booking?.revision ?? 0) + 1,
@@ -131,6 +132,9 @@ export function createBookingCommandService(input: {
           : {
               ...conversation.booking!,
               reason: request.reason,
+              ...(request.serviceAddress
+                ? { serviceAddress: request.serviceAddress }
+                : {}),
               slotIso: request.slotIso,
               revision: conversation.booking!.revision + 1,
             };

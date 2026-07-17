@@ -1413,7 +1413,15 @@ describe("Chat Control route", () => {
     await user.click(screen.getByRole("button", { name: "Create booking" }));
 
     const dialog = screen.getByRole("dialog", { name: "Create booking" });
+    const customer = within(dialog).getByRole("region", { name: "Booking customer" });
+    expect(customer).toHaveTextContent("Mei Demo");
+    expect(customer).toHaveTextContent("+601100000103");
+    expect(customer).toHaveTextContent("WhatsApp");
     await user.type(within(dialog).getByLabelText("Booking reason"), "Follow-up");
+    await user.type(
+      within(dialog).getByLabelText("Service address"),
+      "12 Jalan SS2/24, Petaling Jaya",
+    );
     await user.click(within(dialog).getByRole("button", { name: "Create booking" }));
 
     expect(screen.getByText("Booking saved")).toBeInTheDocument();
@@ -1421,7 +1429,11 @@ describe("Chat Control route", () => {
       store.getState().state.conversations.find(
         (conversation) => conversation.patient.name === "Mei Demo",
       )?.booking,
-    ).toMatchObject({ status: "approved" });
+    ).toMatchObject({
+      reason: "Follow-up",
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
+      status: "approved",
+    });
   });
 
   it("uses list to thread to details choreography on mobile", async () => {

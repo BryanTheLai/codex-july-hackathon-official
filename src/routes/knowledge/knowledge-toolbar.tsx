@@ -106,7 +106,7 @@ export function KnowledgeToolbar({
               }
               type="button"
             >
-              Activate
+              {release.candidateReady ? "Activate" : "Validate first"}
             </button>
             <button
               className="knowledge-button knowledge-release-action"

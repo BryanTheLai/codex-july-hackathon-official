@@ -11,6 +11,7 @@ import {
 import type { EvalDataset, EvalDatasetId } from "../../domain";
 
 export function EvalToolbar({
+  canAnalyze,
   caseSelected,
   datasets,
   operationBlocked,
@@ -31,6 +32,7 @@ export function EvalToolbar({
   onRunSuite,
   onSelectDataset,
 }: {
+  canAnalyze: boolean;
   caseSelected: boolean;
   datasets: EvalDataset[];
   operationBlocked: boolean;
@@ -85,15 +87,18 @@ export function EvalToolbar({
           <span className="eval-label-compact">+ Test</span>
         </button>
         <button
-          aria-label="Analyze failures"
+          aria-label={canAnalyze ? "Analyze failures" : "Run a failed train case first"}
           className="eval-button"
-          disabled={operationBlocked}
+          disabled={operationBlocked || !canAnalyze}
           onClick={onAnalyze}
+          title={canAnalyze ? undefined : "Run train cases and commit at least one failure first."}
           type="button"
         >
           <Beaker aria-hidden="true" size={15} />
-          <span className="eval-label-full">Analyze failures</span>
-          <span className="eval-label-compact">Analyze</span>
+          <span className="eval-label-full">
+            {canAnalyze ? "Analyze failures" : "Run train cases first"}
+          </span>
+          <span className="eval-label-compact">{canAnalyze ? "Analyze" : "Run first"}</span>
         </button>
         {suiteRunning ? (
           <button

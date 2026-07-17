@@ -25,6 +25,7 @@ direction.
 - Telegram text and voice ingress
 - Malay and English grounded replies
 - RM99 general service and RM160 chemical wash rate card
+- conversation-owned booking with explicit customer, contact, and service address
 - autonomous availability, booking, reschedule, and cancellation tools
 - optional Google Calendar OAuth, availability, and event synchronization
 - durable Telegram/calendar outbox processing
@@ -84,13 +85,45 @@ The host needs `ffmpeg` with Opus support.
 
 ## Supabase setup
 
-Supabase is the runtime source of truth. Apply every migration in
-`supabase/migrations/` in filename order, then load and compile the seed:
+Supabase is the runtime source of truth. The aircon demo seed depends on
+migration `supabase/migrations/20260718010000_demo_seed_templates.sql`.
+
+### First-time apply (or after missing `demo_seed_templates`)
+
+Run these steps in order. Do not skip.
+
+1. Stop the app/worker and disable live Telegram.
+2. Apply `supabase/migrations/20260718010000_demo_seed_templates.sql`.
+3. Run `supabase/seed.sql`.
+4. Run `npm run demo:seed`.
+5. Run the guarded reset (next section).
+6. Restart the app.
+
+Copy-paste form:
 
 ```bash
-# Apply migrations with your normal Supabase workflow first.
-# Then load supabase/seed.sql.
+# Stop the app/worker and set LIVE_TELEGRAM_ENABLED=false first.
+
+# Apply:
+# supabase/migrations/20260718010000_demo_seed_templates.sql
+
+# Then:
+# supabase/seed.sql
 npm run demo:seed
+
+KAUNTER_ALLOW_DEMO_RESET=1 \
+LIVE_TELEGRAM_ENABLED=false \
+npm run demo:reset -- \
+  --workspace demo \
+  --seed msme-aircon-v1 \
+  --confirm RESET_DEMO
+
+# Restart the app.
+```
+
+Optional local bootstrap after the template is compiled:
+
+```bash
 npm run bootstrap:demo
 ```
 
@@ -103,12 +136,16 @@ state with the Supabase aggregate.
 ### Guarded reset
 
 Reset is destructive to the fixed `demo` workspace. Stop the app and live
-Telegram processing first.
+Telegram processing first. Migration `20260718010000_demo_seed_templates.sql`
+and a compiled seed (`npm run demo:seed`) must already exist.
 
 ```bash
 KAUNTER_ALLOW_DEMO_RESET=1 \
 LIVE_TELEGRAM_ENABLED=false \
-npm run demo:reset -- --workspace demo --seed msme-aircon-v1 --confirm RESET_DEMO
+npm run demo:reset -- \
+  --workspace demo \
+  --seed msme-aircon-v1 \
+  --confirm RESET_DEMO
 ```
 
 The reset CLI removes mapped Google events, clears pending work, preserves the

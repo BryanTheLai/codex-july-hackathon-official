@@ -7,6 +7,7 @@ import {
   addLabel,
   approveBooking,
   cancelBooking,
+  createBooking,
   createCanonicalSeed,
   escalateEmergency,
   rejectBooking,
@@ -292,6 +293,41 @@ describe("updatePatient", () => {
 });
 
 describe("booking decisions", () => {
+  it("creates a booking for one existing conversation only when its service address is present", () => {
+    const seed = createCanonicalSeed();
+    const conversation = seed.conversations.find(
+      (candidate) => candidate.id === "convo-aircon-resolved",
+    )!;
+
+    const missingAddress = createBooking(seed, conversation.id, {
+      reason: "General service",
+      serviceAddress: " ",
+      slotIso: "2026-07-19T10:00:00+08:00",
+    });
+    expect(missingAddress).toMatchObject({
+      ok: false,
+      error: "Service address cannot be empty",
+    });
+
+    const result = createBooking(seed, conversation.id, {
+      reason: "General service",
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
+      slotIso: "2026-07-19T10:00:00+08:00",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.state.conversations.find((candidate) => candidate.id === conversation.id)?.booking,
+    ).toMatchObject({
+      reason: "General service",
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
+      status: "approved",
+    });
+    expect(
+      result.state.conversations.filter((candidate) => candidate.booking),
+    ).toHaveLength(1);
+  });
+
   it("approves a pending request with a patient confirmation and separate audit", () => {
     const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending");

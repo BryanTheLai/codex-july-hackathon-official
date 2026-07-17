@@ -29,6 +29,7 @@ const listSlotsSchema = z
 const bookingArgumentsSchema = z
   .object({
     reason: z.string().trim().min(1).max(500),
+    serviceAddress: z.string().trim().min(1).max(256).optional(),
     slotIso: z.iso.datetime({ offset: true }),
   })
   .strict();
@@ -74,8 +75,9 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
       properties: {
         slotIso: { type: "string", format: "date-time" },
         reason: { type: "string", minLength: 1, maxLength: 500 },
+        serviceAddress: { type: "string", minLength: 1, maxLength: 256 },
       },
-      required: ["slotIso", "reason"],
+      required: ["slotIso", "reason", "serviceAddress"],
       additionalProperties: false,
     },
   },
@@ -579,9 +581,17 @@ export function createAutonomousBookingToolExecutor({
               "Use reschedule_booking or cancel_booking instead.",
             );
           }
+          if (!argumentsValue.serviceAddress) {
+            return failure(
+              "invalid_arguments",
+              "A service address is required to create a booking.",
+              "Ask the customer for the service address before confirming the booking.",
+            );
+          }
           nextBooking = {
             slotIso: argumentsValue.slotIso,
             reason: argumentsValue.reason,
+            serviceAddress: argumentsValue.serviceAddress,
             status: "approved",
             revision: (conversation.booking?.revision ?? 0) + 1,
           };

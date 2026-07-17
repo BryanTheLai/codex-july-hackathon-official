@@ -196,6 +196,61 @@ describe("Eval service", () => {
     expect(judge).not.toHaveBeenCalled();
   });
 
+  it("commits a frozen Eval artifact after an unrelated workspace revision", async () => {
+    const { agent, repository, service } = await setup();
+    const created = await createSeedSuite(service);
+    agent.mockImplementationOnce(async (request) => {
+      const current = await repository.load("demo");
+      if (!current) throw new Error("Workspace missing");
+      const next = structuredClone(current.state);
+      next.conversations[0]!.labels.push("priority");
+      const saved = await repository.save("demo", current.revision, next);
+      if (!saved.ok) throw new Error("Could not create concurrent revision");
+      return agentResult(request);
+    });
+
+    await expect(
+      service.runCase({
+        suiteId: created.suiteId,
+        caseId: "case-aircon-selection-train",
+        expectedWorkspaceRevision: 2,
+      }),
+    ).resolves.toMatchObject({
+      attempt: 1,
+      status: "committed",
+      workspaceRevision: 4,
+    });
+    const loaded = await repository.load("demo");
+    expect(loaded?.state.conversations[0]?.labels).toContain("priority");
+    expect(loaded?.state.evalArtifacts.runs).toHaveLength(1);
+  });
+
+  it("does not append a completed Eval artifact when its frozen suite changed", async () => {
+    const { agent, repository, service } = await setup();
+    const created = await createSeedSuite(service);
+    agent.mockImplementationOnce(async (request) => {
+      const current = await repository.load("demo");
+      if (!current) throw new Error("Workspace missing");
+      const next = structuredClone(current.state);
+      next.evalArtifacts.suites[0]!.manifestHash = "a".repeat(64);
+      const saved = await repository.save("demo", current.revision, next);
+      if (!saved.ok) throw new Error("Could not replace frozen suite");
+      return agentResult(request);
+    });
+
+    await expect(
+      service.runCase({
+        suiteId: created.suiteId,
+        caseId: "case-aircon-selection-train",
+        expectedWorkspaceRevision: 2,
+      }),
+    ).rejects.toMatchObject({
+      code: "revision_conflict",
+      message: "Frozen Eval suite changed while the case was running",
+    });
+    expect((await repository.load("demo"))?.state.evalArtifacts.runs).toEqual([]);
+  });
+
   it("blocks a patient-feedback candidate until a human reference reply is added", async () => {
     const { agent, judge, repository, service } = await setup();
     const workspace = await repository.load("demo");

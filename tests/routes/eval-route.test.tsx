@@ -112,7 +112,9 @@ describe("Evaluation Lab route", () => {
     );
     expect(screen.queryByText("Mean judge")).not.toBeInTheDocument();
     expect(screen.queryByText("Last delta")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Analyze failures" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Run a failed train case first" }),
+    ).toBeDisabled();
   });
 
   it("moves evaluation support above the cases at middle desktop widths", () => {
@@ -507,15 +509,19 @@ describe("Evaluation Lab route", () => {
   });
 
   it("explains when there are no committed failed train cases to analyze", async () => {
-    const user = userEvent.setup();
     renderEval();
 
-    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
-    const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
-
-    expect(drawer).toHaveTextContent("The selected suite has no failed train cases.");
-    expect(within(drawer).getByRole("button", { name: "Start analysis" })).toBeDisabled();
-    expect(within(drawer).getByText("No proposed Knowledge corrections.")).toBeInTheDocument();
+    const analyze = screen.getByRole("button", {
+      name: "Run a failed train case first",
+    });
+    expect(analyze).toBeDisabled();
+    expect(analyze).toHaveAttribute(
+      "title",
+      "Run train cases and commit at least one failure first.",
+    );
+    expect(
+      screen.queryByRole("complementary", { name: "Analyze failures" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows only pending corrections in failure analysis", async () => {
@@ -534,8 +540,13 @@ describe("Evaluation Lab route", () => {
     });
     saveAppState(storage, seed);
     const store = createAppStore(storage, {
-      judgeClient: createFixtureJudgeClient(),
+      judgeClient: createFixtureJudgeClient({
+        verdictByCase: { "case-aircon-selection-train": "fail" },
+      }),
     });
+    expect(
+      (await store.getState().runEvalCase("case-aircon-selection-train")).ok,
+    ).toBe(true);
     expect(store.getState().rejectCorrection("corr-aircon-selection").ok).toBe(true);
     renderEval({ store });
 

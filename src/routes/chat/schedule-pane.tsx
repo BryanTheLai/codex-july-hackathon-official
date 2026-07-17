@@ -81,7 +81,7 @@ export function SchedulePane({
   const createBookingControls = bookingCandidates.length > 0 ? (
     <div className="schedule-pane__create-booking">
       <label>
-        <span className="visually-hidden">Customer for new booking</span>
+        <span className="schedule-pane__create-booking-label">Book for</span>
         <select
           aria-label="Customer for new booking"
           onChange={(event) => setBookingCandidateId(event.target.value)}

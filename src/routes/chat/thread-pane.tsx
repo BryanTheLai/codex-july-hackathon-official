@@ -188,6 +188,16 @@ function MessageRow({
   );
 }
 
+function channelTone(channel: string): "telegram" | "whatsapp" | "neutral" {
+  if (channel === "Telegram") {
+    return "telegram";
+  }
+  if (channel === "WhatsApp") {
+    return "whatsapp";
+  }
+  return "neutral";
+}
+
 function channelIcon(channel: string) {
   if (channel === "Voice transcript") {
     return <Mic aria-hidden="true" size={14} />;
@@ -1132,9 +1142,16 @@ export function ThreadPane({
         <div className="thread-header__identity">
           <strong>{conversation.patient.name}</strong>
           <span className="thread-header__channel">
-            {channelIcon(conversation.channel)}
-            {conversation.channel} | {conversation.patient.preferredLanguage} |{" "}
-            {conversation.urgency === "emergency" ? "Emergency" : "Routine"}
+            <span
+              className={`thread-header__channel-name thread-header__channel-name--${channelTone(conversation.channel)}`}
+            >
+              {channelIcon(conversation.channel)}
+              {conversation.channel}
+            </span>
+            <span className="thread-header__channel-meta">
+              | {conversation.patient.preferredLanguage} |{" "}
+              {conversation.urgency === "emergency" ? "Emergency" : "Routine"}
+            </span>
           </span>
         </div>
         <HandlerBadge

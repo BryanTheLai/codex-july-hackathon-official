@@ -248,7 +248,6 @@ export function PatientRail({
     () => AVAILABLE_LABELS.filter((label) => !conversation.labels.includes(label)),
     [conversation.labels],
   );
-  const systemLabels = conversation.labels.filter((label) => label === "telegram");
   const staffLabels = conversation.labels.filter((label) => label !== "telegram");
   const [newLabel, setNewLabel] = useState(availableLabels[0] ?? "");
   const [error, setError] = useState("");
@@ -348,6 +347,12 @@ export function PatientRail({
                 <dt>Reason</dt>
                 <dd>{conversation.booking.reason}</dd>
               </div>
+              {conversation.booking.serviceAddress ? (
+                <div>
+                  <dt>Service address</dt>
+                  <dd>{conversation.booking.serviceAddress}</dd>
+                </div>
+              ) : null}
             </dl>
             <BookingTimeline conversation={conversation} />
             {conversation.booking.status === "approved" ? (
@@ -382,35 +387,22 @@ export function PatientRail({
           <header className="rail-section__header">
             <h3>Labels</h3>
           </header>
-          {systemLabels.length > 0 ? (
-            <div className="rail-label-group">
-              <span>System labels</span>
-              <div className="rail-labels">
-                {systemLabels.map((label) => (
-                  <span className="rail-label" key={label}>
-                    Telegram · channel
-                  </span>
-                ))}
-              </div>
+          {staffLabels.length > 0 ? (
+            <div className="rail-labels">
+              {staffLabels.map((label) => (
+                <span className="rail-label" key={label}>
+                  {label}
+                  <button
+                    aria-label={`Remove ${label} label`}
+                    onClick={() => run(() => onRemoveLabel(label))}
+                    type="button"
+                  >
+                    <X aria-hidden="true" size={12} />
+                  </button>
+                </span>
+              ))}
             </div>
           ) : null}
-          <div className="rail-label-group">
-            <span>Staff labels</span>
-            <div className="rail-labels">
-            {staffLabels.map((label) => (
-              <span className="rail-label" key={label}>
-                {label}
-                <button
-                  aria-label={`Remove ${label} label`}
-                  onClick={() => run(() => onRemoveLabel(label))}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={12} />
-                </button>
-              </span>
-            ))}
-            </div>
-          </div>
           <div className="rail-label-add">
             <select
               aria-label="Add label"

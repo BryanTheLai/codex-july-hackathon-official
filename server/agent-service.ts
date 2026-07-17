@@ -306,7 +306,36 @@ export function createAgentService({
       usage = addUsage(usage, response.usage);
     }
 
-    const providerResult = parseProviderResult(response.outputText);
+    let providerResult: ProviderAgentResult;
+    try {
+      providerResult = parseProviderResult(response.outputText);
+    } catch (error) {
+      if (
+        request.mode !== "sandbox" ||
+        !(error instanceof AgentServiceError) ||
+        error.code !== "provider_failed"
+      ) {
+        throw error;
+      }
+      response = await createResponse(baseInput, signal);
+      usage = addUsage(usage, response.usage);
+      if (response.toolCalls?.length) {
+        throw new AgentServiceError(
+          "provider_failed",
+          "Agent requested a tool outside its active tool policy.",
+          false,
+        );
+      }
+      try {
+        providerResult = parseProviderResult(response.outputText);
+      } catch {
+        throw new AgentServiceError(
+          "provider_failed",
+          "Agent provider returned invalid structured output twice. Retry validation; if it repeats, verify the configured model supports strict JSON schema output.",
+          true,
+        );
+      }
+    }
     validateEvidence(request, providerResult);
 
     const result = agentRunResultSchema.safeParse({

@@ -87,6 +87,7 @@ describe("autonomous booking tools", () => {
           argumentsJson: JSON.stringify({
             slotIso: "2026-07-17T02:00:00.000Z",
             reason: "Routine consultation",
+            serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
           }),
         },
       }),
@@ -137,6 +138,7 @@ describe("autonomous booking tools", () => {
         argumentsJson: JSON.stringify({
           slotIso,
           reason: "Routine consultation",
+          serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
         }),
       },
     });
@@ -161,6 +163,7 @@ describe("autonomous booking tools", () => {
         argumentsJson: JSON.stringify({
           slotIso,
           reason: "Routine consultation",
+          serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
         }),
       },
     });
@@ -322,7 +325,7 @@ describe("autonomous booking tools", () => {
         callId: "call-stale-1",
         name: "create_booking",
         argumentsJson:
-          '{"slotIso":"2026-07-17T09:00:00+08:00","reason":"Routine consultation"}',
+          '{"slotIso":"2026-07-17T09:00:00+08:00","reason":"Routine consultation","serviceAddress":"12 Jalan SS2/24, Petaling Jaya"}',
       },
     });
     expect(result).toMatchObject({
@@ -348,6 +351,7 @@ describe("autonomous booking tools", () => {
           argumentsJson: JSON.stringify({
             slotIso: firstSlot,
             reason: "Routine consultation",
+            serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
           }),
         },
       }),

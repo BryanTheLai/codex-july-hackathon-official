@@ -29,6 +29,7 @@ export const messageSchema = z.object({
 export const bookingSchema = z.object({
   slotIso: z.string(),
   reason: z.string(),
+  serviceAddress: z.string().trim().min(1).max(256).optional(),
   status: z.enum(BOOKING_STATUSES),
   revision: revisionSchema,
 });

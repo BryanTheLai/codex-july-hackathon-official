@@ -19,6 +19,8 @@
   --kaunter-success-bg: #e7f3ea;
   --kaunter-info-fg: #285d85;
   --kaunter-info-bg: #e8f1f7;
+  --kaunter-channel-telegram: #229ed9;
+  --kaunter-channel-whatsapp: #25d366;
 
   --kaunter-font-sans: "Instrument Sans", system-ui, sans-serif;
   --kaunter-font-mono: "IBM Plex Mono", ui-monospace, monospace;

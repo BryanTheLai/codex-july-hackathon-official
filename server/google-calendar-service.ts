@@ -222,7 +222,7 @@ export function createGoogleCalendarService({
     const id = eventId(conversation.id);
     const core = createAppointmentCalendarEvent({
       durationMinutes: config.defaultDurationMinutes,
-      location: config.location,
+      location: conversation.booking.serviceAddress ?? config.location,
       slotIso: conversation.booking.slotIso,
     });
     const event = {
