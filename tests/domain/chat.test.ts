@@ -287,7 +287,6 @@ describe("booking decisions", () => {
       language: "Malay",
     });
     expect(approvedConvo.messages.at(-2)?.gloss).toContain("appointment is confirmed");
-    expect(approvedConvo.messages.at(-2)?.gloss).toContain("Dr. Siti Rahman");
     expect(approvedConvo.messages.at(-1)).toMatchObject({ role: "system" });
     expect(approvedConvo.messages.at(-1)?.text).toContain("Booking approved");
   });
@@ -318,7 +317,6 @@ describe("booking decisions", () => {
 
     const result = updateBooking(seed, withBooking.id, {
       expectedRevision: withBooking.booking!.revision,
-      provider: "Dr. Amir Lee",
       reason: "Medication review",
       slotIso: "2026-07-10T14:30:00+08:00",
     });
@@ -327,7 +325,6 @@ describe("booking decisions", () => {
     if (!result.ok) return;
     const updated = result.state.conversations.find((c) => c.id === withBooking.id)!;
     expect(updated.booking).toMatchObject({
-      provider: "Dr. Amir Lee",
       reason: "Medication review",
       slotIso: "2026-07-10T14:30:00+08:00",
     });
@@ -347,7 +344,6 @@ describe("booking decisions", () => {
 
     const result = updateBooking(approved.state, withBooking.id, {
       expectedRevision: approvedConversation.booking!.revision,
-      provider: "Dr. Siti Rahman",
       reason: "General consult",
       slotIso: "2026-07-10T14:30:00+08:00",
     });
@@ -366,7 +362,6 @@ describe("booking decisions", () => {
 
     const result = updateBooking(seed, withBooking.id, {
       expectedRevision: withBooking.booking!.revision,
-      provider: " ",
       reason: "Medication review",
       slotIso: "not-a-date",
     });
@@ -382,7 +377,6 @@ describe("booking decisions", () => {
 
     const unchanged = updateBooking(seed, withBooking.id, {
       expectedRevision: withBooking.booking!.revision,
-      provider: withBooking.booking!.provider,
       reason: withBooking.booking!.reason,
       slotIso: withBooking.booking!.slotIso,
     });
@@ -395,7 +389,6 @@ describe("booking decisions", () => {
 
     const stale = updateBooking(seed, withBooking.id, {
       expectedRevision: 0,
-      provider: "Dr. Amir Lee",
       reason: "Medication review",
       slotIso: "2026-07-10T14:30:00+08:00",
     });
@@ -580,7 +573,6 @@ describe("resetSyntheticConversation", () => {
     const untouched = seed.conversations.find((conversation) => conversation.id === "convo-emergency")!;
     const changed = updateBooking(seed, target.id, {
       expectedRevision: target.booking!.revision,
-      provider: "Dr. Amir Lee",
       reason: "Medication review",
       slotIso: "2026-07-10T14:30:00+08:00",
     });

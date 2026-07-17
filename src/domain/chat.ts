@@ -200,7 +200,7 @@ export function approveBooking(state: AppState, conversationId: ConversationId):
     conversationId,
     nextBooking,
     createBookingNotification(conversation, nextBooking, "confirmed"),
-    `Booking approved by staff for ${slot} with ${nextBooking.provider} at ${state.fixtureTime}.`,
+    `Booking approved by staff for ${slot} at ${state.fixtureTime}.`,
   );
   return ok(next);
 }
@@ -225,7 +225,7 @@ export function rejectBooking(state: AppState, conversationId: ConversationId): 
     conversationId,
     nextBooking,
     createBookingNotification(conversation, nextBooking, "request_rejected"),
-    `Booking rejected by staff for ${slot} with ${nextBooking.provider} at ${state.fixtureTime}.`,
+    `Booking rejected by staff for ${slot} at ${state.fixtureTime}.`,
   );
   return ok(next);
 }
@@ -247,13 +247,12 @@ export function updateBooking(
   const previous = conversation.booking;
   const nextBooking: Booking = {
     ...previous,
-    provider: trimOrEmpty(input.provider),
     reason: trimOrEmpty(input.reason),
     slotIso: trimOrEmpty(input.slotIso),
     revision: previous.revision + 1,
   };
-  const before = `${formatKualaLumpurSlot(previous.slotIso)} with ${previous.provider}; reason: ${previous.reason}`;
-  const after = `${formatKualaLumpurSlot(nextBooking.slotIso)} with ${nextBooking.provider}; reason: ${nextBooking.reason}`;
+  const before = `${formatKualaLumpurSlot(previous.slotIso)}; reason: ${previous.reason}`;
+  const after = `${formatKualaLumpurSlot(nextBooking.slotIso)}; reason: ${nextBooking.reason}`;
   const eventLabel =
     preview.preview.event === "request_updated"
       ? "Booking request updated"
@@ -285,7 +284,6 @@ export function createBooking(
   }
 
   const nextBooking: Booking = {
-    provider: trimOrEmpty(input.provider),
     reason: trimOrEmpty(input.reason),
     slotIso: trimOrEmpty(input.slotIso),
     status: "approved",
@@ -296,7 +294,7 @@ export function createBooking(
     conversationId,
     nextBooking,
     preview.preview,
-    `Booking created by staff for ${formatKualaLumpurSlot(nextBooking.slotIso)} with ${nextBooking.provider} at ${state.fixtureTime}.`,
+    `Booking created by staff for ${formatKualaLumpurSlot(nextBooking.slotIso)} at ${state.fixtureTime}.`,
   );
   return ok(next);
 }
@@ -321,7 +319,7 @@ export function cancelBooking(state: AppState, conversationId: ConversationId): 
     conversationId,
     nextBooking,
     createBookingNotification(conversation, nextBooking, "cancelled"),
-    `Booking cancelled by staff for ${slot} with ${nextBooking.provider} at ${state.fixtureTime}.`,
+    `Booking cancelled by staff for ${slot} at ${state.fixtureTime}.`,
   );
   return ok(next);
 }
@@ -506,7 +504,7 @@ const SIMULATED_CONVERSATIONS: Record<SimulateScenario, AppState["conversations"
     resolvedAt: null,
     labels: ["booking", "simulated"],
     triageGuidance:
-      "Routine booking fixture: the autonomous agent confirms the date, time, and provider before it books.",
+      "Routine booking fixture: the autonomous agent confirms the date and time before it books.",
     messages: [
       {
         id: "sim-bk-1",

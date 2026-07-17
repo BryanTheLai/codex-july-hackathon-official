@@ -64,12 +64,18 @@ function Result({ evalCase, running }: { evalCase: EvalCase; running: boolean })
   const label = gradeLabel(evalCase.grade);
   const results = evalCase.grade?.criterionResults ?? [];
   const passed = results.filter((result) => result.verdict === "pass").length;
+  const isFailed = evalCase.grade?.verdict === "fail";
   return (
     <div className="eval-result">
       <span className={`eval-status eval-status--${label.toLocaleLowerCase().replace(" ", "-")}`}>
         {label}
       </span>
       <small>{evalCase.grade ? `${passed}/${results.length} rules passed` : "Run to evaluate"}</small>
+      {isFailed && evalCase.grade?.rationale ? (
+        <span className="eval-result__rationale" style={{ display: "block", marginTop: "4px", fontSize: "0.8rem", color: "#ef4444", maxWidth: "250px", whiteSpace: "normal", wordBreak: "break-word" }}>
+          {evalCase.grade.rationale}
+        </span>
+      ) : null}
     </div>
   );
 }

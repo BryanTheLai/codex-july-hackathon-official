@@ -381,7 +381,8 @@ describe("Evaluation Lab route", () => {
     expect(store.getState().resolveConversation("convo-booking").ok).toBe(true);
     renderEval({ store });
 
-    await user.click(screen.getByRole("button", { name: "Import resolved conversations" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Import resolved conversations" }));
     const dialog = screen.getByRole("dialog", { name: "Import resolved conversations" });
     expect(within(dialog).queryByRole("combobox")).not.toBeInTheDocument();
     await user.click(
@@ -396,7 +397,8 @@ describe("Evaluation Lab route", () => {
       expect(screen.queryByRole("dialog", { name: "Import resolved conversations" })).not.toBeInTheDocument(),
     );
 
-    await user.click(screen.getByRole("button", { name: "Import resolved conversations" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Import resolved conversations" }));
     const reopened = screen.getByRole("dialog", { name: "Import resolved conversations" });
     expect(within(reopened).getByRole("checkbox", { name: /Nurul Aisyah/ })).toBeDisabled();
     expect(within(reopened).getByRole("checkbox", { name: /Rajesh Kumar/ })).toBeDisabled();
@@ -407,7 +409,8 @@ describe("Evaluation Lab route", () => {
     const user = userEvent.setup();
     renderEval();
 
-    await user.click(screen.getByRole("button", { name: "Import resolved conversations" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Import resolved conversations" }));
     const dialog = screen.getByRole("dialog", { name: "Import resolved conversations" });
     expect(within(dialog).getByRole("checkbox", { name: /Nurul Aisyah/ })).toBeDisabled();
     expect(within(dialog).getAllByText("Resolve in Chat").length).toBeGreaterThan(0);
@@ -452,7 +455,8 @@ describe("Evaluation Lab route", () => {
     const beforeFeedback = store.getState().lastFeedback;
     renderEval({ store });
 
-    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Analyze failures" }));
     const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
     expect(drawer).toHaveTextContent(
       "A configured LLM proposes one reviewable SOP diff from committed train failures.",
@@ -485,7 +489,8 @@ describe("Evaluation Lab route", () => {
     const user = userEvent.setup();
     renderEval();
 
-    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Analyze failures" }));
     const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
 
     expect(drawer).toHaveTextContent("The selected suite has no failed train cases.");
@@ -507,7 +512,8 @@ describe("Evaluation Lab route", () => {
     expect(store.getState().rejectCorrection("corr-triage").ok).toBe(true);
     renderEval({ store });
 
-    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Analyze failures" }));
     const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
 
     expect(
@@ -531,7 +537,8 @@ describe("Evaluation Lab route", () => {
     expect((await store.getState().runEvalCase(emergencyCase.id)).ok).toBe(true);
     renderEval({ store });
 
-    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
+    await user.click(screen.getByRole("button", { name: "More evaluation actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Analyze failures" }));
     const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
     await user.click(screen.getByRole("button", { name: "Run Suite" }));
 
@@ -543,10 +550,6 @@ describe("Evaluation Lab route", () => {
   it("uses compact case cards and a scrollable details dialog on 320px", async () => {
     const user = userEvent.setup();
     renderEval({ width: 320 });
-
-    expect(screen.getByRole("button", { name: "Analyze failures" })).toHaveTextContent(
-      "Analyze",
-    );
 
     expect(screen.queryByRole("table", { name: "Evaluation cases" })).not.toBeInTheDocument();
     const card = screen.getByRole("article", { name: "Emergency chest pain" });

@@ -61,9 +61,8 @@ function buildSeedState(): AppState {
         resolvedAt: null,
         labels: ["booking"],
         triageGuidance:
-          "Routine booking fixture: the autonomous agent confirms the date, time, and provider before it books.",
+          "Routine booking fixture: the autonomous agent confirms the date and time before it books.",
         booking: {
-          provider: "Dr. Siti Rahman",
           slotIso: "2026-07-09T09:00:00+08:00",
           reason: "General consult",
           status: "pending",

@@ -82,11 +82,11 @@ export type Patient = PatientPayload;
 
 export type Booking = BookingPayload;
 
-export type UpdateBookingInput = Pick<Booking, "provider" | "slotIso" | "reason"> & {
+export type UpdateBookingInput = Pick<Booking, "slotIso" | "reason"> & {
   expectedRevision: number;
 };
 
-export type CreateBookingInput = Pick<Booking, "provider" | "slotIso" | "reason">;
+export type CreateBookingInput = Pick<Booking, "slotIso" | "reason">;
 
 export type BookingNotificationPreview = {
   event: BookingNotificationEvent;

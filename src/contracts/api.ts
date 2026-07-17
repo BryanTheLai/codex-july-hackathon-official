@@ -225,13 +225,11 @@ const bookingCommandExistingBookingBaseSchema =
 export const bookingCommandRequestSchema = z.discriminatedUnion("action", [
   bookingCommandConversationBaseSchema.extend({
     action: z.literal("create"),
-    provider: z.string().trim().min(1).max(256),
     reason: z.string().trim().min(1).max(500),
     slotIso: z.iso.datetime({ offset: true }),
   }).strict(),
   bookingCommandExistingBookingBaseSchema.extend({
     action: z.literal("update"),
-    provider: z.string().trim().min(1).max(256),
     reason: z.string().trim().min(1).max(500),
     slotIso: z.iso.datetime({ offset: true }),
   }).strict(),

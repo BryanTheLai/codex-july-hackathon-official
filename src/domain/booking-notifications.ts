@@ -25,61 +25,61 @@ function bookingSlot(slotIso: string, language: string): string {
 function englishBookingMessage(event: BookingNotificationEvent, booking: Booking): string {
   const slot = bookingSlot(booking.slotIso, "English");
   if (event === "confirmed") {
-    return `Your appointment is confirmed for ${slot} with ${booking.provider}. Reply here if anything is incorrect.`;
+    return `Your appointment is confirmed for ${slot}. Reply here if anything is incorrect.`;
   }
   if (event === "request_updated") {
-    return `Your appointment request was updated to ${slot} with ${booking.provider}. Reply here if anything is incorrect.`;
+    return `Your appointment request was updated to ${slot}. Reply here if anything is incorrect.`;
   }
   if (event === "request_rejected") {
-    return `We could not confirm your requested appointment for ${slot} with ${booking.provider}. Reply here and we will help find another slot.`;
+    return `We could not confirm your requested appointment for ${slot}. Reply here and we will help find another slot.`;
   }
   if (event === "rescheduled") {
-    return `Your appointment has been rescheduled to ${slot} with ${booking.provider}. Reply here if this does not work for you.`;
+    return `Your appointment has been rescheduled to ${slot}. Reply here if this does not work for you.`;
   }
   if (event === "details_updated") {
-    return `Your appointment details were updated. You are now booked with ${booking.provider} on ${slot}. Reply here if anything is incorrect.`;
+    return `Your appointment details were updated. You are now booked on ${slot}. Reply here if anything is incorrect.`;
   }
-  return `Your appointment on ${slot} with ${booking.provider} has been cancelled. Reply here if you need help booking another time.`;
+  return `Your appointment on ${slot} has been cancelled. Reply here if you need help booking another time.`;
 }
 
 function malayBookingMessage(event: BookingNotificationEvent, booking: Booking): string {
   const slot = bookingSlot(booking.slotIso, "Malay");
   if (event === "confirmed") {
-    return `Temu janji anda disahkan pada ${slot} bersama ${booking.provider}. Balas di sini jika ada maklumat yang tidak betul.`;
+    return `Temu janji anda disahkan pada ${slot}. Balas di sini jika ada maklumat yang tidak betul.`;
   }
   if (event === "request_updated") {
-    return `Permintaan temu janji anda telah dikemas kini kepada ${slot} bersama ${booking.provider}. Balas di sini jika ada maklumat yang tidak betul.`;
+    return `Permintaan temu janji anda telah dikemas kini kepada ${slot}. Balas di sini jika ada maklumat yang tidak betul.`;
   }
   if (event === "request_rejected") {
-    return `Kami tidak dapat mengesahkan temu janji yang diminta pada ${slot} bersama ${booking.provider}. Balas di sini dan kami akan membantu mencari waktu lain.`;
+    return `Kami tidak dapat mengesahkan temu janji yang diminta pada ${slot}. Balas di sini dan kami akan membantu mencari waktu lain.`;
   }
   if (event === "rescheduled") {
-    return `Temu janji anda telah dijadualkan semula pada ${slot} bersama ${booking.provider}. Balas di sini jika waktu ini tidak sesuai untuk anda.`;
+    return `Temu janji anda telah dijadualkan semula pada ${slot}. Balas di sini jika waktu ini tidak sesuai untuk anda.`;
   }
   if (event === "details_updated") {
-    return `Butiran temu janji anda telah dikemas kini. Anda kini dijadualkan bersama ${booking.provider} pada ${slot}. Balas di sini jika ada maklumat yang tidak betul.`;
+    return `Butiran temu janji anda telah dikemas kini. Anda kini dijadualkan pada ${slot}. Balas di sini jika ada maklumat yang tidak betul.`;
   }
-  return `Temu janji anda pada ${slot} bersama ${booking.provider} telah dibatalkan. Balas di sini jika anda memerlukan bantuan untuk menempah waktu lain.`;
+  return `Temu janji anda pada ${slot} telah dibatalkan. Balas di sini jika anda memerlukan bantuan untuk menempah waktu lain.`;
 }
 
 function mandarinBookingMessage(event: BookingNotificationEvent, booking: Booking): string {
   const slot = bookingSlot(booking.slotIso, "Mandarin");
   if (event === "confirmed") {
-    return `您的预约已确认：${slot}，医生为${booking.provider}。如有任何信息不正确，请在此回复。`;
+    return `您的预约已确认：${slot}。如有任何信息不正确，请在此回复。`;
   }
   if (event === "request_updated") {
-    return `您的预约申请已更新为：${slot}，医生为${booking.provider}。如有任何信息不正确，请在此回复。`;
+    return `您的预约申请已更新为：${slot}。如有任何信息不正确，请在此回复。`;
   }
   if (event === "request_rejected") {
-    return `我们无法确认您申请的预约：${slot}，医生为${booking.provider}。请在此回复，我们会协助您寻找其他时间。`;
+    return `我们无法确认您申请的预约：${slot}。请在此回复，我们会协助您寻找其他时间。`;
   }
   if (event === "rescheduled") {
-    return `您的预约已改期至：${slot}，医生为${booking.provider}。如果该时间不方便，请在此回复。`;
+    return `您的预约已改期至：${slot}。如果该时间不方便，请在此回复。`;
   }
   if (event === "details_updated") {
-    return `您的预约信息已更新。您现在预约的是${booking.provider}，时间为${slot}。如有任何信息不正确，请在此回复。`;
+    return `您的预约信息已更新，时间为${slot}。如有任何信息不正确，请在此回复。`;
   }
-  return `您在${slot}与${booking.provider}的预约已取消。如需重新预约，请在此回复。`;
+  return `您在${slot}的预约已取消。如需重新预约，请在此回复。`;
 }
 
 export function createBookingNotification(
@@ -110,10 +110,10 @@ export function createBookingNotification(
 
 function bookingUpdateEvent(
   booking: Booking,
-  next: Pick<Booking, "provider" | "slotIso" | "reason">,
+  next: Pick<Booking, "slotIso" | "reason">,
 ): BookingNotificationEvent | null {
   const slotChanged = booking.slotIso !== next.slotIso;
-  const detailsChanged = booking.provider !== next.provider || booking.reason !== next.reason;
+  const detailsChanged = booking.reason !== next.reason;
   if (!slotChanged && !detailsChanged) {
     return null;
   }
@@ -141,12 +141,8 @@ export function previewBookingNotification(
     return { ok: false, error: "Booking changed before this edit was saved" };
   }
 
-  const provider = trimOrEmpty(input.provider);
   const reason = trimOrEmpty(input.reason);
   const slotIso = trimOrEmpty(input.slotIso);
-  if (!provider) {
-    return { ok: false, error: "Booking provider cannot be empty" };
-  }
   if (!reason) {
     return { ok: false, error: "Booking reason cannot be empty" };
   }
@@ -154,7 +150,7 @@ export function previewBookingNotification(
     return { ok: false, error: "Booking date and time is invalid" };
   }
 
-  const nextBooking = { ...booking, provider, reason, slotIso };
+  const nextBooking = { ...booking, reason, slotIso };
   const event = bookingUpdateEvent(booking, nextBooking);
   if (!event) {
     return { ok: false, error: "Booking details did not change" };
@@ -177,12 +173,8 @@ export function previewNewBookingNotification(
     return { ok: false, error: "This conversation already has an active booking" };
   }
 
-  const provider = trimOrEmpty(input.provider);
   const reason = trimOrEmpty(input.reason);
   const slotIso = trimOrEmpty(input.slotIso);
-  if (!provider) {
-    return { ok: false, error: "Booking provider cannot be empty" };
-  }
   if (!reason) {
     return { ok: false, error: "Booking reason cannot be empty" };
   }
@@ -191,7 +183,6 @@ export function previewNewBookingNotification(
   }
 
   const booking: Booking = {
-    provider,
     reason,
     slotIso,
     status: "approved",

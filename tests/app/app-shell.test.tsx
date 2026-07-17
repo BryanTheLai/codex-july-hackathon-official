@@ -92,7 +92,7 @@ describe("app shell", () => {
 
     expect(links[0]).toHaveAccessibleName("Chat Control");
     expect(links[0]).toHaveAttribute("href", "/");
-    expect(links[1]).toHaveAccessibleName("Dream");
+    expect(links[1]).toHaveAccessibleName("Knowledge");
     expect(links[1]).toHaveAttribute("href", "/dream");
     expect(links[2]).toHaveAccessibleName("Evals");
     expect(links[2]).toHaveAttribute("href", "/eval");
@@ -123,7 +123,7 @@ describe("app shell", () => {
     const links = within(nav).getAllByRole("link");
     expect(links).toHaveLength(3);
 
-    const navNames = ["Chat Control", "Dream", "Evals"] as const;
+    const navNames = ["Chat Control", "Knowledge", "Evals"] as const;
     links.forEach((link, index) => {
       expect(link).toHaveAccessibleName(navNames[index]);
       expect(link).toHaveAttribute("title", navNames[index]);

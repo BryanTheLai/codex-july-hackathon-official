@@ -243,7 +243,6 @@ export function createCalendarDispatchService({
         endIso: end.toISOString(),
         kind,
         location: config.location,
-        provider: booking.provider,
         sequence,
         startIso: start.toISOString(),
         uid,

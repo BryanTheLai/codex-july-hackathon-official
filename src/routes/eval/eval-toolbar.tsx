@@ -110,27 +110,6 @@ export function EvalToolbar({
             <span className="eval-label-compact">Suite</span>
           </button>
         )}
-        <button
-          aria-label="Analyze failures"
-          className="eval-button"
-          disabled={operationBlocked}
-          onClick={onAnalyze}
-          type="button"
-        >
-          <Beaker aria-hidden="true" size={15} />
-          <span className="eval-label-full">Analyze failures</span>
-          <span className="eval-label-compact">Analyze</span>
-        </button>
-        <button
-          aria-label="Import resolved conversations"
-          className="eval-button eval-toolbar__import"
-          disabled={operationBlocked}
-          onClick={onImport}
-          type="button"
-        >
-          <Import aria-hidden="true" size={15} />
-          Import conversations
-        </button>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
@@ -146,6 +125,9 @@ export function EvalToolbar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" className="eval-menu" sideOffset={4}>
+              <DropdownMenu.Item className="eval-menu__item" onSelect={onAnalyze}>
+                Analyze failures
+              </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="eval-menu__item eval-menu__import"
                 onSelect={onImport}

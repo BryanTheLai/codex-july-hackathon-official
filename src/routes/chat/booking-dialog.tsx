@@ -37,7 +37,6 @@ export function BookingDialog({
   open: boolean;
 }) {
   const [dateTime, setDateTime] = useState("");
-  const [provider, setProvider] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -48,11 +47,9 @@ export function BookingDialog({
     }
     if (conversation.booking) {
       setDateTime(toDateTimeLocal(conversation.booking.slotIso));
-      setProvider(conversation.booking.provider);
       setReason(conversation.booking.reason);
     } else {
       setDateTime(toDateTimeLocal(defaultSlotIso));
-      setProvider("");
       setReason("");
     }
     setError("");
@@ -63,11 +60,10 @@ export function BookingDialog({
     ? conversation.booking
       ? {
           expectedRevision: conversation.booking.revision,
-          provider,
           reason,
           slotIso: toMalaysiaIso(dateTime),
         }
-      : { provider, reason, slotIso: toMalaysiaIso(dateTime) }
+      : { reason, slotIso: toMalaysiaIso(dateTime) }
     : null;
   const previewResult =
     conversation && input
@@ -120,14 +116,6 @@ export function BookingDialog({
               onChange={(event) => setDateTime(event.target.value)}
               type="datetime-local"
               value={dateTime}
-            />
-          </label>
-          <label className="chat-dialog__field">
-            Provider
-            <input
-              aria-label="Booking provider"
-              onChange={(event) => setProvider(event.target.value)}
-              value={provider}
             />
           </label>
           <label className="chat-dialog__field">

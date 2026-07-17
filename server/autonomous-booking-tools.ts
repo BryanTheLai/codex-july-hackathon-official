@@ -23,13 +23,11 @@ const KUALA_LUMPUR_TIME_ZONE = "Asia/Kuala_Lumpur";
 const listSlotsSchema = z
   .object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-    provider: z.enum(PROVIDERS),
   })
   .strict();
 
 const bookingArgumentsSchema = z
   .object({
-    provider: z.enum(PROVIDERS),
     reason: z.string().trim().min(1).max(500),
     slotIso: z.iso.datetime({ offset: true }),
   })
@@ -60,9 +58,8 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
           ],
           description: "Requested local clinic date in YYYY-MM-DD, or null for the next available slots.",
         },
-        provider: { type: "string", enum: PROVIDERS },
       },
-      required: ["date", "provider"],
+      required: ["date"],
       additionalProperties: false,
     },
   },
@@ -75,11 +72,10 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     parameters: {
       type: "object",
       properties: {
-        provider: { type: "string", enum: PROVIDERS },
         slotIso: { type: "string", format: "date-time" },
         reason: { type: "string", minLength: 1, maxLength: 500 },
       },
-      required: ["provider", "slotIso", "reason"],
+      required: ["slotIso", "reason"],
       additionalProperties: false,
     },
   },
@@ -92,11 +88,10 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     parameters: {
       type: "object",
       properties: {
-        provider: { type: "string", enum: PROVIDERS },
         slotIso: { type: "string", format: "date-time" },
         reason: { type: "string", minLength: 1, maxLength: 500 },
       },
-      required: ["provider", "slotIso", "reason"],
+      required: ["slotIso", "reason"],
       additionalProperties: false,
     },
   },
@@ -154,7 +149,7 @@ type ToolSuccess = {
   conversationRevision: number | null;
   evalCaseId?: string;
   availabilitySource?: "demo" | "google";
-  slots?: Array<{ provider: string; slotIso: string }>;
+  slots?: Array<{ slotIso: string }>;
 };
 
 type ToolFailure = {
@@ -220,21 +215,20 @@ function slotIso(date: string, time: (typeof SLOT_TIMES)[number]): string {
 
 function availableSlots(
   state: ServerDomainStatePayload,
-  provider: (typeof PROVIDERS)[number],
   requestedDate: string | null,
   now: Date,
-): Array<{ provider: string; slotIso: string }> {
+): Array<{ slotIso: string }> {
   const reserved = new Set(
     state.conversations
       .map((conversation) => conversation.booking)
       .filter(
         (booking): booking is BookingPayload =>
-          booking?.status === "approved" && booking.provider === provider,
+          booking?.status === "approved",
       )
       .map((booking) => booking.slotIso),
   );
   let date = requestedDate ?? localDate(now);
-  const slots: Array<{ provider: string; slotIso: string }> = [];
+  const slots: Array<{ slotIso: string }> = [];
   for (let offset = 0; offset < 8 && slots.length < 8; offset += 1) {
     for (const time of SLOT_TIMES) {
       const candidate = slotIso(date, time);
@@ -243,7 +237,7 @@ function availableSlots(
         !reserved.has(candidate) &&
         (requestedDate === null || date === requestedDate)
       ) {
-        slots.push({ provider, slotIso: candidate });
+        slots.push({ slotIso: candidate });
       }
     }
     if (requestedDate !== null) break;
@@ -295,7 +289,7 @@ export function createAutonomousBookingToolExecutor({
         return failure(
           "invalid_arguments",
           "Availability lookup arguments are invalid.",
-          "Provide one supported provider and a YYYY-MM-DD date or null.",
+          "Provide a YYYY-MM-DD date or null.",
         );
       }
       const workspace = await workspaceRepository.load(workspaceId);
@@ -304,7 +298,6 @@ export function createAutonomousBookingToolExecutor({
       }
       const demoSlots = availableSlots(
         workspace.state,
-        parsed.value.provider,
         parsed.value.date,
         now(),
       );
@@ -326,9 +319,9 @@ export function createAutonomousBookingToolExecutor({
       const summary =
         slots.length === 0
           ? parsed.value.date
-            ? `No slots are available for ${parsed.value.provider} on ${parsed.value.date}.`
-            : `No future slots are available for ${parsed.value.provider}.`
-          : `Found ${slots.length} available slot${slots.length === 1 ? "" : "s"} for ${parsed.value.provider}.`;
+            ? `No slots are available on ${parsed.value.date}.`
+            : "No future slots are available."
+          : `Found ${slots.length} available slot${slots.length === 1 ? "" : "s"}.`;
       return success(
         summary,
         {
@@ -524,7 +517,6 @@ export function createAutonomousBookingToolExecutor({
         const argumentsValue = parsed.value as z.infer<typeof bookingArgumentsSchema>;
         const demoSlots = availableSlots(
           workspace.state,
-          argumentsValue.provider,
           argumentsValue.slotIso.slice(0, 10),
           now(),
         );
@@ -557,14 +549,13 @@ export function createAutonomousBookingToolExecutor({
             );
           }
           nextBooking = {
-            provider: argumentsValue.provider,
             slotIso: argumentsValue.slotIso,
             reason: argumentsValue.reason,
             status: "approved",
             revision: (conversation.booking?.revision ?? 0) + 1,
           };
           action = "booking_created";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed an appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed an appointment.`;
         } else {
           if (!conversation.booking || conversation.booking.status !== "approved") {
             return failure(
@@ -575,13 +566,12 @@ export function createAutonomousBookingToolExecutor({
           }
           nextBooking = {
             ...conversation.booking,
-            provider: argumentsValue.provider,
             slotIso: argumentsValue.slotIso,
             reason: argumentsValue.reason,
             revision: conversation.booking.revision + 1,
           };
           action = "booking_rescheduled";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the appointment.`;
         }
       }
 

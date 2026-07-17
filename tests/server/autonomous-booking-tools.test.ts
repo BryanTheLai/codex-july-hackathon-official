@@ -58,7 +58,7 @@ describe("autonomous booking tools", () => {
       call: {
         callId: "call-list-1",
         name: "list_available_slots",
-        argumentsJson: '{"date":null,"provider":"Dr. Farah"}',
+        argumentsJson: '{"date":null}',
       },
     });
     expect(availability.status).toBe("completed");
@@ -76,7 +76,6 @@ describe("autonomous booking tools", () => {
         callId: "call-create-1",
         name: "create_booking",
         argumentsJson: JSON.stringify({
-          provider: "Dr. Farah",
           slotIso,
           reason: "Routine consultation",
         }),
@@ -89,7 +88,6 @@ describe("autonomous booking tools", () => {
         success: true,
         action: "booking_created",
         booking: {
-          provider: "Dr. Farah",
           slotIso,
           status: "approved",
           revision: 1,
@@ -102,7 +100,6 @@ describe("autonomous booking tools", () => {
         callId: "call-create-1",
         name: "create_booking",
         argumentsJson: JSON.stringify({
-          provider: "Dr. Farah",
           slotIso,
           reason: "Routine consultation",
         }),
@@ -129,7 +126,7 @@ describe("autonomous booking tools", () => {
       call: {
         callId: "call-list-siti-1",
         name: "list_available_slots",
-        argumentsJson: '{"date":null,"provider":"Dr. Siti Rahman"}',
+        argumentsJson: '{"date":null}',
       },
     });
 
@@ -150,12 +147,12 @@ describe("autonomous booking tools", () => {
         call: {
           callId: "call-no-slots-1",
           name: "list_available_slots",
-          argumentsJson: '{"date":"2026-07-16","provider":"Dr. Farah"}',
+          argumentsJson: '{"date":"2026-07-16"}',
         },
       }),
     ).resolves.toMatchObject({
       status: "completed",
-      summary: "No slots are available for Dr. Farah on 2026-07-16.",
+      summary: "No slots are available on 2026-07-16.",
       output: { success: true, action: "availability_listed", slots: [] },
     });
   });
@@ -253,7 +250,7 @@ describe("autonomous booking tools", () => {
         callId: "call-stale-1",
         name: "create_booking",
         argumentsJson:
-          '{"provider":"Dr. Farah","slotIso":"2026-07-17T09:00:00+08:00","reason":"Routine consultation"}',
+          '{"slotIso":"2026-07-17T09:00:00+08:00","reason":"Routine consultation"}',
       },
     });
     expect(result).toMatchObject({
@@ -277,7 +274,6 @@ describe("autonomous booking tools", () => {
           callId: "call-create-2",
           name: "create_booking",
           argumentsJson: JSON.stringify({
-            provider: "Dr. Farah",
             slotIso: firstSlot,
             reason: "Routine consultation",
           }),
@@ -304,7 +300,7 @@ describe("autonomous booking tools", () => {
           callId: "call-reschedule-1",
           name: "reschedule_booking",
           argumentsJson:
-            '{"provider":"Dr. Farah","slotIso":"2026-07-17T14:00:00+08:00","reason":"Routine consultation"}',
+            '{"slotIso":"2026-07-17T14:00:00+08:00","reason":"Routine consultation"}',
         },
       }),
     ).resolves.toMatchObject({

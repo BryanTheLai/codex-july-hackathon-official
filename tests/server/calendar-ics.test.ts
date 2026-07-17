@@ -8,7 +8,6 @@ describe("calendar invitation", () => {
       endIso: "2026-07-21T02:30:00.000Z",
       kind: "publish",
       location: "KaunterAI Clinic",
-      provider: "Dr. Siti Rahman",
       sequence: 2,
       startIso: "2026-07-21T02:00:00.000Z",
       uid: "booking-demo-convo-42@calendar.kaunterai.test",
@@ -20,7 +19,7 @@ describe("calendar invitation", () => {
     expect(invitation).toContain("SEQUENCE:2\r\n");
     expect(invitation).toContain("DTSTART:20260721T020000Z\r\n");
     expect(invitation).toContain("DTEND:20260721T023000Z\r\n");
-    expect(invitation).toContain("SUMMARY:Appointment with Dr. Siti Rahman\r\n");
+    expect(invitation).toContain("SUMMARY:Appointment\r\n");
     expect(invitation).not.toContain("MRN-");
     expect(invitation).not.toContain("reason");
   });
@@ -30,7 +29,6 @@ describe("calendar invitation", () => {
       endIso: "2026-07-21T02:30:00.000Z",
       kind: "cancel",
       location: null,
-      provider: "Dr. Siti Rahman",
       sequence: 3,
       startIso: "2026-07-21T02:00:00.000Z",
       uid: "booking-demo-convo-42@calendar.kaunterai.test",

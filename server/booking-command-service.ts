@@ -106,7 +106,7 @@ export function createBookingCommandService(input: {
       }
       if (request.action !== "cancel" && input.calendarAvailability) {
         const availability = await input.calendarAvailability.filterAvailableSlots({
-          slots: [{ provider: request.provider, slotIso: request.slotIso }],
+          slots: [{ slotIso: request.slotIso }],
         });
         if (availability.slots.length === 0) {
           throw new BookingCommandServiceError(
@@ -117,7 +117,6 @@ export function createBookingCommandService(input: {
       }
       const booking = request.action === "create"
         ? {
-            provider: request.provider,
             reason: request.reason,
             slotIso: request.slotIso,
             status: "approved" as const,
@@ -131,7 +130,6 @@ export function createBookingCommandService(input: {
             }
           : {
               ...conversation.booking!,
-              provider: request.provider,
               reason: request.reason,
               slotIso: request.slotIso,
               revision: conversation.booking!.revision + 1,

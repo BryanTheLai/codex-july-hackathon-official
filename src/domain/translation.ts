@@ -10,6 +10,8 @@ const FIXTURE_TRANSLATIONS: Record<Exclude<TranslationLanguage, "English">, Reco
       "Bawa kad pengenalan anda lima belas minit sebelum ketibaan.",
     "I would like to renew my blood pressure medicine.":
       "Saya ingin memperbaharui ubat tekanan darah saya.",
+    "I can help review your refill request after checking dispense history.":
+      "Saya boleh membantu menyemak permohonan pembaharuan anda selepas menyemak sejarah pembekalan ubat.",
     "Please bring your identity card fifteen minutes before arrival.":
       "Sila bawa kad pengenalan anda lima belas minit sebelum ketibaan.",
     "Please seek urgent care now.": "Sila dapatkan rawatan kecemasan sekarang.",
@@ -20,6 +22,8 @@ const FIXTURE_TRANSLATIONS: Record<Exclude<TranslationLanguage, "English">, Reco
     "Bring your identity card fifteen minutes before arrival.":
       "请在抵达前十五分钟携带身份证。",
     "I would like to renew my blood pressure medicine.": "我想续开降压药。",
+    "I can help review your refill request after checking dispense history.":
+      "我可以在检查配药记录后协助审核您的续方申请。",
     "Please bring your identity card fifteen minutes before arrival.":
       "请在抵达前十五分钟携带身份证。",
     "Please seek urgent care now.": "请立即前往急诊就医。",
@@ -35,7 +39,7 @@ export function translateFixtureReply(
   if (language === "English") {
     return { language, ok: true, text: normalized };
   }
-  const translated = FIXTURE_TRANSLATIONS[language][normalized];
+  const translated = FIXTURE_TRANSLATIONS[language]?.[normalized];
   if (!translated) {
     return {
       error: "Synthetic translation is unavailable for this phrase.",

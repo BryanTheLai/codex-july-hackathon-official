@@ -6,7 +6,7 @@ import { useAppStore } from "../store/app-store-context";
 
 const SHELL_NAV = [
   { to: "/", end: true, label: "Chat Control", Icon: MessagesSquare },
-  { to: "/dream", end: false, label: "Dream", Icon: WandSparkles },
+  { to: "/dream", end: false, label: "Knowledge", Icon: WandSparkles },
   { to: "/eval", end: false, label: "Evals", Icon: FlaskConical },
 ] as const;
 

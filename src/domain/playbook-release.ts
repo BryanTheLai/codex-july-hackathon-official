@@ -98,7 +98,12 @@ export async function createPlaybookCandidate(
 ): Promise<ServerDomainStatePayload> {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
   if (state.playbookHistory.candidateVersionId) {
-    fail("release_blocked", "Finish or discard the current Dream candidate first");
+    // Replace current uncommitted candidate version smoothly with the new candidate
+    const existingId = state.playbookHistory.candidateVersionId;
+    state.playbookHistory.versions = state.playbookHistory.versions.filter(
+      (version) => version.id !== existingId,
+    );
+    state.playbookHistory.candidateVersionId = null;
   }
   if (state.playbookHistory.versions.some((version) => version.id === input.candidateVersionId)) {
     fail("invalid_input", "Dream candidate version already exists");

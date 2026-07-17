@@ -58,7 +58,6 @@ async function workspaceWithApprovedTelegramBooking() {
   );
   if (!conversation) throw new Error("Telegram conversation was not created");
   conversation.booking = {
-    provider: "Dr. Siti Rahman",
     reason: "Routine review",
     revision: 1,
     slotIso: "2099-07-21T02:00:00.000Z",

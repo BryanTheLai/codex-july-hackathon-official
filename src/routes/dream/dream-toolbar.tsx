@@ -48,7 +48,7 @@ export function DreamToolbar({
   return (
     <header className="route-toolbar dream-toolbar">
       <div className="dream-toolbar__identity">
-        <h1 id="dream-route-title">Dream</h1>
+        <h1 id="dream-route-title">Knowledge</h1>
         <span className="dream-toolbar__path">{file?.path ?? "No file selected"}</span>
         <span>{pending} pending</span>
         <span className={dirty ? "dream-state--dirty" : "dream-state--saved"}>

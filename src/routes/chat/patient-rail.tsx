@@ -353,10 +353,6 @@ export function PatientRail({
                 <dd>{formatBookingSlot(conversation.booking.slotIso)} MYT</dd>
               </div>
               <div>
-                <dt>Provider</dt>
-                <dd>{conversation.booking.provider}</dd>
-              </div>
-              <div>
                 <dt>Reason</dt>
                 <dd>{conversation.booking.reason}</dd>
               </div>

@@ -221,14 +221,23 @@ function proposalForFailure(
       .find((line) => line && !line.startsWith("#")) ?? file.savedContent;
   const criteria = applicableCriteria(dataset, evalCase);
   const required = criteria.find((item) => item.required);
+  const rationale = evalCase.grade?.rationale;
+
+  let recommendationText = required
+    ? `Add guidance: ${required.instruction}`
+    : "Add emergency and staff handoff guidance.";
+  if (rationale && rationale.toLowerCase().includes("999")) {
+    recommendationText = "Call 999 immediately for emergency triage (chest pain / severe symptoms).";
+  } else if (rationale) {
+    recommendationText = rationale;
+  }
+
   return {
     id: `corr-proposal-${evalCase.id}`,
     fileId,
     oldText: firstLine,
-    newText: required
-      ? `${firstLine} Add guidance for this requirement: ${required.instruction}`
-      : `${firstLine} Add staff handoff.`,
-    evidence: `${evalCase.title}: ${evalCase.grade?.rationale ?? "Committed train run failed."}`,
+    newText: `${firstLine}\n${recommendationText}`,
+    evidence: `${evalCase.title}: ${rationale ?? "Committed train run failed."}`,
     status: "pending",
     sourceCaseId: evalCase.id,
   };

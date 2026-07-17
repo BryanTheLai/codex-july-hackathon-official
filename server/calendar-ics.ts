@@ -10,7 +10,6 @@ const invitationInputSchema = z
     endIso: z.iso.datetime({ offset: true }),
     kind: z.enum(["publish", "cancel"]),
     location: z.string().trim().min(1).max(256).nullable(),
-    provider: z.string().trim().min(1).max(256),
     sequence: z.number().int().nonnegative(),
     startIso: z.iso.datetime({ offset: true }),
     uid: z.string().trim().min(1).max(512),
@@ -54,7 +53,7 @@ export function createCalendarInvitation(input: CalendarInvitationInput): string
       invitation.kind === "cancel"
         ? ICalEventStatus.CANCELLED
         : ICalEventStatus.CONFIRMED,
-    summary: `Appointment with ${invitation.provider}`,
+    summary: "Appointment",
   });
   return calendar.toString();
 }

@@ -33,7 +33,6 @@ async function configuredService(
     ...conversation,
     booking: withBooking
       ? {
-          provider: "Dr. Farah",
           reason: "Routine checkup",
           revision: 1,
           slotIso: "2026-07-17T10:30:00+08:00",
@@ -64,12 +63,10 @@ describe("booking command service", () => {
       conversationId: conversation.id,
       expectedBookingRevision: 1,
       expectedConversationRevision: conversation.revision,
-      provider: "Dr. Lim",
       reason: "Follow-up",
       slotIso: "2026-07-17T14:00:00+08:00",
     });
     expect(updated.booking).toMatchObject({
-      provider: "Dr. Lim",
       reason: "Follow-up",
       revision: 2,
       slotIso: "2026-07-17T14:00:00+08:00",
@@ -101,7 +98,6 @@ describe("booking command service", () => {
       conversationId: conversation.id,
       expectedBookingRevision: 1,
       expectedConversationRevision: conversation.revision,
-      provider: "Dr. Lim",
       reason: "Follow-up",
       slotIso: "2026-07-17T14:00:00+08:00",
     });
@@ -131,13 +127,11 @@ describe("booking command service", () => {
       action: "create",
       conversationId: conversation.id,
       expectedConversationRevision: conversation.revision,
-      provider: "Dr. Lim",
       reason: "Follow-up",
       slotIso: "2026-07-17T14:00:00+08:00",
     });
 
     expect(created.booking).toMatchObject({
-      provider: "Dr. Lim",
       revision: 1,
       status: "approved",
     });
@@ -157,7 +151,6 @@ describe("booking command service", () => {
         conversationId: conversation.id,
         expectedBookingRevision: 2,
         expectedConversationRevision: conversation.revision,
-        provider: "Dr. Lim",
         reason: "Follow-up",
         slotIso: "2026-07-17T14:00:00+08:00",
       }),
@@ -174,7 +167,6 @@ describe("booking command service", () => {
         conversationId: conversation.id,
         expectedBookingRevision: 1,
         expectedConversationRevision: conversation.revision,
-        provider: "Dr. Lim",
         reason: "Follow-up",
         slotIso: "2026-07-17T14:00:00+08:00",
       }),
@@ -183,7 +175,7 @@ describe("booking command service", () => {
       message: "That appointment slot is no longer available. Choose another time.",
     });
     expect(filterAvailableSlots).toHaveBeenCalledWith({
-      slots: [{ provider: "Dr. Lim", slotIso: "2026-07-17T14:00:00+08:00" }],
+      slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],
     });
     expect((await repository.load("demo"))?.revision).toBe(2);
   });

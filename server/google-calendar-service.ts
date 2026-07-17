@@ -29,12 +29,12 @@ type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 
 export type CalendarAvailabilityResult = {
   source: "demo" | "google";
-  slots: Array<{ provider: string; slotIso: string }>;
+  slots: Array<{ slotIso: string }>;
 };
 
 export type CalendarAvailability = {
   filterAvailableSlots(input: {
-    slots: Array<{ provider: string; slotIso: string }>;
+    slots: Array<{ slotIso: string }>;
   }): Promise<CalendarAvailabilityResult>;
 };
 
@@ -220,7 +220,7 @@ export function createGoogleCalendarService({
     const id = eventId(conversation.id);
     const event = {
       id,
-      summary: `KaunterAI appointment — ${conversation.booking.provider}`,
+      summary: "KaunterAI appointment",
       description: `Patient: ${conversation.patient.name}\nReason: ${conversation.booking.reason}\nKaunter conversation: ${conversation.id}`,
       start: { dateTime: conversation.booking.slotIso, timeZone: config.timeZone },
       end: {

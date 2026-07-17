@@ -131,7 +131,6 @@ export function SchedulePane({
                 {formatBookingSlot(conversation.booking!.slotIso)}
               </time>
               <strong>{conversation.patient.name}</strong>
-              <span>{conversation.booking?.provider}</span>
               <span className={`chat-badge chat-badge--${conversation.booking?.status}`}>
                 {conversation.booking?.status}
               </span>

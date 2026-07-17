@@ -1289,12 +1289,9 @@ describe("Chat Control route", () => {
     expect(within(dialog).getByText("Exact patient message preview")).toBeInTheDocument();
     expect(save).toBeDisabled();
     const dateTime = within(dialog).getByLabelText("Booking date and time");
-    const provider = within(dialog).getByLabelText("Booking provider");
     const reason = within(dialog).getByLabelText("Booking reason");
     await user.clear(dateTime);
     await user.type(dateTime, "2026-07-10T14:30");
-    await user.clear(provider);
-    await user.type(provider, "Dr. Amir Lee");
     await user.clear(reason);
     await user.type(reason, "Medication review");
     expect(within(dialog).getByText(/Permintaan temu janji anda telah dikemas kini/)).toBeVisible();
@@ -1302,7 +1299,6 @@ describe("Chat Control route", () => {
     await user.click(save);
 
     const rail = screen.getByRole("complementary", { name: "Patient context" });
-    expect(within(rail).getByText("Dr. Amir Lee")).toBeInTheDocument();
     expect(within(rail).getByText("Medication review")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
       "Permintaan temu janji anda telah dikemas kini",
@@ -1383,9 +1379,7 @@ describe("Chat Control route", () => {
     await user.click(screen.getByRole("button", { name: "Create booking" }));
 
     const dialog = screen.getByRole("dialog", { name: "Create booking" });
-    await user.type(within(dialog).getByLabelText("Booking provider"), "Dr. Lim");
     await user.type(within(dialog).getByLabelText("Booking reason"), "Follow-up");
-    expect(dialog).toHaveTextContent("Dr. Lim");
     await user.click(within(dialog).getByRole("button", { name: "Create booking" }));
 
     expect(screen.getByText("Booking saved")).toBeInTheDocument();
@@ -1393,7 +1387,7 @@ describe("Chat Control route", () => {
       store.getState().state.conversations.find(
         (conversation) => conversation.patient.name === "Rajesh Kumar",
       )?.booking,
-    ).toMatchObject({ provider: "Dr. Lim", status: "approved" });
+    ).toMatchObject({ status: "approved" });
   });
 
   it("uses list to thread to details choreography on mobile", async () => {

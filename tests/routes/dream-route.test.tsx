@@ -96,7 +96,7 @@ describe("Dream route", () => {
   it("keeps the editable playbook dominant with adjacent files and changes", async () => {
     renderDream();
 
-    expect(screen.getByRole("heading", { name: "Dream" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Knowledge" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Dream release gate" })).toHaveTextContent(
       "Active SOPv1",
     );

@@ -37,7 +37,6 @@ async function configuredService(fetcher: typeof fetch) {
   state.conversations[telegramIndex] = {
     ...state.conversations[telegramIndex]!,
     booking: {
-      provider: "Dr. Farah",
       reason: "Routine checkup",
       revision: 1,
       slotIso: "2026-07-17T10:30:00+08:00",
@@ -123,13 +122,13 @@ describe("Google Calendar service", () => {
     const { service } = await configuredService(fetcher);
     const result = await service.filterAvailableSlots({
       slots: [
-        { provider: "Dr. Farah", slotIso: "2026-07-17T10:30:00+08:00" },
-        { provider: "Dr. Farah", slotIso: "2026-07-17T14:00:00+08:00" },
+        { slotIso: "2026-07-17T10:30:00+08:00" },
+        { slotIso: "2026-07-17T14:00:00+08:00" },
       ],
     });
     expect(result).toEqual({
       source: "google",
-      slots: [{ provider: "Dr. Farah", slotIso: "2026-07-17T14:00:00+08:00" }],
+      slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],
     });
   });
 
@@ -209,7 +208,6 @@ describe("Google Calendar service", () => {
       ...synthetic,
       source: "synthetic",
       booking: {
-        provider: "Dr. Farah",
         reason: "Fixture appointment",
         revision: 1,
         slotIso: "2026-07-17T14:00:00+08:00",

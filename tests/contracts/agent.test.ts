@@ -29,7 +29,6 @@ const request = {
     preferredLanguage: "Malay",
   },
   bookingContext: {
-    provider: "Dr. Tan",
     slotIso: "2026-07-14T09:00:00+08:00",
     reason: "Follow-up",
     status: "pending",

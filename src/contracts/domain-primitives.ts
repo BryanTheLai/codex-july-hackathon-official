@@ -27,7 +27,6 @@ export const messageSchema = z.object({
 });
 
 export const bookingSchema = z.object({
-  provider: z.string(),
   slotIso: z.string(),
   reason: z.string(),
   status: z.enum(BOOKING_STATUSES),
