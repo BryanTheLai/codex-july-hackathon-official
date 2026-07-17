@@ -66,8 +66,10 @@ function releaseFrom(result: WorkspaceCommandResult): KnowledgeReleaseState {
   const candidate = history.candidateVersionId
     ? history.versions.find((version) => version.id === history.candidateVersionId)
     : null;
-  const rollbackTarget = history.rollbackTargetVersionId
-    ? history.versions.find((version) => version.id === history.rollbackTargetVersionId)
+  const rollbackTargetVersionId =
+    active?.kind === "restore" ? null : history.rollbackTargetVersionId;
+  const rollbackTarget = rollbackTargetVersionId
+    ? history.versions.find((version) => version.id === rollbackTargetVersionId)
     : null;
   return {
     activeVersionId: history.activeVersionId,
@@ -75,7 +77,7 @@ function releaseFrom(result: WorkspaceCommandResult): KnowledgeReleaseState {
     candidateVersionId: history.candidateVersionId,
     candidateVersionSequence: candidate?.sequence ?? null,
     candidateReady: Boolean(candidate?.passingSuiteId),
-    rollbackTargetVersionId: history.rollbackTargetVersionId,
+    rollbackTargetVersionId,
     rollbackTargetVersionSequence: rollbackTarget?.sequence ?? null,
     workspaceRevision: result.workspace.revision,
   };
@@ -102,13 +104,13 @@ export function createKnowledgeActions({
     try {
       const current = await workspaceClient.load(signal);
       const result = await workspaceCommandClient.execute(createCommand(current.revision), signal);
+      const release = releaseFrom(result);
       const projected = projectServerWorkspace(base, result.workspace.state);
       if (!projected.ok) {
-        set({ lastFeedback: projected.error });
+        set({ knowledgeRelease: release, lastFeedback: projected.error });
         return projected;
       }
       repository.save(projected.state);
-      const release = releaseFrom(result);
       set({ state: projected.state, knowledgeRelease: release, lastFeedback: successFeedback });
       return { ok: true, state: projected.state, release, replay: result.replay };
     } catch (error) {
@@ -126,11 +128,14 @@ export function createKnowledgeActions({
       const base = getState();
       try {
         const workspace = await workspaceClient.load(signal);
-        const projected = projectServerWorkspace(base, workspace.state);
-        if (!projected.ok) return projected;
-        repository.save(projected.state);
         const result = { workspace, replay: null } as WorkspaceCommandResult;
         const release = releaseFrom(result);
+        const projected = projectServerWorkspace(base, workspace.state);
+        if (!projected.ok) {
+          set({ knowledgeRelease: release, lastFeedback: projected.error });
+          return projected;
+        }
+        repository.save(projected.state);
         set({ state: projected.state, knowledgeRelease: release });
         return { ok: true, state: projected.state, release, replay: null };
       } catch (error) {

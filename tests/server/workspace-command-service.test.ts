@@ -198,7 +198,7 @@ describe("workspace command service", () => {
     )!;
     expect(active.kind).toBe("restore");
     expect(active.restoredFromVersionId).toBe("playbook-version-1");
-    expect(restored.workspace.state.playbookHistory.rollbackTargetVersionId).toBe(candidateId);
+    expect(restored.workspace.state.playbookHistory.rollbackTargetVersionId).toBeNull();
     expect(agent).toHaveBeenCalled();
   });
 

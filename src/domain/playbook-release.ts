@@ -401,6 +401,10 @@ export async function rollbackPlaybook(input: {
   if (state.playbookHistory.candidateVersionId) {
     fail("release_blocked", "Finish or discard the Knowledge candidate before rollback");
   }
+  const current = activeVersion(state);
+  if (current.kind === "restore") {
+    fail("release_blocked", "No prior Knowledge version is available to restore");
+  }
   const targetId = state.playbookHistory.rollbackTargetVersionId;
   if (!targetId) {
     fail("release_blocked", "No prior Knowledge version is available to restore");
@@ -408,7 +412,6 @@ export async function rollbackPlaybook(input: {
   if (state.playbookHistory.versions.some((version) => version.id === input.restoreVersionId)) {
     fail("invalid_input", "Knowledge restore version already exists");
   }
-  const current = activeVersion(state);
   const target = versionById(state, targetId);
   const files = await snapshotFiles(structuredClone(target.files));
   const restored: PlaybookBundleVersionPayload = {
@@ -425,7 +428,7 @@ export async function rollbackPlaybook(input: {
   };
   state.playbookHistory.versions.push(restored);
   state.playbookHistory.activeVersionId = restored.id;
-  state.playbookHistory.rollbackTargetVersionId = current.id;
+  state.playbookHistory.rollbackTargetVersionId = null;
   projectFiles(state, restored.files, input.createdAt);
   return serverDomainStateSchema.parse(state);
 }

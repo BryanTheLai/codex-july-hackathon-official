@@ -370,6 +370,109 @@ describe("app store", () => {
     });
   });
 
+  it("keeps authoritative release readiness when historical Eval projection fails", async () => {
+    const server = await createCanonicalServerState();
+    const suite = await freezeEvalSuiteSnapshot({
+      state: server,
+      suiteId: "suite-stale-projection",
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
+      playbookVersionId: server.playbookHistory.activeVersionId,
+      agentConfig: {
+        modelId: "agent-model",
+        apiMode: "responses",
+        agentConfigVersion: "agent-config-v1",
+        promptVersion: "agent-prompt-v1",
+        toolPolicyVersion: "demo-no-tools-v1",
+      },
+      judgeConfig: {
+        modelId: "judge-model",
+        promptVersion: "judge-prompt-v1",
+      },
+      baselineSuiteId: null,
+      createdAt: "2026-07-18T08:00:00+08:00",
+    });
+    server.evalArtifacts.suites.push(suite);
+    server.evalArtifacts.runs.push({
+      id: "eval-run-stale-projection",
+      suiteId: suite.id,
+      caseId: "case-aircon-selection-train",
+      attempt: 1,
+      candidateResponse: "Chemical wash is RM160.",
+      agentResult: {
+        runId: "agent-run-stale-projection",
+        draft: {
+          englishText: "Chemical wash is RM160.",
+          patientLanguage: "English",
+          patientText: "Chemical wash is RM160.",
+        },
+        proposedAction: "reply",
+        handoffReason: null,
+        evidence: [],
+        toolCalls: [],
+        stopReason: "completed",
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        latencyMs: 10,
+      },
+      judgeResult: {
+        overallVerdict: "pass",
+        judgeScore: 1,
+        rationale: "Pass",
+        criterionResults: [
+          {
+            criterionId: "crit-aircon-selection",
+            verdict: "pass",
+            reason: "Pass",
+            evidence: "Chemical wash is RM160.",
+          },
+        ],
+        metadata: {
+          provider: "test",
+          model: "judge-model",
+          promptVersion: "judge-prompt-v1",
+          rubricVersions: {},
+          runId: "judge-run-stale-projection",
+          latencyMs: 10,
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          simulated: true,
+        },
+      },
+      ranAt: "2026-07-18T08:00:00+08:00",
+    });
+    server.evalDatasets[0]!.cases = server.evalDatasets[0]!.cases.filter(
+      (evalCase) => evalCase.id !== "case-aircon-selection-train",
+    );
+    const active = server.playbookHistory.versions[0]!;
+    server.playbookHistory.versions.push({
+      ...active,
+      id: "knowledge-candidate-ready",
+      sequence: 2,
+      parentVersionId: active.id,
+      kind: "correction",
+      passingSuiteId: suite.id,
+      activatedAt: null,
+    });
+    server.playbookHistory.candidateVersionId = "knowledge-candidate-ready";
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 12,
+        state: server,
+      }),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+
+    const result = await serverStore.getState().refreshKnowledgeWorkspace();
+
+    expect(result.ok).toBe(false);
+    expect(serverStore.getState().knowledgeRelease).toMatchObject({
+      candidateVersionId: "knowledge-candidate-ready",
+      candidateReady: true,
+    });
+  });
+
   it("persists valid selection IDs to storage", () => {
     store.getState().selectConversation("convo-aircon-booking");
     store.getState().selectPlaybookFile("file-aircon-booking");

@@ -88,12 +88,16 @@ export function KnowledgeToolbar({
           <>
             <button
               className="knowledge-button knowledge-release-action"
-              disabled={releaseBusy}
+              disabled={releaseBusy || release.candidateReady}
               onClick={onValidate}
-              title="Checks affected train cases, then the full train and holdout suite."
+              title={
+                release.candidateReady
+                  ? "This candidate already passed validation."
+                  : "Checks affected train cases, then the full train and holdout suite."
+              }
               type="button"
             >
-              Validate candidate
+              {release.candidateReady ? "Validated" : "Validate candidate"}
             </button>
             <button
               className="knowledge-button knowledge-button--primary knowledge-release-action"
@@ -106,7 +110,7 @@ export function KnowledgeToolbar({
               }
               type="button"
             >
-              {release.candidateReady ? "Activate" : "Validate first"}
+              {releaseBusy ? "Working..." : release.candidateReady ? "Activate" : "Validate first"}
             </button>
             <button
               className="knowledge-button knowledge-release-action"

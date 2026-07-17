@@ -41,6 +41,39 @@ describe("Knowledge toolbar", () => {
     expect(screen.queryByText(/Replay affected|Replay all/i)).not.toBeInTheDocument();
   });
 
+  it("prevents redundant validation after the candidate is ready", () => {
+    const file = createCanonicalSeed().playbookFiles[0]!;
+    render(
+      <MemoryRouter>
+        <KnowledgeToolbar
+          file={file}
+          onActivate={vi.fn()}
+          onDelete={vi.fn()}
+          onDiscard={vi.fn()}
+          onDiscardCandidate={vi.fn()}
+          onImport={vi.fn()}
+          onNew={vi.fn()}
+          onRename={vi.fn()}
+          onValidate={vi.fn()}
+          onRollback={vi.fn()}
+          onSave={vi.fn()}
+          onTest={vi.fn()}
+          pending={0}
+          release={{
+            candidateReady: true,
+            candidateVersionId: "candidate-1",
+            rollbackTargetVersionId: null,
+          }}
+          releaseBusy={false}
+          saving={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: "Validated" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Activate" })).toBeEnabled();
+  });
+
   it("always renders Roll back disabled with reason before first activation", () => {
     const file = createCanonicalSeed().playbookFiles[0]!;
     render(
