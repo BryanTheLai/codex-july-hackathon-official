@@ -1,0 +1,102 @@
+Bryan Lai | Participant — 9:00 PM
+@CSY @Organiser / Core Ops is it ok for me to change track?
+what i built is flexxible so changing tracks wont be an issue for my side, and i think what i built would be more suitable for msme
+Deepika | Volunteer — 10:21 PM
+Hi Bryan, replying on behalf of CSY.  Yes you may but do make sure to reply to the confirmation email sent earlier.
+Bryan Lai | Participant — 10:38 PM
+alright thanks @Deepika | Volunteer
+https://docs.google.com/forms/d/e/1FAIpQLSdoPuJ2lsegskxBQ6_HKxwtvmD_cRe9oGpXuBwETolk_gftUg/viewform
+
+this one right?
+Deepika | Volunteer — 11:01 PM
+Not that one. You just have to reply to the confirmation email sent to participants stating your track change. You may check your inbox for it (: 
+
+
+By Gemini; there may be mistakes. Learn more
+
+clairechong998@gmail.com
+Jul 5, 2026, 11:06 PM (12 days ago)
+to me, brendan.bytein, jack
+
+Codex Ambassador Malaysia
+Hi bryanfromsabah,
+
+Congratulations - you have been selected for the Codex Community Hackathon Kuala Lumpur 2026 cohort.
+
+You are now part of the selected builder group for the Top 150 selected cohort under the theme Raising the Floor: AI for Malaysia Boleh.
+
+Top 150 selected cohort poster
+
+Event details
+
+Theme: Raising the Floor: AI for Malaysia Boleh
+
+Event period: 11-18 July 2026
+
+Physical hackathon day: 18 July 2026
+
+Venue: Sunway University, Kuala Lumpur
+
+This hackathon is a community-led AI build sprint for practical Malaysian problems. The goal is not just to pitch ideas, but to build working AI-enabled products that can help real Malaysian users, communities, organisations, and workflows.
+
+Your application stood out for its potential to contribute to the builder cohort through technical execution, problem insight, product thinking, domain knowledge, or team contribution.
+
+What happens next
+
+Please complete the confirmation step by 8 July 2026, 11:59 PM MYT.
+
+https://forms.gle/8wzKU64PxBjV6TDE8
+
+In the confirmation, please ensure these details are accurate
+
+full name
+email
+team name and team members, if applicable
+preferred track or problem area
+availability for the online kickoff and physical day
+Key dates
+
+11 July 2026 - online kickoff, team formation, and project scoping
+11-17 July 2026 - online prep week, mentor support, partner sessions, and build preparation
+13 July 2026, 7:00-10:00 PM MYT - Databricks workshop: Build and deploy AI agents on Databricks
+18 July 2026 - physical hackathon, demos, judging, and prize ceremony at Sunway University
+Join the Discord
+
+https://discord.gg/nEexnkUwp
+
+This will be the main participant-facing channel during the online prep and build period.
+
+What to prepare
+
+a short introduction of yourself or your team
+your preferred challenge area
+the Malaysian problem or user group you want to work on
+any existing idea, prototype, repo, or research if available
+your laptop and required development setup
+access to Codex or AI coding tools where possible
+Challenge areas include
+
+Public Services & Civic Access
+MSMEs, Finance & Productivity
+Education & AI Literacy
+Healthcare & Well-being
+Tourism, Culture & Local Economy
+Climate and Resilience
+Accessibility and multilingual Malaysia
+Open Track
+Prizes
+
+1st Place: USD 15,000 in Codex credits
+2nd Place: USD 10,000 in Codex credits
+3rd Place: USD 5,000 in Codex credits
+Top 5 teams: one year of ChatGPT Pro for eligible team members, subject to final fulfilment requirements
+Please do not treat this email as transferable. If your team structure changes, inform the organisers through the confirmation form or Discord.
+
+We are excited to have you with us. Let's build practical AI products for Malaysia.
+
+Best regards,
+
+Siow Yen Chong
+Codex Ambassador Malaysia
+Codex Community Malaysia
+https://codexhackathon.my/
