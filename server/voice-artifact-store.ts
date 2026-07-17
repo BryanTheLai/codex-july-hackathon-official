@@ -17,6 +17,14 @@ export interface VoiceArtifactStore {
     objectPath: string,
     bytes: Uint8Array,
   ): Promise<StoredVoiceArtifact>;
+  clearWorkspace(workspaceId: string): Promise<void>;
+}
+
+export function voiceWorkspaceStoragePrefixes(workspaceId: string): string[] {
+  if (workspaceId === "demo") {
+    return ["outbound"];
+  }
+  return [`${workspaceId}/outbound`, `${workspaceId}`];
 }
 
 export class VoiceArtifactStoreError extends Error {}
@@ -30,6 +38,36 @@ export function createSupabaseVoiceArtifactStore(
   bucket: string = "voice-artifacts",
 ): VoiceArtifactStore {
   const bucketName = z.string().trim().min(1).max(128).parse(bucket);
+
+  async function listObjectPaths(prefix: string): Promise<string[]> {
+    const paths: string[] = [];
+    const pageSize = 1000;
+    let offset = 0;
+    while (true) {
+      const { data, error } = await client.storage.from(bucketName).list(prefix, {
+        limit: pageSize,
+        offset,
+      });
+      if (error) {
+        throw new VoiceArtifactStoreError("Voice artifact listing failed");
+      }
+      const items = data ?? [];
+      for (const item of items) {
+        const childPrefix = prefix ? `${prefix}/${item.name}` : item.name;
+        if (item.id === null || item.id === undefined) {
+          paths.push(...(await listObjectPaths(childPrefix)));
+          continue;
+        }
+        paths.push(childPrefix);
+      }
+      if (items.length < pageSize) {
+        break;
+      }
+      offset += pageSize;
+    }
+    return paths;
+  }
+
   return {
     async upload(inputPath, bytes) {
       const objectPath = objectPathSchema.parse(inputPath);
@@ -63,6 +101,20 @@ export function createSupabaseVoiceArtifactStore(
         throw new VoiceArtifactStoreError("Voice artifact is empty");
       }
       return bytes;
+    },
+
+    async clearWorkspace(workspaceId) {
+      const prefixes = voiceWorkspaceStoragePrefixes(workspaceId);
+      const objectPaths = (
+        await Promise.all(prefixes.map((prefix) => listObjectPaths(prefix)))
+      ).flat();
+      if (objectPaths.length === 0) {
+        return;
+      }
+      const { error } = await client.storage.from(bucketName).remove(objectPaths);
+      if (error) {
+        throw new VoiceArtifactStoreError("Voice artifact cleanup failed");
+      }
     },
   };
 }

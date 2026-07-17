@@ -651,7 +651,7 @@ describe("Evaluation Lab route", () => {
     expect(screen.getByRole("dialog", { name: "Case details" })).toBeInTheDocument();
   });
 
-  it("cancels an in-flight suite when the global demo resets", async () => {
+  it("cancels an in-flight suite when the global reset version changes", async () => {
     const user = userEvent.setup();
     const { store } = renderEval({ store: createPendingEvalStore() });
 
@@ -659,7 +659,7 @@ describe("Evaluation Lab route", () => {
     expect(screen.getByRole("button", { name: "Cancel suite" })).toBeInTheDocument();
 
     act(() => {
-      store.getState().resetDemo();
+      store.setState({ resetVersion: store.getState().resetVersion + 1 });
     });
 
     expect(screen.queryByRole("button", { name: "Cancel suite" })).not.toBeInTheDocument();

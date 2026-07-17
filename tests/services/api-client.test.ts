@@ -13,6 +13,7 @@ import {
   createHttpEvalClient,
   createHttpTelegramOutboundClient,
   createHttpWorkspaceClient,
+  isFactoryResetCompletedWithCleanupFailure,
 } from "../../src/services/api-client";
 
 const sendRequest: OutboundSendRequest = {
@@ -143,7 +144,61 @@ describe("HTTP workspace client", () => {
     );
   });
 
-  it("returns the current workspace when a synthetic reset loses revision CAS", async () => {
+  it("surfaces provider_failed when voice cleanup fails after the RPC reset", async () => {
+    const client = createHttpWorkspaceClient(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: "provider_failed",
+            error:
+              "Workspace reset completed but voice artifact cleanup failed.",
+            retryable: true,
+          }),
+          {
+            status: 502,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    const error = await client.reset!(4).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect(error).toMatchObject({
+      code: "provider_failed",
+      message: expect.stringContaining("voice artifact cleanup failed"),
+      retryable: true,
+    });
+    expect(
+      isFactoryResetCompletedWithCleanupFailure(error as ApiClientError),
+    ).toBe(true);
+  });
+
+  it("surfaces reset_in_progress without a misleading success body", async () => {
+    const client = createHttpWorkspaceClient(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: "provider_failed",
+            error: "A factory reset is already running for this workspace.",
+            retryable: true,
+          }),
+          {
+            status: 503,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(client.reset!(4)).rejects.toMatchObject({
+      code: "provider_failed",
+      message: expect.stringContaining("already running"),
+      retryable: true,
+    });
+  });
+
+  it("returns revision_conflict without running cleanup when the synthetic reset loses revision CAS", async () => {
     const workspace = {
       workspaceId: "demo",
       revision: 5,

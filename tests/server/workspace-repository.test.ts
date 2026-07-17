@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  assertWorkspaceMutationAllowed,
+} from "../../server/factory-reset-service";
 import {
   createWorkspaceRepository,
   WorkspaceRepositoryError,
 } from "../../server/workspace-repository";
+import { beginWorkspaceReset, endWorkspaceReset } from "../../server/workspace-reset-lock";
 import {
   createCanonicalServerState,
   freezeEvalSuiteSnapshot,
@@ -19,6 +23,10 @@ function changedState(fixtureTime: string) {
 }
 
 describe("workspace repository", () => {
+  afterEach(() => {
+    endWorkspaceReset("demo");
+  });
+
   it("bootstraps revision one once without overwriting existing state", async () => {
     const dataSource = new InMemoryWorkspaceDataSource();
     const repository = createWorkspaceRepository(dataSource);
@@ -141,5 +149,23 @@ describe("workspace repository", () => {
     await expect(repository.load("demo")).rejects.toMatchObject({
       code: "invalid_record",
     });
+  });
+
+  it("blocks saves while factory reset is in progress", async () => {
+    const dataSource = new InMemoryWorkspaceDataSource();
+    const repository = createWorkspaceRepository(dataSource, {
+      mutationGuard: assertWorkspaceMutationAllowed,
+    });
+    await repository.bootstrap("demo", createServerStateFixture());
+    beginWorkspaceReset("demo");
+
+    await expect(
+      repository.save("demo", 1, changedState("2026-07-13T16:00:00.000Z")),
+    ).rejects.toEqual(
+      new WorkspaceRepositoryError(
+        "reset_in_progress",
+        "Workspace cannot be modified while factory reset is running.",
+      ),
+    );
   });
 });

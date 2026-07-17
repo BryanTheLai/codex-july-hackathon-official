@@ -1,15 +1,18 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createOutboxRepository } from "./outbox-repository";
+import { DEFAULT_DEMO_SEED_KEY } from "./bootstrap-demo";
+import { createFactoryResetService } from "./factory-reset-service";
 import { readGoogleCalendarConfig } from "./google-calendar-config";
 import {
   createGoogleCalendarConnectionRepository,
   createGoogleCalendarEventRepository,
 } from "./google-calendar-repository";
 import { createGoogleCalendarService } from "./google-calendar-service";
+import { createOutboxRepository } from "./outbox-repository";
 import {
   createSupabaseDemoSeedDataSource,
+  createSupabaseDemoWorkspaceResetDataSource,
   createSupabaseGoogleCalendarConnectionDataSource,
   createSupabaseGoogleCalendarEventDataSource,
   createSupabaseOutboxDataSource,
@@ -17,9 +20,9 @@ import {
   createSupabaseWorkspaceDataSource,
   readSupabaseConfig,
 } from "./supabase";
+import { createSupabaseVoiceArtifactStore } from "./voice-artifact-store";
 import { createWorkspaceRepository } from "./workspace-repository";
 
-const DEFAULT_SEED_KEY = "msme-aircon-v1";
 const DEFAULT_WORKSPACE_ID = "demo";
 const RESET_CONFIRMATION = "RESET_DEMO";
 
@@ -66,46 +69,32 @@ function assertSafetyGates(): void {
   }
 }
 
-async function cleanupGoogleEvents(workspaceId: string): Promise<number> {
+function configuredGoogleCalendar(
+  client: ReturnType<typeof createSupabaseServerClient>,
+  workspaceId: string,
+) {
   const calendarConfig = readGoogleCalendarConfig();
   if (!calendarConfig.enabled) {
-    return 0;
+    return null;
   }
-
-  const config = readSupabaseConfig();
-  const client = createSupabaseServerClient(config);
-  const eventRepository = createGoogleCalendarEventRepository(
-    createSupabaseGoogleCalendarEventDataSource(client),
-  );
   const outboxRepository = createOutboxRepository(
     createSupabaseOutboxDataSource(client),
   );
   const workspaceRepository = createWorkspaceRepository(
     createSupabaseWorkspaceDataSource(client),
   );
-  const calendar = createGoogleCalendarService({
+  return createGoogleCalendarService({
     config: calendarConfig,
     connectionRepository: createGoogleCalendarConnectionRepository(
       createSupabaseGoogleCalendarConnectionDataSource(client),
     ),
-    eventRepository,
+    eventRepository: createGoogleCalendarEventRepository(
+      createSupabaseGoogleCalendarEventDataSource(client),
+    ),
     outboxRepository,
     workspaceId,
     workspaceRepository,
   });
-
-  const mappings = await eventRepository.listByWorkspace(workspaceId);
-  let removed = 0;
-  for (const mapping of mappings) {
-    if (mapping.status !== "active") {
-      await eventRepository.deleteMapping(workspaceId, mapping.conversationId);
-      continue;
-    }
-    await calendar.deleteMappedEvent(mapping.eventId);
-    await eventRepository.deleteMapping(workspaceId, mapping.conversationId);
-    removed += 1;
-  }
-  return removed;
 }
 
 async function run(): Promise<void> {
@@ -128,7 +117,7 @@ async function run(): Promise<void> {
 
   const args = parseArgs(process.argv);
   const workspaceId = args.workspace ?? DEFAULT_WORKSPACE_ID;
-  const seedKey = args.seed ?? DEFAULT_SEED_KEY;
+  const seedKey = args.seed ?? DEFAULT_DEMO_SEED_KEY;
   const confirmation = args.confirm;
   if (confirmation !== RESET_CONFIRMATION) {
     throw new Error(`Confirmation must be exactly ${RESET_CONFIRMATION}`);
@@ -136,49 +125,39 @@ async function run(): Promise<void> {
 
   const config = readSupabaseConfig();
   const client = createSupabaseServerClient(config);
-  const compiledSeed = await createSupabaseDemoSeedDataSource(client)
-    .readCompiled(seedKey)
-    .catch(() => {
-      throw new Error(
-        "Reset preflight failed. Verify Supabase credentials, apply migration 20260718010000_demo_seed_templates.sql, load supabase/seed.sql, and run demo:seed.",
-      );
-    });
-  if (!compiledSeed) {
-    throw new Error(
-      `Compiled seed template not found: ${seedKey}. Apply migrations and run demo:seed first.`,
-    );
-  }
-  const workspace = await createWorkspaceRepository(
+  const workspaceRepository = createWorkspaceRepository(
     createSupabaseWorkspaceDataSource(client),
-  ).load(workspaceId);
+  );
+  const workspace = await workspaceRepository.load(workspaceId);
   if (!workspace) {
     throw new Error(`Workspace not found: ${workspaceId}`);
   }
 
-  const googleEventsRemoved = await cleanupGoogleEvents(workspaceId);
-  const { data, error } = await client.rpc("reset_demo_workspace", {
-    p_workspace_id: workspaceId,
-    p_seed_key: seedKey,
-    p_confirmation: confirmation,
+  const factoryReset = createFactoryResetService({
+    workspaceId,
+    seedKey,
+    workspaceRepository,
+    loadCompiledSeed: (key) =>
+      createSupabaseDemoSeedDataSource(client).readCompiled(key),
+    resetDataSource: createSupabaseDemoWorkspaceResetDataSource(client),
+    googleCalendar: configuredGoogleCalendar(client, workspaceId),
+    voiceArtifactStore: createSupabaseVoiceArtifactStore(client),
   });
-  if (error) {
-    throw new Error(error.message);
+
+  const result = await factoryReset.reset(workspace.revision);
+  if (!result.ok) {
+    throw new Error(`Reset rejected: ${result.code}`);
   }
 
-  const summary = data as Record<string, unknown>;
-  console.log(`workspace=${String(summary.workspace_id ?? workspaceId)}`);
-  console.log(`seed=${String(summary.seed_key ?? seedKey)}`);
-  console.log(`previous_revision=${String(summary.previous_revision ?? "")}`);
-  console.log(`new_revision=${String(summary.new_revision ?? "")}`);
-  console.log(
-    `google_events_removed=${String(summary.google_events_removed ?? googleEventsRemoved)}`,
-  );
-  console.log(`outbox_rows_removed=${String(summary.outbox_rows_removed ?? 0)}`);
-  console.log(`oauth_preserved=${String(summary.oauth_preserved ?? true)}`);
-  console.log(
-    `telegram_sent_audit_preserved=${String(summary.telegram_sent_audit_preserved ?? true)}`,
-  );
-  console.log(`status=${String(summary.status ?? "ready")}`);
+  const summary = result.summary;
+  console.log(`workspace=${workspaceId}`);
+  console.log(`seed=${summary.seedKey}`);
+  console.log(`previous_revision=${String(summary.previousRevision)}`);
+  console.log(`new_revision=${String(summary.newRevision)}`);
+  console.log(`google_events_removed=${String(summary.googleEventsRemoved)}`);
+  console.log(`outbox_rows_removed=${String(summary.outboxRowsRemoved)}`);
+  console.log(`oauth_preserved=${String(summary.oauthPreserved)}`);
+  console.log(`status=ready`);
 }
 
 const directRun =

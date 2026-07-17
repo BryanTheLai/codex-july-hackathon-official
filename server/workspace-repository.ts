@@ -38,6 +38,7 @@ export type WorkspaceRepositoryErrorCode =
   | "invalid_input"
   | "invalid_record"
   | "not_found"
+  | "reset_in_progress"
   | "storage_failed";
 
 export class WorkspaceRepositoryError extends Error {
@@ -101,9 +102,15 @@ function toEnvelope(record: WorkspaceRecord): WorkspaceEnvelope {
   });
 }
 
+type WorkspaceRepositoryOptions = {
+  mutationGuard?: (workspaceId: string) => void;
+};
+
 export function createWorkspaceRepository(
   dataSource: WorkspaceDataSource,
+  options: WorkspaceRepositoryOptions = {},
 ): WorkspaceRepository {
+  const { mutationGuard } = options;
   return {
     async load(workspaceId) {
       const id = parseWorkspaceId(workspaceId);
@@ -136,6 +143,7 @@ export function createWorkspaceRepository(
 
     async save(workspaceId, expectedRevision, state) {
       const id = parseWorkspaceId(workspaceId);
+      mutationGuard?.(id);
       const revision = revisionSchema.safeParse(expectedRevision);
       if (!revision.success) {
         throw new WorkspaceRepositoryError(

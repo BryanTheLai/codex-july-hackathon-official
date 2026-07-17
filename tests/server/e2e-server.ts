@@ -3,18 +3,33 @@ import { fileURLToPath } from "node:url";
 
 import express from "express";
 
-import { createCanonicalServerState } from "../../src/domain";
+import {
+  createCanonicalServerState,
+  mergeTelegramInboundText,
+} from "../../src/domain";
 import type { AgentRunRequest } from "../../src/contracts/agent";
+import { SCHEMA_VERSION } from "../../src/contracts/constants";
 import type { JudgeRequest, JudgeResponse } from "../../src/contracts/judge";
+import { DEFAULT_DEMO_SEED_KEY } from "../../server/bootstrap-demo";
 import { createEvalService } from "../../server/eval-service";
+import {
+  assertWorkspaceMutationAllowed,
+  createFactoryResetService,
+} from "../../server/factory-reset-service";
 import { createJudgeApp } from "../../server/index";
+import type { ResetDemoWorkspaceResult } from "../../server/supabase";
 import { createWorkspaceCommandService } from "../../server/workspace-command-service";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
+import { endWorkspaceReset } from "../../server/workspace-reset-lock";
+import type { GoogleCalendarService } from "../../server/google-calendar-service";
+import type { VoiceArtifactStore } from "../../server/voice-artifact-store";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
 const workspaceId = "e2e";
 const dataSource = new InMemoryWorkspaceDataSource();
-const repository = createWorkspaceRepository(dataSource);
+const repository = createWorkspaceRepository(dataSource, {
+  mutationGuard: assertWorkspaceMutationAllowed,
+});
 const agentConfig = {
   modelId: "deterministic-e2e-agent",
   apiMode: "responses" as const,
@@ -132,10 +147,117 @@ async function createE2eState() {
     sourceCaseId: "case-aircon-selection-train",
     lineHint: 4,
   });
-  return state;
+  const telegramResult = mergeTelegramInboundText(state, {
+    channel: "telegram",
+    externalEventId: "e2e-factory-reset-inbound",
+    externalConversationId: "-10042",
+    externalMessageId: "88",
+    sender: {
+      externalId: "42",
+      displayName: "Aina Zulkifli",
+    },
+    message: {
+      kind: "text",
+      text: "Boleh saya buat temujanji?",
+      language: "ms",
+    },
+    receivedAt: "2026-07-13T12:00:00.000Z",
+  });
+  if (!telegramResult.ok) {
+    throw new Error(telegramResult.error);
+  }
+  return telegramResult.state;
 }
 
+const e2eGoogleCalendar: GoogleCalendarService = {
+  authorizationUrl: () => "https://example.com/oauth",
+  completeAuthorization: async () => {},
+  status: async () => ({
+    calendarId: "primary",
+    configured: true,
+    mode: "google",
+    status: "connected",
+  }),
+  syncBooking: async () => {},
+  deleteMappedEvent: async () => {},
+  deleteTrackedEvents: async () => {},
+};
+
 await repository.bootstrap(workspaceId, await createE2eState());
+
+const voiceArtifactStore: VoiceArtifactStore = {
+  download: async () => new Uint8Array(),
+  upload: async (objectPath) => ({
+    objectPath,
+    contentType: "audio/ogg",
+    sha256: "e2e-voice-artifact",
+  }),
+  clearWorkspace: async () => {},
+};
+
+async function resetWorkspaceInMemory(
+  resetWorkspaceId: string,
+  seedKey: string,
+  expectedRevision: number,
+): Promise<ResetDemoWorkspaceResult> {
+  const current = await repository.load(resetWorkspaceId);
+  if (!current) {
+    throw new Error(`Workspace ${resetWorkspaceId} not found.`);
+  }
+  if (current.revision !== expectedRevision) {
+    return {
+      ok: false,
+      code: "revision_conflict",
+      workspace: current,
+    };
+  }
+  const canonical = await createCanonicalServerState();
+  const updated = await dataSource.updateIfRevision(
+    {
+      workspaceId: resetWorkspaceId,
+      schemaVersion: SCHEMA_VERSION,
+      revision: expectedRevision + 1,
+      state: canonical,
+    },
+    expectedRevision,
+  );
+  if (!updated) {
+    return {
+      ok: false,
+      code: "revision_conflict",
+      workspace: current,
+    };
+  }
+  return {
+    ok: true,
+    workspace: {
+      workspaceId: updated.workspaceId,
+      revision: updated.revision,
+      state: updated.state,
+    },
+    summary: {
+      seedKey,
+      previousRevision: expectedRevision,
+      newRevision: updated.revision,
+      outboxRowsRemoved: 0,
+      googleEventsRemoved: 0,
+      calendarDeliveriesRemoved: 0,
+      telegramDeliveriesRemoved: 0,
+      telegramEventsRemoved: 0,
+      oauthPreserved: true,
+    },
+  };
+}
+
+const factoryReset = createFactoryResetService({
+  workspaceId,
+  seedKey: DEFAULT_DEMO_SEED_KEY,
+  workspaceRepository: repository,
+  loadCompiledSeed: async () => createCanonicalServerState(),
+  resetDataSource: { reset: resetWorkspaceInMemory },
+  voiceArtifactStore,
+  googleCalendar: e2eGoogleCalendar,
+});
 
 const evalService = createEvalService({
   workspaceId,
@@ -169,8 +291,11 @@ const app = createJudgeApp({
     now: () => new Date().toISOString(),
     proposer: deterministicProposer,
   }),
+  factoryReset,
+  googleCalendar: e2eGoogleCalendar,
 });
 app.post("/api/e2e/reset", async (_request, response) => {
+  endWorkspaceReset(workspaceId);
   dataSource.records.clear();
   suiteSequence = 0;
   runSequence = 0;

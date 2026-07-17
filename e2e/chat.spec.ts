@@ -82,7 +82,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     await expect(page.getByRole("complementary", { name: "Customer context" })).toBeVisible();
     const navBox = await page.getByRole("link", { name: "Chat Control" }).boundingBox();
     const demoBox = await page.locator(".app-shell__demo").boundingBox();
-    const resetBox = await page.getByRole("button", { name: "Reset Demo" }).boundingBox();
+    const resetBox = await page.getByRole("button", { name: "Factory reset" }).boundingBox();
     expect(Math.round(navBox?.height ?? 0)).toBe(Math.round(demoBox?.height ?? 0));
     expect(Math.round(demoBox?.height ?? 0)).toBe(Math.round(resetBox?.height ?? 0));
     expect(

@@ -10,7 +10,12 @@ import {
   type AppState,
   type ConversationId,
 } from "../../src/domain";
+import { projectAuthoritativeWorkspace } from "../../src/domain/telegram-workspace";
 import type { WorkspaceClient } from "../../src/services/api-client";
+import { ApiClientError } from "../../src/services/api-client";
+import {
+  TELEGRAM_WORKSPACE_STORAGE_KEY,
+} from "../../src/store/telegram-workspace-repository";
 import {
   LEGACY_STORAGE_KEY,
   STORAGE_KEY,
@@ -164,7 +169,7 @@ describe("app store", () => {
     store = createAppStore(storage);
   });
 
-  it("reset restores a deep canonical seed", () => {
+  it("fails closed before a server revision is loaded", () => {
     const seed = createCanonicalSeed();
     const convoId = seedConversationId(seed);
     store.getState().sendStaffReply({
@@ -180,26 +185,26 @@ describe("app store", () => {
       evalCaseId: "case-aircon-selection-train",
       evalDrawer: "evidence",
     });
+    const before = structuredClone(store.getState().state);
 
-    store.getState().resetDemo();
+    const result = store.getState().resetDemo();
 
-    const after = store.getState().state;
-    const canonical = createCanonicalSeed();
-    expect(after).toEqual(canonical);
-    expect(after).not.toBe(canonical);
-    expect(after.conversations).not.toBe(canonical.conversations);
-    expect(after.selections.conversationId).toBe(canonical.selections.conversationId);
-    expect(store.getState().resetVersion).toBe(1);
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/server workspace finishes loading/i),
+    });
+    expect(store.getState().state).toEqual(before);
+    expect(store.getState().resetVersion).toBe(0);
     expect(store.getState().routeUi).toEqual({
-      chatMobilePane: "list",
-      knowledgeCorrectionId: null,
-      knowledgePane: "files",
-      evalCaseId: null,
-      evalDrawer: null,
+      chatMobilePane: "details",
+      knowledgeCorrectionId: "corr-booking-confirmation",
+      knowledgePane: "changes",
+      evalCaseId: "case-aircon-selection-train",
+      evalDrawer: "evidence",
     });
   });
 
-  it("uses the server reset to preserve Telegram state after workspace refresh", async () => {
+  it("factory reset adopts authoritative server state and clears local caches", async () => {
     const inbound = mergeTelegramInboundText(
       await createCanonicalServerState(),
       {
@@ -223,6 +228,12 @@ describe("app store", () => {
     if (!inbound.ok) {
       return;
     }
+    const canonicalServer = await createCanonicalServerState();
+    const canonicalProjection = projectAuthoritativeWorkspace(canonicalServer);
+    expect(canonicalProjection.ok).toBe(true);
+    if (!canonicalProjection.ok) {
+      return;
+    }
     const workspaceClient: WorkspaceClient = {
       load: vi.fn().mockResolvedValue({
         workspaceId: "demo",
@@ -234,12 +245,19 @@ describe("app store", () => {
         workspace: {
           workspaceId: "demo",
           revision: 8,
-          state: inbound.state,
+          state: canonicalServer,
         },
       }),
     };
     const serverStore = createAppStore(storage, { workspaceClient });
     await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().updateRouteUi({
+      chatMobilePane: "details",
+      knowledgeCorrectionId: "corr-booking-confirmation",
+      knowledgePane: "changes",
+      evalCaseId: "case-aircon-selection-train",
+      evalDrawer: "evidence",
+    });
 
     const result = await serverStore.getState().resetDemo();
 
@@ -248,112 +266,288 @@ describe("app store", () => {
     expect(
       serverStore
         .getState()
-        .state.conversations.find(
-          (conversation) =>
-            conversation.id === "telegram-conversation:-10042",
-        )?.messages[0]?.text,
-    ).toBe("Boleh saya buat temujanji?");
+        .state.conversations.some(
+          (conversation) => conversation.id === "telegram-conversation:-10042",
+        ),
+    ).toBe(false);
+    expect(serverStore.getState().state).toEqual(canonicalProjection.state);
+    expect(serverStore.getState().knowledgeRelease).toBeNull();
+    expect(serverStore.getState().resetVersion).toBe(1);
+    expect(serverStore.getState().routeUi).toEqual({
+      chatMobilePane: "list",
+      knowledgeCorrectionId: null,
+      knowledgePane: "files",
+      evalCaseId: null,
+      evalDrawer: null,
+    });
     expect(serverStore.getState().telegramWorkspace).toMatchObject({
       status: "ready",
       workspaceRevision: 8,
-      conversationRevisions: {
-        "telegram-conversation:-10042": 1,
-      },
+      conversationRevisions: {},
+      speechArtifacts: {},
+      pendingDelivery: null,
+      deliveryNotice: null,
     });
+    const persistedTelegram = JSON.parse(
+      storage.getItem(TELEGRAM_WORKSPACE_STORAGE_KEY)!,
+    );
+    expect(persistedTelegram.state.conversationRevisions).toEqual({});
+    expect(persistedTelegram.state.speechArtifacts).toEqual({});
   });
 
-  it("projects preserved server Eval evidence after a browser reset", async () => {
-    const server = await createCanonicalServerState();
-    const suite = await freezeEvalSuiteSnapshot({
-      state: server,
-      suiteId: "suite-reset-projection",
-      datasetId: "dataset-aircon-ops",
-      caseIds: ["case-aircon-selection-train"],
-      playbookVersionId: server.playbookHistory.activeVersionId,
-      agentConfig: {
-        modelId: "agent-model",
-        apiMode: "responses",
-        agentConfigVersion: "agent-config-v1",
-        promptVersion: "agent-prompt-v1",
-        toolPolicyVersion: "demo-no-tools-v1",
-      },
-      judgeConfig: {
-        modelId: "judge-model",
-        promptVersion: "judge-prompt-v1",
-      },
-      baselineSuiteId: null,
-      createdAt: "2026-07-13T12:00:00.000Z",
-    });
-    server.evalArtifacts.suites.push(suite);
-    server.evalArtifacts.runs.push({
-      id: "eval-run-reset-projection",
-      suiteId: suite.id,
-      caseId: "case-aircon-selection-train",
-      attempt: 1,
-      candidateResponse: "Please seek urgent care now.",
-      agentResult: {
-        runId: "agent-run-reset-projection",
-        draft: {
-          englishText: "Please seek urgent care now.",
-          patientLanguage: "English",
-          patientText: "Please seek urgent care now.",
-        },
-        proposedAction: "reply",
-        handoffReason: null,
-        evidence: [],
-        toolCalls: [],
-        stopReason: "completed",
-        usage: {
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-        },
-        latencyMs: 10,
-      },
-      judgeResult: {
-        overallVerdict: "pass",
-        judgeScore: 1,
-        rationale: "Pass",
-        criterionResults: [
-          {
-            criterionId: "crit-aircon-selection",
-            verdict: "pass",
-            reason: "Pass",
-            evidence: "Please seek urgent care now.",
-          },
-        ],
-        metadata: {
-          provider: "test",
-          model: "judge-model",
-          promptVersion: "judge-prompt-v1",
-          rubricVersions: { "crit-aircon-selection": 1 },
-          runId: "eval-run-reset-projection",
-          latencyMs: 10,
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          simulated: true,
-        },
-      },
-      ranAt: "2026-07-13T12:00:00.000Z",
-    });
+  it("preserves state when factory reset returns revision_conflict", async () => {
+    const dirtyServer = await createCanonicalServerState();
     const workspaceClient: WorkspaceClient = {
       load: vi.fn().mockResolvedValue({
         workspaceId: "demo",
         revision: 7,
-        state: server,
+        state: dirtyServer,
+      }),
+      reset: vi.fn().mockResolvedValue({
+        ok: false,
+        code: "revision_conflict",
+        workspace: {
+          workspaceId: "demo",
+          revision: 8,
+          state: await createCanonicalServerState(),
+        },
+      }),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+    await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().sendStaffReply({
+      conversationId: seedConversationId(serverStore.getState().state),
+      text: "Mutation before revision conflict",
+      kind: "reply",
+    });
+    const before = structuredClone(serverStore.getState().state);
+
+    const result = await serverStore.getState().resetDemo();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toMatch(/workspace changed before reset/i);
+    expect(serverStore.getState().state).toEqual(before);
+    expect(serverStore.getState().lastFeedback).toMatch(/workspace changed before reset/i);
+    expect(serverStore.getState().resetVersion).toBe(0);
+  });
+
+  it("does not fall back to local reset when factory reset is feature_disabled", async () => {
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 7,
+        state: await createCanonicalServerState(),
+      }),
+      reset: vi.fn().mockRejectedValue(
+        new ApiClientError(
+          "feature_disabled",
+          "Factory reset is not configured.",
+          false,
+        ),
+      ),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+    await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().sendStaffReply({
+      conversationId: seedConversationId(serverStore.getState().state),
+      text: "Mutation before feature_disabled reset",
+      kind: "reply",
+    });
+    const before = structuredClone(serverStore.getState().state);
+
+    const result = await serverStore.getState().resetDemo();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toMatch(/factory reset is not configured/i);
+    expect(serverStore.getState().state).toEqual(before);
+    expect(serverStore.getState().lastFeedback).toMatch(/factory reset is not configured/i);
+  });
+
+  it("does not fall back to local reset when the server factory reset fails", async () => {
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 7,
+        state: await createCanonicalServerState(),
+      }),
+      reset: vi.fn().mockRejectedValue(
+        new ApiClientError(
+          "provider_failed",
+          "Google cleanup failed.",
+          true,
+        ),
+      ),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+    await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().sendStaffReply({
+      conversationId: seedConversationId(serverStore.getState().state),
+      text: "Mutation before failed reset",
+      kind: "reply",
+    });
+    const before = structuredClone(serverStore.getState().state);
+
+    const result = await serverStore.getState().resetDemo();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toMatch(/google cleanup failed/i);
+    expect(serverStore.getState().state).toEqual(before);
+    expect(serverStore.getState().lastFeedback).toMatch(/google cleanup failed/i);
+  });
+
+  it("reloads authoritative workspace after voice cleanup fails post-RPC", async () => {
+    const canonicalServer = await createCanonicalServerState();
+    const canonicalProjection = projectAuthoritativeWorkspace(canonicalServer);
+    expect(canonicalProjection.ok).toBe(true);
+    if (!canonicalProjection.ok) {
+      return;
+    }
+    const workspaceClient: WorkspaceClient = {
+      load: vi
+        .fn()
+        .mockResolvedValueOnce({
+          workspaceId: "demo",
+          revision: 7,
+          state: canonicalServer,
+        })
+        .mockResolvedValue({
+          workspaceId: "demo",
+          revision: 8,
+          state: canonicalServer,
+        }),
+      reset: vi.fn().mockRejectedValue(
+        new ApiClientError(
+          "provider_failed",
+          "Workspace reset completed but voice artifact cleanup failed.",
+          true,
+        ),
+      ),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+    await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().sendStaffReply({
+      conversationId: seedConversationId(serverStore.getState().state),
+      text: "Mutation before partial reset",
+      kind: "reply",
+    });
+
+    const result = await serverStore.getState().resetDemo();
+
+    expect(result.ok).toBe(true);
+    expect(workspaceClient.load).toHaveBeenCalled();
+    expect(serverStore.getState().state).toEqual(canonicalProjection.state);
+    expect(serverStore.getState().lastFeedback).toMatch(/voice artifact cleanup failed/i);
+    expect(serverStore.getState().telegramWorkspace.workspaceRevision).toBe(8);
+  });
+
+  it("fails closed when voice cleanup errors but workspace revision did not advance", async () => {
+    const canonicalServer = await createCanonicalServerState();
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 7,
+        state: canonicalServer,
+      }),
+      reset: vi.fn().mockRejectedValue(
+        new ApiClientError(
+          "provider_failed",
+          "Workspace reset completed but voice artifact cleanup failed.",
+          true,
+        ),
+      ),
+    };
+    const serverStore = createAppStore(storage, { workspaceClient });
+    await serverStore.getState().refreshTelegramWorkspace();
+    serverStore.getState().sendStaffReply({
+      conversationId: seedConversationId(serverStore.getState().state),
+      text: "Mutation before unchanged revision recovery",
+      kind: "reply",
+    });
+    const before = structuredClone(serverStore.getState().state);
+
+    const result = await serverStore.getState().resetDemo();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toMatch(/voice artifact cleanup failed/i);
+    expect(serverStore.getState().state).toEqual(before);
+    expect(serverStore.getState().lastFeedback).toMatch(/voice artifact cleanup failed/i);
+    expect(serverStore.getState().resetVersion).toBe(0);
+    expect(workspaceClient.load).toHaveBeenCalled();
+  });
+
+  it("clears imported manual Eval evidence after a successful factory reset", async () => {
+    const dirtyServer = await createCanonicalServerState();
+    const canonicalServer = await createCanonicalServerState();
+    const canonicalProjection = projectAuthoritativeWorkspace(canonicalServer);
+    expect(canonicalProjection.ok).toBe(true);
+    if (!canonicalProjection.ok) {
+      return;
+    }
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 7,
+        state: dirtyServer,
       }),
       reset: vi.fn().mockResolvedValue({
         ok: true,
         workspace: {
           workspaceId: "demo",
           revision: 8,
-          state: server,
+          state: canonicalServer,
         },
       }),
     };
-    const serverStore = createAppStore(storage, { workspaceClient });
+    const serverStore = createAppStore(storage, {
+      judgeClient: createFixtureJudgeClient(),
+      workspaceClient,
+    });
     await serverStore.getState().refreshTelegramWorkspace();
+    const manualCase = serverStore.getState().addCase({
+      datasetId: "dataset-aircon-ops",
+      title: "Imported manual holdout",
+      split: "holdout",
+      type: "general",
+      language: "English",
+      inputConversation: {
+        messages: [
+          {
+            id: "manual-case-input-1",
+            role: "patient",
+            text: "Can I get a discount?",
+            sentAt: "2026-07-13T12:00:00.000Z",
+          },
+        ],
+      },
+      expectedHumanOutput: "No discounts are available.",
+      criterionIds: ["crit-aircon-price"],
+    });
+    expect(manualCase.ok).toBe(true);
+    const manualCaseId = serverStore
+      .getState()
+      .state.evalDatasets[0]!
+      .cases.find((evalCase) => evalCase.source.kind === "manual")?.id;
+    expect(manualCaseId).toBeTruthy();
+    const evalRun = await serverStore.getState().runEvalCase("case-aircon-selection-train");
+    expect(evalRun.ok).toBe(true);
+    expect(
+      serverStore
+        .getState()
+        .state.evalDatasets[0]!
+        .cases.find((evalCase) => evalCase.id === "case-aircon-selection-train")?.grade,
+    ).toBeDefined();
 
     const result = await serverStore.getState().resetDemo();
 
@@ -361,13 +555,16 @@ describe("app store", () => {
     expect(
       serverStore
         .getState()
-        .state.evalDatasets[0]!.cases.find(
-          (evalCase) => evalCase.id === "case-aircon-selection-train",
-        ),
-    ).toMatchObject({
-      actualSyntheticOutput: "Please seek urgent care now.",
-      grade: { pass: true, verdict: "pass" },
-    });
+        .state.evalDatasets[0]!
+        .cases.some((evalCase) => evalCase.source.kind === "manual"),
+    ).toBe(false);
+    expect(
+      serverStore
+        .getState()
+        .state.evalDatasets[0]!
+        .cases.find((evalCase) => evalCase.id === "case-aircon-selection-train"),
+    ).not.toHaveProperty("grade");
+    expect(serverStore.getState().state).toEqual(canonicalProjection.state);
   });
 
   it("keeps authoritative release readiness when historical Eval projection fails", async () => {
