@@ -188,7 +188,7 @@ describe("versioned Knowledge release state", () => {
     expect(activated.playbookHistory.activeVersionId).toBe("candidate-2");
     expect(activated.playbookHistory.rollbackTargetVersionId).toBe("playbook-version-1");
     expect(restored.playbookHistory.activeVersionId).toBe("restore-3");
-    expect(restored.playbookHistory.rollbackTargetVersionId).toBe("candidate-2");
+    expect(restored.playbookHistory.rollbackTargetVersionId).toBeNull();
     expect(restored.playbookHistory.versions.find((item) => item.id === "restore-3")).toEqual(
       expect.objectContaining({
         kind: "restore",
@@ -201,5 +201,12 @@ describe("versioned Knowledge release state", () => {
         .find((item) => item.id === "restore-3")
         ?.files.find((file) => file.id === rateCard.id)?.content,
     ).toBe(rateCard.content);
+    await expect(
+      rollbackPlaybook({
+        state: restored,
+        restoreVersionId: "restore-4",
+        createdAt: "2026-07-14T12:06:00.000Z",
+      }),
+    ).rejects.toThrow("No prior Knowledge version is available to restore");
   });
 });

@@ -9,7 +9,13 @@ import {
   serverDomainStateSchema,
   type ServerDomainStatePayload,
 } from "../src/contracts/app-state";
-import { workspaceIdSchema } from "../src/contracts/api";
+import {
+  saveWorkspaceResultSchema,
+  workspaceEnvelopeSchema,
+  workspaceIdSchema,
+  type SaveWorkspaceResult,
+  type WorkspaceEnvelope,
+} from "../src/contracts/api";
 import { SCHEMA_VERSION } from "../src/contracts/constants";
 import type {
   TelegramDeliveryDataSource,
@@ -420,6 +426,79 @@ const googleCalendarEventColumns =
 const demoSeedTemplateColumns =
   "seed_key,schema_version,source_state,state,compiled_at";
 
+const resetDemoWorkspaceRpcResultSchema = z
+  .object({
+    workspace_id: workspaceIdSchema,
+    seed_key: z.string(),
+    previous_revision: revisionSchema,
+    new_revision: revisionSchema,
+    outbox_rows_removed: z.number().int().nonnegative(),
+    google_events_removed: z.number().int().nonnegative(),
+    calendar_deliveries_removed: z.number().int().nonnegative(),
+    telegram_deliveries_removed: z.number().int().nonnegative(),
+    telegram_events_removed: z.number().int().nonnegative(),
+    oauth_preserved: z.literal(true),
+  })
+  .strict();
+
+export type DemoWorkspaceResetSummary = {
+  seedKey: string;
+  previousRevision: number;
+  newRevision: number;
+  outboxRowsRemoved: number;
+  googleEventsRemoved: number;
+  calendarDeliveriesRemoved: number;
+  telegramDeliveriesRemoved: number;
+  telegramEventsRemoved: number;
+  oauthPreserved: true;
+};
+
+export type ResetDemoWorkspaceResult =
+  | {
+      ok: true;
+      workspace: WorkspaceEnvelope;
+      summary: DemoWorkspaceResetSummary;
+    }
+  | Extract<SaveWorkspaceResult, { ok: false }>;
+
+export interface DemoWorkspaceResetDataSource {
+  reset(
+    workspaceId: string,
+    seedKey: string,
+    expectedRevision: number,
+  ): Promise<ResetDemoWorkspaceResult>;
+}
+
+function toWorkspaceEnvelope(record: WorkspaceRecord): WorkspaceEnvelope {
+  return workspaceEnvelopeSchema.parse({
+    workspaceId: record.workspaceId,
+    revision: record.revision,
+    state: record.state,
+  });
+}
+
+function toResetSummary(
+  row: z.infer<typeof resetDemoWorkspaceRpcResultSchema>,
+): DemoWorkspaceResetSummary {
+  return {
+    seedKey: row.seed_key,
+    previousRevision: row.previous_revision,
+    newRevision: row.new_revision,
+    outboxRowsRemoved: row.outbox_rows_removed,
+    googleEventsRemoved: row.google_events_removed,
+    calendarDeliveriesRemoved: row.calendar_deliveries_removed,
+    telegramDeliveriesRemoved: row.telegram_deliveries_removed,
+    telegramEventsRemoved: row.telegram_events_removed,
+    oauthPreserved: row.oauth_preserved,
+  };
+}
+
+function isRevisionConflictError(
+  error: { message?: string } | null,
+): boolean {
+  return error?.message?.includes("revision_conflict") ?? false;
+}
+
 export function createSupabaseWorkspaceDataSource(
   client: SupabaseClient,
   now: () => string = () => new Date().toISOString(),
@@ -824,6 +903,56 @@ export function createSupabaseDemoSeedDataSource(
         })
         .eq("seed_key", seedKey);
       if (error) return throwDataSourceError("update");
+    },
+  };
+}
+
+function throwDemoWorkspaceResetError(): never {
+  throw new SupabaseDataSourceError(
+    "update",
+    "Supabase demo workspace reset failed",
+  );
+}
+
+export function createSupabaseDemoWorkspaceResetDataSource(
+  client: SupabaseClient,
+): DemoWorkspaceResetDataSource {
+  const workspaceDataSource = createSupabaseWorkspaceDataSource(client);
+
+  return {
+    async reset(workspaceId, seedKey, expectedRevision) {
+      const { data, error } = await client.rpc("reset_demo_workspace", {
+        p_workspace_id: workspaceId,
+        p_seed_key: seedKey,
+        p_expected_revision: expectedRevision,
+      });
+
+      if (error) {
+        if (isRevisionConflictError(error)) {
+          const current = await workspaceDataSource.read(workspaceId);
+          if (!current) {
+            return throwDemoWorkspaceResetError();
+          }
+          return saveWorkspaceResultSchema.parse({
+            ok: false,
+            code: "revision_conflict",
+            workspace: toWorkspaceEnvelope(current),
+          });
+        }
+        return throwDemoWorkspaceResetError();
+      }
+
+      const parsed = resetDemoWorkspaceRpcResultSchema.parse(data);
+      const updated = await workspaceDataSource.read(workspaceId);
+      if (!updated) {
+        return throwDemoWorkspaceResetError();
+      }
+
+      return {
+        ok: true,
+        workspace: toWorkspaceEnvelope(updated),
+        summary: toResetSummary(parsed),
+      };
     },
   };
 }
