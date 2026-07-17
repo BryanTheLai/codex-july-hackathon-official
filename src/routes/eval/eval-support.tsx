@@ -73,7 +73,7 @@ export function SuiteHistory({ dataset }: { dataset: EvalDataset }) {
         <span>All-case pass rate, 0-100%</span>
       </header>
       {data.length === 0 ? (
-        <div className="eval-history__empty">Run the suite to create history.</div>
+        <div className="eval-history__empty">Run all cases to create history.</div>
       ) : (
         <div
           aria-label={`${data.length} suite history snapshots`}

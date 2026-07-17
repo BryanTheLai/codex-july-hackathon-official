@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildGenerationInput, createCanonicalSeed, type EvalGrade } from "../../src/domain";
 
-const SEED_DATASET_ID = "dataset-seed";
+const SEED_DATASET_ID = "dataset-aircon-ops";
 
 function trainCaseId() {
   const seed = createCanonicalSeed();

@@ -16,6 +16,7 @@ import {
   type ChatView,
   type MobilePane,
   visibleConversations,
+  autonomousFeedbackEvalCaseId,
 } from "./chat-model";
 import { BookingDialog } from "./booking-dialog";
 import { ChatToolbar } from "./chat-toolbar";
@@ -311,7 +312,7 @@ export default function ChatRoute() {
     return { ok: true as const, state };
   };
 
-  const openDream = () => {
+  const openKnowledge = () => {
     if (!selectedConversation) {
       return;
     }
@@ -320,7 +321,7 @@ export default function ChatRoute() {
       return;
     }
     selectPlaybookFile(playbookId);
-    navigate(`/dream?file=${playbookId}`);
+    navigate(`/knowledge?file=${playbookId}`);
   };
 
   const renderRail = (showClose: boolean) =>
@@ -333,7 +334,7 @@ export default function ChatRoute() {
           setRailOpen(false);
           setMobilePane("thread");
         }}
-        onDream={openDream}
+        onKnowledge={openKnowledge}
         onEditBooking={() => setBookingEditId(selectedConversation.id)}
         onEscalate={() => escalateEmergency(selectedConversation.id)}
         onImportEval={openEval}
@@ -351,6 +352,14 @@ export default function ChatRoute() {
   const renderThread = () => (
     <ThreadPane
       conversation={selectedConversation}
+      feedbackEvalCaseId={
+        selectedConversation
+          ? autonomousFeedbackEvalCaseId(
+              selectedConversation.id,
+              state.evalDatasets,
+            )
+          : null
+      }
       onBack={() => setMobilePane("list")}
       onDetails={() => {
         if (isSinglePane) {
@@ -578,8 +587,8 @@ export default function ChatRoute() {
             if (result.ok) {
               setBookingNotice(
                 isUpdate
-                  ? "Google Calendar synchronization has been queued. Review and send the patient message from Inbox if notification is needed."
-                  : "Google Calendar synchronization has been queued for this new booking. Review and send the patient message from Inbox if notification is needed.",
+                  ? "Google Calendar synchronization has been queued. Review and send the customer message from Inbox if notification is needed."
+                  : "Google Calendar synchronization has been queued for this new booking. Review and send the customer message from Inbox if notification is needed.",
               );
             }
             return result;
@@ -590,8 +599,8 @@ export default function ChatRoute() {
           if (result.ok) {
             setBookingNotice(
               isUpdate
-                ? "This synthetic demo booking was updated locally. It does not send a patient message or create a Google Calendar event."
-                : "This synthetic demo booking was created locally. It does not send a patient message or create a Google Calendar event.",
+                ? "This synthetic demo booking was updated locally. It does not send a customer message or create a Google Calendar event."
+                : "This synthetic demo booking was created locally. It does not send a customer message or create a Google Calendar event.",
             );
           }
           return result;

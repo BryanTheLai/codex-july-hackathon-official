@@ -27,12 +27,12 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
 
   await page.goto("/eval");
   await expect(page.getByRole("heading", { name: "Evaluation Lab" })).toBeVisible();
-  await expect(page.getByText("Emergency chest pain", { exact: true })).toBeVisible();
+  await expect(page.getByText("Combined symptoms need chemical wash", { exact: true })).toBeVisible();
 
   const mobile = testInfo.project.name !== "desktop-1440";
   if (mobile) {
     await expect(page.getByRole("table", { name: "Evaluation cases" })).toHaveCount(0);
-    const firstCard = page.getByRole("article", { name: "Emergency chest pain" });
+    const firstCard = page.getByRole("article", { name: "Combined symptoms need chemical wash" });
     await expect(firstCard).toBeVisible();
     const cardBox = await firstCard.boundingBox();
     expect(cardBox).not.toBeNull();
@@ -42,7 +42,11 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
     await expectMobileTargets(page);
   } else {
     await expect(page.getByRole("table", { name: "Evaluation cases" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Evaluation support" })).toHaveCount(0);
+    const supportRail = page.getByRole("complementary", { name: "Evaluation support" });
+    await expect(supportRail).toBeVisible();
+    expect(Math.round((await supportRail.boundingBox())?.width ?? 0)).toBe(280);
+    await expect(supportRail.getByRole("region", { name: "Evaluation summary" })).toBeVisible();
+    await expect(supportRail.getByRole("region", { name: "Suite history" })).toBeVisible();
     const rowHeights = await page
       .getByRole("table", { name: "Evaluation cases" })
       .locator("tbody tr")
@@ -60,7 +64,7 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
   if (!mobile) {
     await page.locator(".eval-split .glossary-term__trigger").first().hover();
     const tooltip = page.getByRole("tooltip", {
-      name: /failure here can produce a reviewable dream sop proposal/i,
+      name: /failure here can produce a reviewable knowledge sop proposal/i,
     });
     await expect(tooltip).toBeVisible();
     const tooltipBox = await tooltip.boundingBox();
@@ -76,17 +80,17 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
     await page.getByRole("button", { name: "Close filters" }).click();
   }
 
-  await page.getByRole("button", { name: "Run Emergency chest pain" }).click();
+  await page.getByRole("button", { name: "Run Combined symptoms need chemical wash" }).click();
   const emergencySurface = mobile
-    ? page.getByRole("article", { name: "Emergency chest pain" })
-    : page.getByRole("row", { name: /Emergency chest pain/i });
+    ? page.getByRole("article", { name: "Combined symptoms need chemical wash" })
+    : page.getByRole("row", { name: /Combined symptoms need chemical wash/i });
   await expect(emergencySurface.getByText("Fail", { exact: true })).toBeVisible();
   await emergencySurface.click();
   const firstRunDetails = page.getByRole("dialog", { name: "Case details" });
   await expect(firstRunDetails.getByText("Agent reply", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close case details" }).click();
 
-  await page.getByRole("button", { name: "Run Suite" }).click();
+  await page.getByRole("button", { name: "Run all cases" }).click();
   if (mobile) {
     const cancelSuite = page.getByRole("button", { name: "Cancel active suite operation" });
     await expect(cancelSuite).toBeVisible();
@@ -94,22 +98,28 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
     expect(cancelBox?.height).toBeGreaterThanOrEqual(44);
   }
 
-  await expect(page.getByRole("button", { name: "Run Suite" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run all cases" })).toBeVisible();
 
-  await page.getByRole("button", { name: "More evaluation actions" }).click();
-  await page.getByRole("menuitem", { name: "History" }).click();
-  await expect(page.getByRole("complementary", { name: "Evaluation history" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Suite history" })).not.toContainText(
-    "Run the suite to create history.",
-  );
   if (mobile) {
+    await page.getByRole("button", { name: "More evaluation actions" }).click();
+    await page.getByRole("menuitem", { name: "History" }).click();
+    const historyDrawer = page.getByRole("complementary", { name: "Evaluation history" });
+    await expect(historyDrawer).toBeVisible();
+    await expect(historyDrawer.getByRole("region", { name: "Suite history" })).not.toContainText(
+      "Run all cases to create history.",
+    );
     await expectMobileTargets(page);
-  }
-  await page.getByRole("button", { name: "Close history" }).click();
-  if (mobile) {
-    await page.getByRole("article", { name: "Emergency chest pain" }).click();
+    await page.getByRole("button", { name: "Close history" }).click();
   } else {
-    await page.getByRole("row", { name: /Emergency chest pain/i }).click();
+    const supportRail = page.getByRole("complementary", { name: "Evaluation support" });
+    await expect(supportRail.getByRole("region", { name: "Suite history" })).not.toContainText(
+      "Run all cases to create history.",
+    );
+  }
+  if (mobile) {
+    await page.getByRole("article", { name: "Combined symptoms need chemical wash" }).click();
+  } else {
+    await page.getByRole("row", { name: /Combined symptoms need chemical wash/i }).click();
   }
 
   const caseEvidence = page.getByRole("dialog", { name: "Case details" });
@@ -132,46 +142,38 @@ test("Evaluation Lab satisfies its responsive workbench contract", async ({
   if (mobile) {
     await page.getByRole("button", { name: "More evaluation actions" }).click();
     await page.getByRole("menuitem", { name: "Import resolved conversations" }).click();
-  } else {
-    await page.getByRole("button", { name: "Import resolved conversations" }).click();
-  }
-  const importDialog = page.getByRole("dialog", { name: "Import resolved conversations" });
-  await expect(importDialog.getByRole("combobox")).toHaveCount(0);
-  await expect(importDialog.getByRole("checkbox", { name: /Rajesh Kumar, Ready/ })).toBeEnabled();
-  await expect(
-    importDialog.getByRole("checkbox", { name: /Nurul Aisyah, Resolve in Chat/ }),
-  ).toBeDisabled();
-  await expectNoSeriousAxeViolations(page);
-  if (mobile) {
+    const importDialog = page.getByRole("dialog", { name: "Import resolved conversations" });
+    await expect(importDialog.getByRole("combobox")).toHaveCount(0);
+    await expect(importDialog.getByRole("checkbox", { name: /Mei Demo, Ready/ })).toBeEnabled();
+    await expect(
+      importDialog.getByRole("checkbox", { name: /Aina Demo, Resolve in Chat/ }),
+    ).toBeDisabled();
+    await expectNoSeriousAxeViolations(page);
     await expectMobileTargets(page);
-  }
-  await page.screenshot({
-    fullPage: true,
-    path: `test-results/screenshots/eval-${testInfo.project.name}-import.png`,
-  });
-  await importDialog.getByRole("checkbox", { name: /Rajesh Kumar, Ready/ }).click();
-  await importDialog.getByRole("button", { name: "Import 1 conversation" }).click();
-  await expect(page.getByRole("dialog", { name: "Case details" })).toContainText(
-    "HITL Rajesh Kumar",
-  );
-  await page.getByRole("button", { name: "Close case details" }).click();
+    await page.screenshot({
+      fullPage: true,
+      path: `test-results/screenshots/eval-${testInfo.project.name}-import.png`,
+    });
+    await importDialog.getByRole("checkbox", { name: /Mei Demo, Ready/ }).click();
+    await importDialog.getByRole("button", { name: "Import 1 conversation" }).click();
+    await expect(page.getByRole("dialog", { name: "Case details" })).toContainText(
+      "HITL Mei Demo",
+    );
+    await page.getByRole("button", { name: "Close case details" }).click();
 
-  if (mobile) {
     await page.getByRole("button", { name: "More evaluation actions" }).click();
     await page.getByRole("menuitem", { name: "Import resolved conversations" }).click();
-  } else {
-    await page.getByRole("button", { name: "Import resolved conversations" }).click();
+    const reopenedImport = page.getByRole("dialog", { name: "Import resolved conversations" });
+    await expect(
+      reopenedImport.getByRole("checkbox", { name: /Mei Demo, Already imported/ }),
+    ).toBeDisabled();
+    await reopenedImport.getByRole("button", { name: "Cancel", exact: true }).click();
   }
-  const reopenedImport = page.getByRole("dialog", { name: "Import resolved conversations" });
-  await expect(
-    reopenedImport.getByRole("checkbox", { name: /Rajesh Kumar, Already imported/ }),
-  ).toBeDisabled();
-  await reopenedImport.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await page.getByRole("button", { name: "Analyze failures" }).click();
   const analysis = page.getByRole("complementary", { name: "Analyze failures" });
   await expect(analysis).toContainText(
-    "A configured LLM proposes one reviewable SOP diff from committed train failures. It never reruns, activates, or improves the agent on its own.",
+    "The configured correction proposer creates one reviewable SOP diff from committed train failures. It never reruns, activates, or improves the agent on its own.",
   );
   await expect(analysis.getByRole("spinbutton")).toHaveCount(0);
   const analysisBox = await analysis.boundingBox();

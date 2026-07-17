@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("Dream satisfies its responsive review workbench contract", async ({ page }, testInfo) => {
+test("Knowledge satisfies its responsive review workbench contract", async ({ page }, testInfo) => {
   const runtimeErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -23,8 +23,8 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   });
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
 
-  await page.goto("/dream");
-  await expect(page.getByRole("heading", { name: "Dream" })).toBeVisible();
+  await page.goto("/knowledge");
+  await expect(page.getByRole("heading", { name: "Knowledge" })).toBeVisible();
   const mobile = testInfo.project.name !== "desktop-1440";
   const explorerActionBoxes = await Promise.all(
     ["New playbook file", "New playbook folder", "Collapse playbook folders"].map((name) =>
@@ -37,7 +37,7 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
     await expect(page.getByRole("navigation", { name: "Playbook files" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Playbook editor" })).toHaveCount(0);
     await expectMobileTargets(page);
-    await page.getByRole("treeitem", { name: /triage\.md/i }).click();
+    await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
   } else {
     const files = page.getByRole("navigation", { name: "Playbook files" });
     const changes = page.getByRole("complementary", { name: "Proposed changes" });
@@ -46,16 +46,19 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
     await expect(changes).toBeVisible();
     expect(Math.round((await files.boundingBox())?.width ?? 0)).toBe(230);
     expect(Math.round((await changes.boundingBox())?.width ?? 0)).toBe(320);
+    await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
   }
 
   const editor = page.getByRole("textbox", { name: "Playbook Markdown editor" });
   await expect(editor).toBeVisible();
   await expect(page.getByText("Saved", { exact: true })).toHaveCount(1);
-  await expect(editor).toContainText("Seek urgent care for chest pain.");
+  await expect(editor).toContainText("For poor cooling and a musty smell, quote the RM99 general service.");
   await expect(page.locator(".cm-correction-preview")).toContainText(
-    "- Seek urgent care for chest pain.",
+    "- For poor cooling and a musty smell, quote the RM99 general service.",
   );
-  await expect(page.locator(".cm-correction-preview")).toContainText("+ Call 999 guidance");
+  await expect(page.locator(".cm-correction-preview")).toContainText(
+    "+ If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell",
+  );
   await expect(page.locator(".cm-correction-preview")).not.toContainText("- remove");
   await expect(page.locator(".cm-correction-preview")).not.toContainText("+ add");
 
@@ -63,12 +66,12 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   await expectNoSeriousAxeViolations(page);
   await page.screenshot({
     fullPage: true,
-    path: `test-results/screenshots/dream-${testInfo.project.name}.png`,
+    path: `test-results/screenshots/knowledge-${testInfo.project.name}.png`,
   });
 
   const content = await editor.textContent();
   await editor.fill(`${content ?? ""}\nDocument escalation context.`);
-  await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
 
   if (mobile) {
     await page.getByRole("tab", { name: "Changes" }).click();
@@ -83,7 +86,7 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
     expect(Math.round(rejectBox?.y ?? 0)).toBe(Math.round(approveBox?.y ?? 0));
   }
 
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Inactive candidate", { exact: true })).toBeVisible();
   if (mobile) {
     await page.getByRole("button", { name: "More file actions" }).click();
@@ -98,15 +101,33 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   if (mobile) {
     await page.getByRole("tab", { name: "Files" }).click();
   }
-  await page.getByRole("treeitem", { name: /malay-booking\.md/i }).click();
-  await page.getByRole("button", { name: "Replay affected" }).click();
+  await page.getByRole("treeitem", { name: /aircon-booking\.md/i }).click();
+  await page.getByRole("button", { name: "Replay affected train cases", exact: true }).click();
   await expect(page.getByRole("main").getByRole("status").first()).toHaveText(
     "Affected Eval replay completed.",
   );
   if (mobile) {
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Replay all eval cases" }).click();
+  } else {
+    await page.getByRole("button", { name: "Replay all eval cases", exact: true }).click();
+  }
+  const releaseGate = page.getByRole("region", { name: "Knowledge release gate" });
+  await expect(releaseGate).toContainText("ready");
+  const candidateVersion = (
+    await releaseGate.locator(":scope > div").nth(1).locator("strong").innerText()
+  ).split(" ")[0];
+  if (mobile) {
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Activate candidate" }).click();
+  } else {
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+  }
+  await expect(releaseGate).toContainText(`Active SOP${candidateVersion}`);
+  if (mobile) {
     await page.getByRole("tab", { name: "Files" }).click();
   }
-  await page.getByRole("treeitem", { name: /triage\.md/i }).click();
+  await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
   if (mobile) {
     await page.getByRole("tab", { name: "Changes" }).click();
   }
@@ -114,8 +135,8 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
     changes.getByRole("button", { name: /Focus correction at line \d+/ }),
   ).toBeEnabled();
 
-  await page.getByRole("button", { name: "Test Changes" }).click();
-  const dock = page.getByRole("region", { name: "Test Changes results" });
+  await page.getByRole("button", { name: "Check saved text" }).click();
+  const dock = page.getByRole("region", { name: "Saved text check results" });
   await expect(dock).toContainText("Preparing saved-text verification");
   await expect(dock).toContainText("1 passed");
   await expect(dock).toContainText("Evaluation Lab scores stay separate");
@@ -125,7 +146,7 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   await expect(dock.getByRole("button", { name: "Eval dataset" })).toBeVisible();
   await page.screenshot({
     fullPage: true,
-    path: `test-results/screenshots/dream-${testInfo.project.name}-test-changes.png`,
+    path: `test-results/screenshots/knowledge-${testInfo.project.name}-test-changes.png`,
   });
 
   await page.getByRole("button", { name: "More file actions" }).click();
@@ -135,12 +156,22 @@ test("Dream satisfies its responsive review workbench contract", async ({ page }
   await expect(page.getByLabel("File name")).toHaveValue("follow-up-guide.md");
   await page.screenshot({
     fullPage: true,
-    path: `test-results/screenshots/dream-${testInfo.project.name}-new-file.png`,
+    path: `test-results/screenshots/knowledge-${testInfo.project.name}-new-file.png`,
   });
   if (mobile) {
     await expectMobileTargets(page);
   }
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Create file" }).click();
+  if (mobile) {
+    await page.getByRole("tab", { name: "Files" }).click();
+  }
+  const createdFile = page.getByRole("treeitem", { name: /follow-up-guide\.md/i });
+  await expect(createdFile).toBeVisible();
+  await page.getByRole("button", { name: "More file actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: /Delete .*follow-up-guide\.md/ })).toBeVisible();
+  await page.getByRole("button", { name: "Delete file" }).click();
+  await expect(createdFile).toHaveCount(0);
 
   await expectNoDocumentOverflow(page);
   await expectNoSeriousAxeViolations(page);

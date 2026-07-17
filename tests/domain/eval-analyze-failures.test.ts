@@ -14,7 +14,7 @@ import {
 } from "../../src/domain";
 import { createFixtureJudgeClient } from "../fixtures/judge-client";
 
-const SEED_DATASET_ID = "dataset-seed";
+const SEED_DATASET_ID = "dataset-aircon-ops";
 
 function seedDataset(state: AppState) {
   return state.evalDatasets.find((dataset) => dataset.id === SEED_DATASET_ID)!;
@@ -77,7 +77,7 @@ describe("analyze failures", () => {
     const run = await runEvalCase(
       added.state,
       added.evalCase.id,
-      createFixtureJudgeClient(),
+      createFixtureJudgeClient({ verdictByCase: { [added.evalCase.id]: "fail" } }),
     );
     expect(run.ok).toBe(true);
     if (!run.ok) return;
@@ -102,7 +102,7 @@ describe("analyze failures", () => {
     const run = await runEvalCase(
       added.state,
       added.evalCase.id,
-      createFixtureJudgeClient(),
+      createFixtureJudgeClient({ verdictByCase: { [added.evalCase.id]: "fail" } }),
     );
     expect(run.ok).toBe(true);
     if (!run.ok) return;
@@ -124,7 +124,7 @@ describe("analyze failures", () => {
     });
   });
 
-  it.each(["booking", "prescription"] as const)(
+  it.each(["booking", "general", "prescription"] as const)(
     "creates a pending correction for a supported committed %s failure",
     async (type) => {
       const added = addEvaluationCase(
@@ -220,7 +220,7 @@ describe("analyze failures", () => {
     const run = await runEvalCase(
       added.state,
       added.evalCase.id,
-      createFixtureJudgeClient(),
+      createFixtureJudgeClient({ verdictByCase: { [added.evalCase.id]: "fail" } }),
     );
     expect(run.ok).toBe(true);
     if (!run.ok) return;
@@ -232,7 +232,7 @@ describe("analyze failures", () => {
     expect(result.state.corrections).toEqual(beforeCorrections);
   });
 
-  it.each(["general", "lab_follow_up"] as const)(
+  it.each(["lab_follow_up"] as const)(
     "does not create a correction for unsupported %s failures",
     async (type) => {
       const added = addEvaluationCase(
@@ -269,7 +269,7 @@ describe("analyze failures", () => {
     const run = await runEvalCase(
       added.state,
       added.evalCase.id,
-      createFixtureJudgeClient(),
+      createFixtureJudgeClient({ verdictByCase: { [added.evalCase.id]: "fail" } }),
     );
     expect(run.ok).toBe(true);
     if (!run.ok) return;
@@ -308,7 +308,7 @@ describe("analyze failures", () => {
   it("does not change synthetic output when candidateVersion changes", () => {
     const state = createCanonicalSeed();
     const evalCase = seedDataset(state).cases.find(
-      (candidate) => candidate.type === "emergency_triage",
+      (candidate) => candidate.id === "case-aircon-selection-train",
     )!;
     const baseline = generateSyntheticOutput(state, evalCase.id);
     const next = structuredClone(state);

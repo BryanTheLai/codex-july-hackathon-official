@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
@@ -48,7 +49,7 @@ describe("ElevenLabs voice providers", () => {
         ELEVENLABS_TTS_USE_SPEAKER_BOOST: "true",
       }),
     ).toMatchObject({
-      model: "eleven_flash_v2_5",
+      model: "eleven_v3",
       voiceId: "voice-demo-1",
       voiceSettings: {
         stability: 0.25,
@@ -61,6 +62,14 @@ describe("ElevenLabs voice providers", () => {
     expect(() => readElevenLabsTtsConfig({ ELEVENLABS_API_KEY: "key" })).toThrow(
       "ELEVENLABS_VOICE_ID",
     );
+  });
+
+  it("keeps the code defaults and deployment example on Eleven v3 and Scribe v2", () => {
+    const example = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
+    expect(example).toContain("ELEVENLABS_STT_MODEL=scribe_v2");
+    expect(example).toContain("ELEVENLABS_TTS_MODEL=eleven_v3");
+    expect(readElevenLabsSpeechConfig(environment).model).toBe("scribe_v2");
+    expect(readElevenLabsTtsConfig(environment).model).toBe("eleven_v3");
   });
 
   it("transcribes a Telegram WebM with Scribe v2 and creates the existing English gloss", async () => {
@@ -146,7 +155,7 @@ describe("ElevenLabs voice providers", () => {
 
     await expect(provider.synthesize("Temujanji anda disahkan.", { targetLanguage: "Malay" })).resolves.toEqual({
       bytes: new Uint8Array([1, 2, 3]),
-      model: "eleven_flash_v2_5",
+      model: "eleven_v3",
       voice: "voice-demo-1",
     });
     expect(fetcher).toHaveBeenCalledWith(
@@ -155,7 +164,7 @@ describe("ElevenLabs voice providers", () => {
     );
     expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual({
       text: "Temujanji anda disahkan.",
-      model_id: "eleven_flash_v2_5",
+      model_id: "eleven_v3",
       language_code: "ms",
       voice_settings: { speed: 1.1 },
     });

@@ -10,8 +10,8 @@ const servers: Array<ReturnType<ReturnType<typeof createJudgeApp>["listen"]>> = 
 function request(): JudgeRequest {
   return {
     runId: "run-endpoint-1",
-    datasetId: "dataset-seed",
-    caseId: "case-booking-train",
+    datasetId: "dataset-aircon-ops",
+    caseId: "case-aircon-confirm-train",
     caseType: "booking",
     language: "English",
     candidateVersion: 1,
@@ -20,7 +20,7 @@ function request(): JudgeRequest {
     expectedResponse: "Confirm the next available appointment slot.",
     rubrics: [
       {
-        id: "crit-booking",
+        id: "crit-aircon-confirm",
         label: "Booking next step",
         instruction: "Explain the next booking step without inventing a confirmed slot.",
         required: true,
@@ -37,7 +37,7 @@ function response(): JudgeResponse {
     rationale: "The reply gives a grounded booking next step.",
     criterionResults: [
       {
-        criterionId: "crit-booking",
+        criterionId: "crit-aircon-confirm",
         verdict: "pass",
         reason: "The candidate says the slot still needs confirmation.",
         evidence: "will confirm the slot",
@@ -47,7 +47,7 @@ function response(): JudgeResponse {
       provider: "openai",
       model: "gpt-5.6",
       promptVersion: "2026-07-12.1",
-      rubricVersions: { "crit-booking": 1 },
+      rubricVersions: { "crit-aircon-confirm": 1 },
       runId: "run-endpoint-1",
       latencyMs: 25,
       simulated: false,
@@ -205,7 +205,7 @@ describe("judge endpoint", () => {
     expect(result.status).toBe(502);
     expect(await result.json()).toEqual({
       code: "provider_failed",
-      error: "The model provider returned invalid judge evidence.",
+      error: "The model provider returned invalid judge evidence. Retry the run; if it repeats, check the judge model configuration.",
       retryable: true,
     });
   });
@@ -223,7 +223,7 @@ describe("judge endpoint", () => {
     expect(result.status).toBe(502);
     expect(await result.json()).toEqual({
       code: "provider_failed",
-      error: "The model provider did not return a judge result.",
+      error: "The model provider did not return a judge result. Retry the run; if it repeats, check the judge model configuration.",
       retryable: true,
     });
   });

@@ -17,7 +17,7 @@ export function CaseEvidence({
   onDelete,
   onDuplicate,
   onEdit,
-  onOpenDream,
+  onOpenKnowledge,
   onRun,
 }: {
   corrections: Correction[];
@@ -30,7 +30,7 @@ export function CaseEvidence({
   onDelete: (evalCase: EvalCase) => void;
   onDuplicate: (caseId: EvalCaseId) => void;
   onEdit: (evalCase: EvalCase) => void;
-  onOpenDream: (correction: Correction) => void;
+  onOpenKnowledge: (correction: Correction) => void;
   onRun: (caseId: EvalCaseId) => void;
 }) {
   const linked = corrections.filter((correction) => correction.sourceCaseId === evalCase.id);
@@ -62,7 +62,7 @@ export function CaseEvidence({
           </header>
           <div className="eval-drawer__scroll" tabIndex={0}>
             <section>
-              <h2>Patient conversation</h2>
+              <h2>Customer conversation</h2>
               <pre>{inputText(evalCase)}</pre>
             </section>
             <section className="case-evidence__expected">
@@ -70,7 +70,7 @@ export function CaseEvidence({
                 <>
                   <h2>Human correction needed</h2>
                   <p>{feedbackReason ?? "This candidate needs a human reference reply."}</p>
-                  <span>Edit this candidate with the response the patient should have received, then run it through Eval.</span>
+                  <span>Edit this candidate with the response the customer should have received, then run it through Eval.</span>
                 </>
               ) : (
                 <>
@@ -118,9 +118,9 @@ export function CaseEvidence({
               ) : null}
             </section>
             <section>
-              <h2>Linked Dream corrections</h2>
+              <h2>Linked Knowledge corrections</h2>
               {linked.length === 0 ? <p>No corrections linked to this case.</p> : linked.map((correction) => (
-                <button className="eval-linked-correction" disabled={operationBlocked} key={correction.id} onClick={() => onOpenDream(correction)} type="button">
+                <button className="eval-linked-correction" disabled={operationBlocked} key={correction.id} onClick={() => onOpenKnowledge(correction)} type="button">
                   <strong>{correction.status}</strong>
                   <span>{correction.evidence}</span>
                 </button>

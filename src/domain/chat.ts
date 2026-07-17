@@ -124,13 +124,13 @@ export function updatePatient(
   const phone = trimOrEmpty(input.phone);
   const preferredLanguage = trimOrEmpty(input.preferredLanguage);
   if (!name) {
-    return err(state, "Patient name cannot be empty");
+    return err(state, "Customer name cannot be empty");
   }
   if (!phone) {
-    return err(state, "Patient phone cannot be empty");
+    return err(state, "Customer phone cannot be empty");
   }
   if (!preferredLanguage) {
-    return err(state, "Patient preferred language cannot be empty");
+    return err(state, "Customer preferred language cannot be empty");
   }
 
   const next = updateConversation(state, conversationId, (current) => ({
@@ -305,7 +305,7 @@ export function cancelBooking(state: AppState, conversationId: ConversationId): 
     return err(state, "No booking to cancel");
   }
   if (conversation.booking.status !== "approved") {
-    return err(state, "Only an approved appointment can be cancelled");
+    return err(state, "Only an approved service visit can be cancelled");
   }
 
   const nextBooking: Booking = {
@@ -464,37 +464,12 @@ export function resetSyntheticConversation(
 }
 
 const SIMULATED_CONVERSATIONS: Record<SimulateScenario, AppState["conversations"][number]> = {
-  emergency_chest_pain: {
-    id: "sim-emergency-chest-pain",
+  aircon_malay_booking: {
+    id: "sim-aircon-malay-booking",
     patient: {
-      name: "Hafiz Rahman",
-      phone: "+60123456101",
-      medicalRecordNumber: "MRN-1101",
-      preferredLanguage: "English",
-    },
-    channel: "WhatsApp",
-    urgency: "emergency",
-    agentMode: "synthetic_agent",
-    workflowStatus: "in_progress",
-    resolvedAt: null,
-    labels: ["emergency", "simulated"],
-    triageGuidance:
-      "Chest-pain fixture: keep staff control and direct the patient to urgent in-person care.",
-    messages: [
-      {
-        id: "sim-em-1",
-        role: "patient",
-        text: "Chest pain and sweating since breakfast.",
-        sentAt: FIXTURE_TIME_ISO,
-      },
-    ],
-  },
-  malay_booking: {
-    id: "sim-malay-booking",
-    patient: {
-      name: "Aina Zulkifli",
-      phone: "+60123456102",
-      medicalRecordNumber: "MRN-1102",
+      name: "Hakim Demo",
+      phone: "+601100000201",
+      medicalRecordNumber: "",
       preferredLanguage: "Malay",
     },
     channel: "WhatsApp",
@@ -502,41 +477,35 @@ const SIMULATED_CONVERSATIONS: Record<SimulateScenario, AppState["conversations"
     agentMode: "synthetic_agent",
     workflowStatus: "in_progress",
     resolvedAt: null,
-    labels: ["booking", "simulated"],
-    triageGuidance:
-      "Routine booking fixture: the autonomous agent confirms the date and time before it books.",
+    labels: ["aircon", "booking", "simulated"],
     messages: [
       {
         id: "sim-bk-1",
         role: "patient",
-        text: "Boleh saya buat temujanji minggu depan?",
+        text: "Hi boss, saya nak general service untuk satu wall unit 1.5 HP. Boleh datang?",
         sentAt: FIXTURE_TIME_ISO,
       },
     ],
   },
-  mandarin_voice: {
-    id: "sim-mandarin-voice",
+  aircon_package_complaint: {
+    id: "sim-aircon-package-complaint",
     patient: {
-      name: "Li Wei",
-      phone: "+60123456103",
-      medicalRecordNumber: "MRN-1103",
-      preferredLanguage: "Mandarin",
+      name: "Siti Demo",
+      phone: "+601100000202",
+      medicalRecordNumber: "",
+      preferredLanguage: "English",
     },
-    channel: "Voice transcript",
+    channel: "WhatsApp",
     urgency: "routine",
     agentMode: "synthetic_agent",
     workflowStatus: "in_progress",
     resolvedAt: null,
-    labels: ["prescription", "simulated"],
-    triageGuidance:
-      "Prescription fixture: verify medication details before a clinic follow-up.",
+    labels: ["aircon", "package-selection", "simulated"],
     messages: [
       {
-        id: "sim-rx-1",
+        id: "sim-cp-1",
         role: "patient",
-        text: "我想了解处方续药流程。",
-        gloss: "I want to understand the prescription renewal process.",
-        language: "Mandarin",
+        text: "My 1.5 HP wall unit is not cooling and smells musty.",
         sentAt: FIXTURE_TIME_ISO,
       },
     ],

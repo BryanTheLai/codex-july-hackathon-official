@@ -163,7 +163,7 @@ describe("shared agent service", () => {
           {
             callId: "call-1",
             name: "list_available_slots",
-            argumentsJson: '{"date":null,"provider":"Dr. Farah"}',
+            argumentsJson: '{"date":null}',
           },
         ],
         usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
@@ -174,7 +174,7 @@ describe("shared agent service", () => {
       });
     const toolExecutor = vi.fn(async () => ({
       status: "completed" as const,
-      summary: "Found 2 available slots for Dr. Farah.",
+      summary: "Found 2 available slots.",
       conversationRevision: null,
       output: {
         success: true,
@@ -211,7 +211,7 @@ describe("shared agent service", () => {
           callId: "call-1",
           name: "list_available_slots",
           status: "completed",
-          summary: "Found 2 available slots for Dr. Farah.",
+          summary: "Found 2 available slots.",
           conversationRevision: null,
         },
       ],
@@ -293,7 +293,7 @@ describe("shared agent service", () => {
     });
   });
 
-  it("rejects evidence not grounded in the pinned Dream bundle", async () => {
+  it("rejects evidence not grounded in the pinned Knowledge bundle", async () => {
     const createResponse = vi.fn(async () => ({
       outputText: JSON.stringify({
         ...providerResult,

@@ -10,7 +10,7 @@ import type {
   EvalSplit,
   MutationResult,
 } from "../../domain";
-import { inputText } from "./eval-model";
+import { formatCaseType, inputText } from "./eval-model";
 
 const CASE_TYPES: EvalCaseType[] = [
   "emergency_triage",
@@ -133,7 +133,7 @@ export function CaseDialog({
                 Type
                 <select aria-label="Case type" onChange={(event) => setType(event.target.value as EvalCaseType)} value={type}>
                   {CASE_TYPES.map((caseType) => (
-                    <option key={caseType} value={caseType}>{caseType.replaceAll("_", " ")}</option>
+                    <option key={caseType} value={caseType}>{formatCaseType(caseType)}</option>
                   ))}
                 </select>
               </label>

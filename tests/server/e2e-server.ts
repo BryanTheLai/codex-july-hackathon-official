@@ -35,7 +35,7 @@ let runSequence = 0;
 
 function agentResult(request: AgentRunRequest) {
   const playbook = request.playbookBundle.versions[0]!;
-  const bookingRequest = request.conversation.id === "convo-booking";
+  const bookingRequest = request.conversation.id === "convo-aircon-booking";
   const patientText = bookingRequest
     ? "Boleh kongsi tarikh dan masa pilihan anda? Saya sudah semak bahawa slot demo tersedia."
     : "Synthetic demo response for imported human-reviewed evidence.";
@@ -62,7 +62,7 @@ function agentResult(request: AgentRunRequest) {
             callId: "e2e-list-availability",
             name: "list_available_slots",
             status: "completed" as const,
-            summary: "Checked demo availability; waiting for the patient's preferred date and time.",
+            summary: "Checked demo availability; waiting for the customer's preferred date and time.",
             conversationRevision: request.conversation.revision,
           },
         ]
@@ -109,15 +109,33 @@ function judgeResult(request: JudgeRequest): JudgeResponse {
 const deterministicProposer = {
   async propose() {
     return {
-      fileId: "file-malay-booking",
-      oldText: "Confirm booking details in Malay.",
-      newText: "Confirm booking details in Malay and tell staff to verify the appointment before sending confirmation.",
+      fileId: "file-aircon-booking",
+      oldText:
+        "Collect symptoms, unit type, horsepower, unit count, area, preferred slot, and",
+      newText:
+        "Collect symptoms, unit type, horsepower, unit count, area, preferred slot, and verify the service address.",
       rationale: "Deterministic E2E proposal from committed train failure evidence.",
     };
   },
 };
 
-await repository.bootstrap(workspaceId, await createCanonicalServerState());
+async function createE2eState() {
+  const state = await createCanonicalServerState();
+  state.corrections.push({
+    id: "corr-aircon-selection",
+    fileId: "file-aircon-service-selection",
+    oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+    newText:
+      "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.",
+    evidence: "Package selection train case failed.",
+    status: "pending",
+    sourceCaseId: "case-aircon-selection-train",
+    lineHint: 4,
+  });
+  return state;
+}
+
+await repository.bootstrap(workspaceId, await createE2eState());
 
 const evalService = createEvalService({
   workspaceId,
@@ -141,7 +159,7 @@ const app = createJudgeApp({
   workspace: {
     workspaceId,
     repository,
-    createCanonicalState: createCanonicalServerState,
+    createCanonicalState: createE2eState,
   },
   workflow: createWorkspaceCommandService({
     workspaceId,
@@ -156,7 +174,7 @@ app.post("/api/e2e/reset", async (_request, response) => {
   dataSource.records.clear();
   suiteSequence = 0;
   runSequence = 0;
-  await repository.bootstrap(workspaceId, await createCanonicalServerState());
+  await repository.bootstrap(workspaceId, await createE2eState());
   response.status(204).end();
 });
 const distPath = fileURLToPath(new URL("../../dist/", import.meta.url));

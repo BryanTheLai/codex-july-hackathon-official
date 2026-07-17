@@ -113,7 +113,7 @@ afterEach(async () => {
 });
 
 describe("workspace-backed agent run endpoint", () => {
-  it("builds one live request from current workspace and active Dream content", async () => {
+  it("builds one live request from current workspace and active Knowledge content", async () => {
     const { baseUrl, run, state } = await configuredServer();
     const conversation = state.conversations[0];
     const active = state.playbookHistory.versions.find(

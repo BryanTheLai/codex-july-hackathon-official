@@ -48,7 +48,7 @@ describe("ChatToolbar", () => {
     expect(onFilterChange).toHaveBeenCalledWith("ai_handling");
 
     await user.click(screen.getByRole("button", { name: "More chat actions" }));
-    await user.click(within(screen.getByRole("menu")).getByText("Simulate Patient"));
+    await user.click(within(screen.getByRole("menu")).getByText("Simulate Customer"));
     expect(onSimulate).toHaveBeenCalledTimes(1);
   });
 });

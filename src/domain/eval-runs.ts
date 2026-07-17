@@ -173,8 +173,8 @@ function supportsFailureAnalysis(type: EvalCaseType): boolean {
     case "emergency_triage":
     case "booking":
     case "prescription":
-      return true;
     case "general":
+      return true;
     case "lab_follow_up":
       return false;
     default:

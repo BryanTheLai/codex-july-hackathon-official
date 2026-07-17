@@ -15,6 +15,7 @@ type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 
 const PROVIDERS = ["openai", "elevenlabs"] as const;
 const DEFAULT_ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
+const DEFAULT_ELEVENLABS_TTS_MODEL = "eleven_v3";
 const PROVIDER_TIMEOUT_MS = 45_000;
 
 const voiceProviderSelectionSchema = z
@@ -44,7 +45,7 @@ const elevenLabsEnvironmentSchema = z
       .url()
       .default(DEFAULT_ELEVENLABS_BASE_URL),
     ELEVENLABS_STT_MODEL: z.literal("scribe_v2").default("scribe_v2"),
-    ELEVENLABS_TTS_MODEL: z.string().trim().min(1).max(256).default("eleven_flash_v2_5"),
+    ELEVENLABS_TTS_MODEL: z.string().trim().min(1).max(256).default(DEFAULT_ELEVENLABS_TTS_MODEL),
     ELEVENLABS_VOICE_ID: z.string().trim().min(1).max(256).optional(),
     ELEVENLABS_TTS_STABILITY: optionalNumber(0, 1),
     ELEVENLABS_TTS_SIMILARITY_BOOST: optionalNumber(0, 1),

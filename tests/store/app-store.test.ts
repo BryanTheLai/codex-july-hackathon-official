@@ -172,12 +172,12 @@ describe("app store", () => {
       text: "Mutation before reset",
       kind: "reply",
     });
-    store.getState().selectConversation("convo-booking");
+    store.getState().selectConversation("convo-aircon-booking");
     store.getState().updateRouteUi({
       chatMobilePane: "details",
-      dreamCorrectionId: "corr-booking-confirmation",
-      dreamPane: "changes",
-      evalCaseId: "case-emergency-en",
+      knowledgeCorrectionId: "corr-booking-confirmation",
+      knowledgePane: "changes",
+      evalCaseId: "case-aircon-selection-train",
       evalDrawer: "evidence",
     });
 
@@ -192,8 +192,8 @@ describe("app store", () => {
     expect(store.getState().resetVersion).toBe(1);
     expect(store.getState().routeUi).toEqual({
       chatMobilePane: "list",
-      dreamCorrectionId: null,
-      dreamPane: "files",
+      knowledgeCorrectionId: null,
+      knowledgePane: "files",
       evalCaseId: null,
       evalDrawer: null,
     });
@@ -267,8 +267,8 @@ describe("app store", () => {
     const suite = await freezeEvalSuiteSnapshot({
       state: server,
       suiteId: "suite-reset-projection",
-      datasetId: "dataset-seed",
-      caseIds: ["case-emergency-train"],
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
       playbookVersionId: server.playbookHistory.activeVersionId,
       agentConfig: {
         modelId: "agent-model",
@@ -288,7 +288,7 @@ describe("app store", () => {
     server.evalArtifacts.runs.push({
       id: "eval-run-reset-projection",
       suiteId: suite.id,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       attempt: 1,
       candidateResponse: "Please seek urgent care now.",
       agentResult: {
@@ -316,7 +316,7 @@ describe("app store", () => {
         rationale: "Pass",
         criterionResults: [
           {
-            criterionId: "crit-emergency",
+            criterionId: "crit-aircon-selection",
             verdict: "pass",
             reason: "Pass",
             evidence: "Please seek urgent care now.",
@@ -326,7 +326,7 @@ describe("app store", () => {
           provider: "test",
           model: "judge-model",
           promptVersion: "judge-prompt-v1",
-          rubricVersions: { "crit-emergency": 1 },
+          rubricVersions: { "crit-aircon-selection": 1 },
           runId: "eval-run-reset-projection",
           latencyMs: 10,
           inputTokens: 10,
@@ -362,7 +362,7 @@ describe("app store", () => {
       serverStore
         .getState()
         .state.evalDatasets[0]!.cases.find(
-          (evalCase) => evalCase.id === "case-emergency-train",
+          (evalCase) => evalCase.id === "case-aircon-selection-train",
         ),
     ).toMatchObject({
       actualSyntheticOutput: "Please seek urgent care now.",
@@ -371,14 +371,14 @@ describe("app store", () => {
   });
 
   it("persists valid selection IDs to storage", () => {
-    store.getState().selectConversation("convo-booking");
-    store.getState().selectPlaybookFile("file-malay-booking");
-    store.getState().selectEvalDataset("dataset-seed");
+    store.getState().selectConversation("convo-aircon-booking");
+    store.getState().selectPlaybookFile("file-aircon-booking");
+    store.getState().selectEvalDataset("dataset-aircon-ops");
 
     const loaded = loadAppState(storage);
-    expect(loaded.selections.conversationId).toBe("convo-booking");
-    expect(loaded.selections.playbookFileId).toBe("file-malay-booking");
-    expect(loaded.selections.evalDatasetId).toBe("dataset-seed");
+    expect(loaded.selections.conversationId).toBe("convo-aircon-booking");
+    expect(loaded.selections.playbookFileId).toBe("file-aircon-booking");
+    expect(loaded.selections.evalDatasetId).toBe("dataset-aircon-ops");
   });
 
   it("persists an explicitly cleared conversation selection", () => {
@@ -432,25 +432,25 @@ describe("app store", () => {
     expect(loaded.conversations.find((c) => c.id === convoId)?.messages.at(-1)?.text).toBe("On my way");
   });
 
-  it("keeps continuous Dream draft edits out of the global live region", () => {
+  it("keeps continuous Knowledge draft edits out of the global live region", () => {
     const result = store.getState().setPlaybookDraft(
-      "file-triage",
-      "# Emergency triage\n\nDraft text",
+      "file-aircon-service-selection",
+      "# Service selection\n\nDraft text",
     );
 
     expect(result.ok).toBe(true);
     expect(store.getState().lastFeedback).toBe("");
     expect(
-      store.getState().state.playbookFiles.find((file) => file.id === "file-triage")?.draft,
+      store.getState().state.playbookFiles.find((file) => file.id === "file-aircon-service-selection")?.draft,
     ).toContain("Draft text");
   });
 
-  it("preserves Chat and Dream changes made while an Eval case is running", async () => {
+  it("preserves Chat and Knowledge changes made while an Eval case is running", async () => {
     store = createAppStore(storage, {
       judgeClient: createFixtureJudgeClient({ delayMs: 20 }),
     });
     const conversationId = seedConversationId(store.getState().state);
-    const pendingEval = store.getState().runEvalCase("case-emergency-train");
+    const pendingEval = store.getState().runEvalCase("case-aircon-selection-train");
 
     store.getState().sendStaffReply({
       conversationId,
@@ -458,8 +458,8 @@ describe("app store", () => {
       kind: "reply",
     });
     store.getState().setPlaybookDraft(
-      "file-triage",
-      "# Emergency triage\n\nInterleaved Dream draft",
+      "file-aircon-service-selection",
+      "# Service selection\n\nInterleaved Knowledge draft",
     );
 
     const result = await pendingEval;
@@ -471,12 +471,12 @@ describe("app store", () => {
         ?.text,
     ).toBe("Interleaved staff reply");
     expect(
-      current.playbookFiles.find((file) => file.id === "file-triage")?.draft,
-    ).toContain("Interleaved Dream draft");
+      current.playbookFiles.find((file) => file.id === "file-aircon-service-selection")?.draft,
+    ).toContain("Interleaved Knowledge draft");
     expect(
       current.evalDatasets
         .flatMap((dataset) => dataset.cases)
-        .find((evalCase) => evalCase.id === "case-emergency-train")?.grade,
+        .find((evalCase) => evalCase.id === "case-aircon-selection-train")?.grade,
     ).toBeDefined();
 
     const persisted = loadAppState(storage);
@@ -485,12 +485,12 @@ describe("app store", () => {
         ?.text,
     ).toBe("Interleaved staff reply");
     expect(
-      persisted.playbookFiles.find((file) => file.id === "file-triage")?.draft,
-    ).toContain("Interleaved Dream draft");
+      persisted.playbookFiles.find((file) => file.id === "file-aircon-service-selection")?.draft,
+    ).toContain("Interleaved Knowledge draft");
     expect(
       persisted.evalDatasets
         .flatMap((dataset) => dataset.cases)
-        .find((evalCase) => evalCase.id === "case-emergency-train")?.grade,
+        .find((evalCase) => evalCase.id === "case-aircon-selection-train")?.grade,
     ).toBeDefined();
   });
 
@@ -499,9 +499,9 @@ describe("app store", () => {
       judgeClient: createFixtureJudgeClient({ delayMs: 20 }),
     });
     const beforeHistoryLength = store.getState().state.evalDatasets[0]!.runHistory.length;
-    const pendingEval = store.getState().runEvalCase("case-emergency-train");
+    const pendingEval = store.getState().runEvalCase("case-aircon-selection-train");
 
-    store.getState().editCase("case-emergency-train", {
+    store.getState().editCase("case-aircon-selection-train", {
       title: "Concurrent Eval edit",
     });
 
@@ -513,13 +513,13 @@ describe("app store", () => {
 
     const currentDataset = store.getState().state.evalDatasets[0]!;
     expect(
-      currentDataset.cases.find((evalCase) => evalCase.id === "case-emergency-train")?.title,
+      currentDataset.cases.find((evalCase) => evalCase.id === "case-aircon-selection-train")?.title,
     ).toBe("Concurrent Eval edit");
     expect(currentDataset.runHistory).toHaveLength(beforeHistoryLength);
 
     const persistedDataset = loadAppState(storage).evalDatasets[0]!;
     expect(
-      persistedDataset.cases.find((evalCase) => evalCase.id === "case-emergency-train")?.title,
+      persistedDataset.cases.find((evalCase) => evalCase.id === "case-aircon-selection-train")?.title,
     ).toBe("Concurrent Eval edit");
     expect(persistedDataset.runHistory).toHaveLength(beforeHistoryLength);
   });
@@ -532,7 +532,7 @@ describe("app store", () => {
       judgeClient: createFixtureJudgeClient({ delayMs: 20 }),
     });
     const conversationId = seedConversationId(store.getState().state);
-    const pendingEval = store.getState().runEvalCase("case-emergency-train", {
+    const pendingEval = store.getState().runEvalCase("case-aircon-selection-train", {
       signal: AbortSignal.timeout(1),
     });
 

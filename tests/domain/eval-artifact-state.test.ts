@@ -29,7 +29,7 @@ describe("frozen Eval suite state", () => {
     const suite = await freezeEvalSuiteSnapshot({
       state,
       suiteId: "suite-seed-v1",
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       caseIds,
       playbookVersionId: state.playbookHistory.activeVersionId,
       agentConfig,
@@ -67,7 +67,7 @@ describe("frozen Eval suite state", () => {
     );
     const base = {
       state,
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       playbookVersionId: state.playbookHistory.activeVersionId,
       agentConfig,
       judgeConfig,
@@ -114,7 +114,7 @@ describe("frozen Eval suite state", () => {
     const input = {
       state,
       suiteId: "suite-invalid",
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       caseIds: ["missing-case"],
       playbookVersionId: state.playbookHistory.activeVersionId,
       agentConfig,

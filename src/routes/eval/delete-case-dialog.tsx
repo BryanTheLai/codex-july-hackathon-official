@@ -20,7 +20,7 @@ export function DeleteCaseDialog({
             Delete {evalCase?.title}?
           </AlertDialog.Title>
           <AlertDialog.Description className="eval-dialog__description">
-            This removes the case and its run history. Pending Dream corrections from this case
+            This removes the case and its run history. Pending Knowledge corrections from this case
             are removed; approved or rejected corrections keep their decision but lose this case
             link.
           </AlertDialog.Description>

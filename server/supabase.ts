@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   revisionSchema,
   serverDomainStateSchema,
+  type ServerDomainStatePayload,
 } from "../src/contracts/app-state";
 import { workspaceIdSchema } from "../src/contracts/api";
 import { SCHEMA_VERSION } from "../src/contracts/constants";
@@ -39,6 +40,8 @@ import type {
 } from "./google-calendar-repository";
 import {
   googleCalendarConnectionSchema,
+  googleCalendarEventRecordSchema,
+  type GoogleCalendarEventRecord,
 } from "./google-calendar-repository";
 import type {
   WorkspaceDataSource,
@@ -131,6 +134,28 @@ const outboxJobRowSchema = z
     last_error: z.string().nullable(),
     created_at: z.string(),
     updated_at: z.string(),
+  })
+  .strict();
+
+const googleCalendarEventRowSchema = z
+  .object({
+    workspace_id: workspaceIdSchema,
+    conversation_id: z.string(),
+    event_id: z.string(),
+    booking_revision: z.number().int().positive(),
+    status: z.string(),
+    event_etag: z.string().nullable(),
+    last_synced_at: z.string(),
+  })
+  .strict();
+
+const demoSeedTemplateRowSchema = z
+  .object({
+    seed_key: z.string(),
+    schema_version: z.literal(SCHEMA_VERSION),
+    source_state: z.record(z.string(), z.unknown()),
+    state: serverDomainStateSchema.nullable(),
+    compiled_at: z.string().nullable(),
   })
   .strict();
 
@@ -359,6 +384,19 @@ function toGoogleCalendarConnection(row: unknown): GoogleCalendarConnection {
   });
 }
 
+function toGoogleCalendarEventRecord(row: unknown): GoogleCalendarEventRecord {
+  const parsed = googleCalendarEventRowSchema.parse(row);
+  return googleCalendarEventRecordSchema.parse({
+    workspaceId: parsed.workspace_id,
+    conversationId: parsed.conversation_id,
+    eventId: parsed.event_id,
+    bookingRevision: parsed.booking_revision,
+    status: parsed.status,
+    eventEtag: parsed.event_etag,
+    lastSyncedAt: parsed.last_synced_at,
+  });
+}
+
 function throwDataSourceError(
   operation: SupabaseDataSourceOperation,
 ): never {
@@ -377,6 +415,10 @@ const calendarDeliveryColumns =
   "request_id,workspace_id,conversation_id,calendar_uid,calendar_sequence,kind,content_hash,status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
 const googleCalendarConnectionColumns =
   "workspace_id,calendar_id,refresh_token_ciphertext,granted_scope,status,last_error,connected_at,updated_at";
+const googleCalendarEventColumns =
+  "workspace_id,conversation_id,event_id,booking_revision,status,event_etag,last_synced_at";
+const demoSeedTemplateColumns =
+  "seed_key,schema_version,source_state,state,compiled_at";
 
 export function createSupabaseWorkspaceDataSource(
   client: SupabaseClient,
@@ -709,6 +751,78 @@ export function createSupabaseGoogleCalendarEventDataSource(
         event_etag: record.eventEtag,
         last_synced_at: record.lastSyncedAt,
       });
+      if (error) return throwDataSourceError("update");
+    },
+    async listByWorkspace(workspaceId) {
+      const { data, error } = await client
+        .from("google_calendar_events")
+        .select(googleCalendarEventColumns)
+        .eq("workspace_id", workspaceId);
+      if (error) return throwDataSourceError("read");
+      return (data ?? []).map(toGoogleCalendarEventRecord);
+    },
+    async deleteMapping(workspaceId, conversationId) {
+      const { error } = await client
+        .from("google_calendar_events")
+        .delete()
+        .eq("workspace_id", workspaceId)
+        .eq("conversation_id", conversationId);
+      if (error) return throwDataSourceError("update");
+    },
+  };
+}
+
+export interface DemoSeedDataSource {
+  readSource(
+    seedKey: string,
+  ): Promise<{ schemaVersion: number; sourceState: unknown } | null>;
+  readCompiled(seedKey: string): Promise<ServerDomainStatePayload | null>;
+  updateCompiled(
+    seedKey: string,
+    state: ServerDomainStatePayload,
+    compiledAt: string,
+  ): Promise<void>;
+}
+
+export function createSupabaseDemoSeedDataSource(
+  client: SupabaseClient,
+  now: () => string = () => new Date().toISOString(),
+): DemoSeedDataSource {
+  return {
+    async readSource(seedKey) {
+      const { data, error } = await client
+        .from("demo_seed_templates")
+        .select(demoSeedTemplateColumns)
+        .eq("seed_key", seedKey)
+        .maybeSingle();
+      if (error) return throwDataSourceError("read");
+      if (!data) return null;
+      const parsed = demoSeedTemplateRowSchema.parse(data);
+      return {
+        schemaVersion: parsed.schema_version,
+        sourceState: parsed.source_state,
+      };
+    },
+    async readCompiled(seedKey) {
+      const { data, error } = await client
+        .from("demo_seed_templates")
+        .select(demoSeedTemplateColumns)
+        .eq("seed_key", seedKey)
+        .maybeSingle();
+      if (error) return throwDataSourceError("read");
+      if (!data) return null;
+      const parsed = demoSeedTemplateRowSchema.parse(data);
+      return parsed.state;
+    },
+    async updateCompiled(seedKey, state, compiledAt) {
+      const { error } = await client
+        .from("demo_seed_templates")
+        .update({
+          state,
+          compiled_at: compiledAt,
+          updated_at: now(),
+        })
+        .eq("seed_key", seedKey);
       if (error) return throwDataSourceError("update");
     },
   };

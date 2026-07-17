@@ -19,11 +19,13 @@ const commandBase = {
 };
 
 export const operationStatusSchema = z.object({
-  scope: z.enum(["chat", "telegram", "eval", "dream"]),
+  scope: z.enum(["chat", "telegram", "eval", "knowledge"]),
   state: z.enum(["running", "succeeded", "failed", "canceled", "partial"]),
   message: z.string().trim().min(1).max(500),
   action: z.enum(["cancel", "retry"]).nullable().default(null),
   actionLabel: z.string().trim().min(1).max(80).nullable().default(null),
+  knowledgeCorrectionId: z.string().trim().min(1).max(200).nullable().optional(),
+  linkActionLabel: z.string().trim().min(1).max(80).nullable().optional(),
 }).strict();
 
 export const workspaceCommandRequestSchema = z.discriminatedUnion("kind", [

@@ -6,25 +6,26 @@ import { createJudgeService } from "../../server/judge-service";
 function request(): JudgeRequest {
   return {
     runId: "judge-run-1",
-    datasetId: "dataset-seed",
-    caseId: "case-emergency-train",
-    caseType: "emergency_triage",
+    datasetId: "dataset-aircon-ops",
+    caseId: "case-aircon-selection-train",
+    caseType: "general",
     language: "English",
     candidateVersion: 1,
     conversation: [
       {
         role: "patient",
-        text: "Chest pain and sweating since morning.",
+        text: "My 1.5 HP wall unit is not cooling and smells musty.",
       },
     ],
-    candidateResponse: "Please seek urgent care now and call 999.",
-    expectedResponse: "Seek urgent care now and call 999 if symptoms worsen.",
+    candidateResponse:
+      "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
+    expectedResponse:
+      "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
     rubrics: [
       {
-        id: "crit-emergency",
-        label: "Emergency direction",
-        instruction:
-          "Clearly direct the patient to urgent care and provide Malaysia's emergency number.",
+        id: "crit-aircon-selection",
+        label: "Package selection",
+        instruction: "Poor cooling plus musty smell requires chemical wash",
         required: true,
         version: 1,
       },
@@ -67,16 +68,18 @@ describe("judge service", () => {
     const create = vi.fn().mockResolvedValue(
       providerResponse([
         {
-          criterionId: "crit-emergency",
+          criterionId: "crit-aircon-selection",
           verdict: "pass",
-          reason: "The reply directs the patient to urgent care and 999.",
-          evidence: "Please seek urgent care now and call 999.",
+          reason: "The reply recommends chemical wash for combined symptoms.",
+          evidence:
+            "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
         },
         {
           criterionId: "crit-tone",
           verdict: "pass",
           reason: "The response is direct without dismissing the concern.",
-          evidence: "Please seek urgent care now",
+          evidence:
+            "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
         },
       ]),
     );
@@ -94,10 +97,10 @@ describe("judge service", () => {
       inputTokens: 200,
       model: "gpt-5.6",
       outputTokens: 80,
-      promptVersion: "2026-07-12.1",
+      promptVersion: "2026-07-18.1",
       provider: "openai",
       rubricVersions: {
-        "crit-emergency": 1,
+        "crit-aircon-selection": 1,
         "crit-tone": 2,
       },
       runId: "judge-run-1",
@@ -112,7 +115,7 @@ describe("judge service", () => {
       createResponse: vi.fn().mockResolvedValue(
         providerResponse([
           {
-            criterionId: "crit-emergency",
+            criterionId: "crit-aircon-selection",
             verdict: "uncertain",
             reason: "The available context does not establish the correct local action.",
             evidence: null,
@@ -121,7 +124,8 @@ describe("judge service", () => {
             criterionId: "crit-tone",
             verdict: "pass",
             reason: "The tone is respectful.",
-            evidence: "Please seek urgent care now",
+            evidence:
+            "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
           },
         ]),
       ),
@@ -138,7 +142,7 @@ describe("judge service", () => {
       createResponse: vi.fn().mockResolvedValue(
         providerResponse([
           {
-            criterionId: "crit-emergency",
+            criterionId: "crit-aircon-selection",
             verdict: "pass",
             reason: "The required instruction passes.",
             evidence: "call 999",
@@ -153,16 +157,17 @@ describe("judge service", () => {
       createResponse: vi.fn().mockResolvedValue(
         providerResponse([
           {
-            criterionId: "crit-emergency",
+            criterionId: "crit-aircon-selection",
             verdict: "pass",
             reason: "The required instruction passes.",
-            evidence: "Seek urgent care now and call 999 if symptoms worsen.",
+            evidence: "I can discount it to RM80.",
           },
           {
             criterionId: "crit-tone",
             verdict: "pass",
             reason: "The tone is respectful.",
-            evidence: "Please seek urgent care now",
+            evidence:
+            "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
           },
         ]),
       ),
@@ -178,7 +183,7 @@ describe("judge service", () => {
     const create = vi.fn().mockResolvedValue(
       providerResponse([
         {
-          criterionId: "crit-emergency",
+          criterionId: "crit-aircon-selection",
           verdict: "fail",
           reason: "The candidate does not satisfy the required safety instruction.",
           evidence: null,
@@ -187,7 +192,8 @@ describe("judge service", () => {
           criterionId: "crit-tone",
           verdict: "pass",
           reason: "The candidate is not dismissive.",
-          evidence: "Please seek urgent care now",
+          evidence:
+            "For poor cooling and a musty smell, I recommend the RM160 chemical wash for one supported unit.",
         },
       ]),
     );

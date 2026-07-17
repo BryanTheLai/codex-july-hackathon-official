@@ -6,7 +6,7 @@ import {
   discardPlaybookDraft,
   rejectCorrection,
   renamePlaybookFile,
-  runTestChanges,
+  runSavedTextCheck,
   savePlaybookDraft,
   setPlaybookDraft,
   type CreatePlaybookFileInput,
@@ -16,10 +16,10 @@ import {
   type PlaybookFile,
   type PlaybookFileId,
   type RenamePlaybookFileInput,
-  type TestChangesMutationResult,
+  type SavedTextCheckMutationResult,
   projectServerWorkspace,
 } from "../domain";
-import { applyMutation, applyTestChangesMutation } from "./apply-mutation";
+import { applyMutation, applySavedTextCheckMutation } from "./apply-mutation";
 import type { AppStateRepository } from "./repository";
 import {
   type WorkspaceCommandClient,
@@ -30,40 +30,44 @@ import type {
   WorkspaceCommandResult,
 } from "../contracts/workflow";
 
-export type DreamReleaseState = {
+export type KnowledgeReleaseState = {
   activeVersionId: string;
   activeVersionSequence: number;
   candidateVersionId: string | null;
   candidateVersionSequence: number | null;
   candidateReady: boolean;
   rollbackTargetVersionId: string | null;
+  rollbackTargetVersionSequence: number | null;
   workspaceRevision: number;
 };
 
-type DreamWorkflowResult = MutationResult & {
-  release?: DreamReleaseState;
+type KnowledgeWorkflowResult = MutationResult & {
+  release?: KnowledgeReleaseState;
   replay?: WorkspaceCommandResult["replay"];
 };
 
-type DreamSliceDeps = {
+type KnowledgeSliceDeps = {
   getState: () => import("../domain").AppState;
   set: (partial: {
     state?: import("../domain").AppState;
     lastFeedback?: string;
-    dreamRelease?: DreamReleaseState | null;
+    knowledgeRelease?: KnowledgeReleaseState | null;
   }) => void;
   repository: AppStateRepository;
   workspaceClient?: WorkspaceClient;
   workspaceCommandClient?: WorkspaceCommandClient;
 };
 
-function releaseFrom(result: WorkspaceCommandResult): DreamReleaseState {
+function releaseFrom(result: WorkspaceCommandResult): KnowledgeReleaseState {
   const history = result.workspace.state.playbookHistory;
   const active = history.versions.find(
     (version) => version.id === history.activeVersionId,
   );
   const candidate = history.candidateVersionId
     ? history.versions.find((version) => version.id === history.candidateVersionId)
+    : null;
+  const rollbackTarget = history.rollbackTargetVersionId
+    ? history.versions.find((version) => version.id === history.rollbackTargetVersionId)
     : null;
   return {
     activeVersionId: history.activeVersionId,
@@ -72,26 +76,27 @@ function releaseFrom(result: WorkspaceCommandResult): DreamReleaseState {
     candidateVersionSequence: candidate?.sequence ?? null,
     candidateReady: Boolean(candidate?.passingSuiteId),
     rollbackTargetVersionId: history.rollbackTargetVersionId,
+    rollbackTargetVersionSequence: rollbackTarget?.sequence ?? null,
     workspaceRevision: result.workspace.revision,
   };
 }
 
-export function createDreamActions({
+export function createKnowledgeActions({
   getState,
   set,
   repository,
   workspaceClient,
   workspaceCommandClient,
-}: DreamSliceDeps) {
+}: KnowledgeSliceDeps) {
   const run = (result: MutationResult, successFeedback: string | null) =>
     applyMutation(set, repository, result, successFeedback);
   const runWorkflow = async (
     createCommand: (revision: number) => WorkspaceCommandRequest,
     successFeedback: string,
     signal?: AbortSignal,
-  ): Promise<DreamWorkflowResult> => {
+  ): Promise<KnowledgeWorkflowResult> => {
     if (!workspaceClient || !workspaceCommandClient) {
-      return { ok: false, state: getState(), error: "Dream release server is not configured" };
+      return { ok: false, state: getState(), error: "Knowledge release server is not configured" };
     }
     const base = getState();
     try {
@@ -104,19 +109,19 @@ export function createDreamActions({
       }
       repository.save(projected.state);
       const release = releaseFrom(result);
-      set({ state: projected.state, dreamRelease: release, lastFeedback: successFeedback });
+      set({ state: projected.state, knowledgeRelease: release, lastFeedback: successFeedback });
       return { ok: true, state: projected.state, release, replay: result.replay };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Dream release request failed";
+      const message = error instanceof Error ? error.message : "Knowledge release request failed";
       set({ lastFeedback: message });
       return { ok: false, state: getState(), error: message };
     }
   };
 
   return {
-    async refreshDreamWorkspace(signal?: AbortSignal): Promise<DreamWorkflowResult> {
+    async refreshKnowledgeWorkspace(signal?: AbortSignal): Promise<KnowledgeWorkflowResult> {
       if (!workspaceClient) {
-        return { ok: false, state: getState(), error: "Dream release server is not configured" };
+        return { ok: false, state: getState(), error: "Knowledge release server is not configured" };
       }
       const base = getState();
       try {
@@ -126,18 +131,18 @@ export function createDreamActions({
         repository.save(projected.state);
         const result = { workspace, replay: null } as WorkspaceCommandResult;
         const release = releaseFrom(result);
-        set({ state: projected.state, dreamRelease: release });
+        set({ state: projected.state, knowledgeRelease: release });
         return { ok: true, state: projected.state, release, replay: null };
       } catch (error) {
         return {
           ok: false,
           state: getState(),
-          error: error instanceof Error ? error.message : "Dream release request failed",
+          error: error instanceof Error ? error.message : "Knowledge release request failed",
         };
       }
     },
 
-    createDreamCandidateFromDraft(fileId: PlaybookFileId, content: string, signal?: AbortSignal) {
+    createKnowledgeCandidateFromDraft(fileId: PlaybookFileId, content: string, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "create_candidate_from_draft",
@@ -145,24 +150,24 @@ export function createDreamActions({
           content,
           expectedWorkspaceRevision,
         }),
-        "Inactive Dream candidate created. Run affected Eval cases next.",
+        "Inactive Knowledge candidate created. Run affected Eval cases next.",
         signal,
       );
     },
 
-    acceptDreamCorrection(correctionId: CorrectionId, signal?: AbortSignal) {
+    acceptKnowledgeCorrection(correctionId: CorrectionId, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "create_candidate_from_correction",
           correctionId,
           expectedWorkspaceRevision,
         }),
-        "Inactive Dream candidate created from the accepted correction.",
+        "Inactive Knowledge candidate created from the accepted correction.",
         signal,
       );
     },
 
-    stageDreamFile(file: PlaybookFile, signal?: AbortSignal) {
+    stageKnowledgeFile(file: PlaybookFile, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "create_candidate_from_file",
@@ -174,24 +179,24 @@ export function createDreamActions({
           },
           expectedWorkspaceRevision,
         }),
-        "Inactive Dream candidate created from the file change.",
+        "Inactive Knowledge candidate created from the file change.",
         signal,
       );
     },
 
-    stageDreamFileDeletion(fileId: PlaybookFileId, signal?: AbortSignal) {
+    stageKnowledgeFileDeletion(fileId: PlaybookFileId, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "create_candidate_from_file_deletion",
           fileId,
           expectedWorkspaceRevision,
         }),
-        "Inactive Dream candidate created from the file deletion.",
+        "Inactive Knowledge candidate created from the file deletion.",
         signal,
       );
     },
 
-    importDreamMarkdown(
+    importKnowledgeMarkdown(
       path: string,
       title: string,
       content: string,
@@ -205,12 +210,12 @@ export function createDreamActions({
           content,
           expectedWorkspaceRevision,
         }),
-        "Markdown imported as an inactive Dream candidate.",
+        "Markdown imported as an inactive Knowledge candidate.",
         signal,
       );
     },
 
-    replayDreamCandidate(
+    replayKnowledgeCandidate(
       candidateVersionId: string,
       datasetId: string,
       scope: "affected" | "full",
@@ -231,37 +236,37 @@ export function createDreamActions({
       );
     },
 
-    activateDreamCandidate(candidateVersionId: string, signal?: AbortSignal) {
+    activateKnowledgeCandidate(candidateVersionId: string, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "activate_candidate",
           candidateVersionId,
           expectedWorkspaceRevision,
         }),
-        "Dream candidate activated. New Chat drafts use this SOP.",
+        "Knowledge candidate activated. New Chat drafts use this SOP.",
         signal,
       );
     },
 
-    discardDreamCandidate(candidateVersionId: string, signal?: AbortSignal) {
+    discardKnowledgeCandidate(candidateVersionId: string, signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "discard_candidate",
           candidateVersionId,
           expectedWorkspaceRevision,
         }),
-        "Inactive Dream candidate discarded. Active SOP remains unchanged.",
+        "Inactive Knowledge candidate discarded. Active SOP remains unchanged.",
         signal,
       );
     },
 
-    rollbackDreamPlaybook(signal?: AbortSignal) {
+    rollbackKnowledgePlaybook(signal?: AbortSignal) {
       return runWorkflow(
         (expectedWorkspaceRevision) => ({
           kind: "rollback_playbook",
           expectedWorkspaceRevision,
         }),
-        "Dream restored as a new immutable version.",
+        "Knowledge restored as a new immutable version.",
         signal,
       );
     },
@@ -302,13 +307,13 @@ export function createDreamActions({
       return run(rejectCorrection(getState(), correctionId), "Correction rejected.");
     },
 
-    runTestChanges(fileId: PlaybookFileId): TestChangesMutationResult {
-      return applyTestChangesMutation(
+    runSavedTextCheck(fileId: PlaybookFileId): SavedTextCheckMutationResult {
+      return applySavedTextCheckMutation(
         set,
         repository,
-        runTestChanges(getState(), fileId),
-        "Test changes completed.",
-      ) as TestChangesMutationResult;
+        runSavedTextCheck(getState(), fileId),
+        "Saved text check completed.",
+      ) as SavedTextCheckMutationResult;
     },
   };
 }

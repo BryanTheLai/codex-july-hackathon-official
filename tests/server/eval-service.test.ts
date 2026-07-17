@@ -129,8 +129,8 @@ async function createSeedSuite(
   expectedWorkspaceRevision = 1,
 ) {
   return service.createSuite({
-    datasetId: "dataset-seed",
-    caseIds: ["case-emergency-train"],
+    datasetId: "dataset-aircon-ops",
+    caseIds: ["case-aircon-selection-train"],
     playbookVersionId: "playbook-version-1",
     expectedWorkspaceRevision,
   });
@@ -144,7 +144,7 @@ describe("Eval service", () => {
     expect(created.workspaceRevision).toBe(2);
     const result = await service.runCase({
       suiteId: created.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
     });
     const loaded = await repository.load("demo");
@@ -153,7 +153,7 @@ describe("Eval service", () => {
 
     expect(result).toEqual({
       suiteId: created.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       attempt: 1,
       status: "committed",
       evalRunId: "eval-run-1",
@@ -165,9 +165,10 @@ describe("Eval service", () => {
       "expectedStaffResponse",
     );
     expect(JSON.stringify(request)).not.toContain("rubricRefs");
-    expect(judgeRequest.expectedResponse).toContain("urgent care");
+    expect(judgeRequest.expectedResponse).toContain("chemical wash");
     expect(judgeRequest.rubrics.map((rubric) => rubric.id)).toEqual([
-      "crit-emergency",
+      "crit-aircon-selection",
+      "crit-aircon-price",
     ]);
     expect(loaded?.state.evalArtifacts.runs).toHaveLength(1);
     expect(loaded?.state.evalArtifacts.runs[0]?.agentResult).toBeTruthy();
@@ -181,7 +182,7 @@ describe("Eval service", () => {
     await expect(
       service.runCase({
         suiteId: created.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 1,
       }),
     ).rejects.toEqual(
@@ -200,8 +201,8 @@ describe("Eval service", () => {
     const workspace = await repository.load("demo");
     if (!workspace) throw new Error("Workspace is missing");
     const next = structuredClone(workspace.state);
-    const dataset = next.evalDatasets.find((candidate) => candidate.id === "dataset-seed");
-    const sourceCase = dataset?.cases.find((candidate) => candidate.id === "case-booking-train");
+    const dataset = next.evalDatasets.find((candidate) => candidate.id === "dataset-aircon-ops");
+    const sourceCase = dataset?.cases.find((candidate) => candidate.id === "case-aircon-confirm-train");
     if (!dataset || !sourceCase) throw new Error("Seed Eval case is missing");
     dataset.cases.push({
       ...sourceCase,
@@ -210,8 +211,8 @@ describe("Eval service", () => {
       expectedHumanOutput: "",
       source: {
         kind: "autonomous_feedback",
-        conversationId: "convo-booking",
-        messageIds: ["bk-1"],
+        conversationId: "convo-aircon-booking",
+        messageIds: ["book-1"],
         reason: "The patient says the autonomous response was wrong.",
       },
     });
@@ -221,7 +222,7 @@ describe("Eval service", () => {
 
     await expect(
       service.createSuite({
-        datasetId: "dataset-seed",
+        datasetId: "dataset-aircon-ops",
         caseIds: ["case-agent-feedback-pending"],
         playbookVersionId: "playbook-version-1",
         expectedWorkspaceRevision: 2,
@@ -253,7 +254,7 @@ describe("Eval service", () => {
     await expect(
       first.service.runCase({
         suiteId: firstSuite.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       }),
     ).rejects.toMatchObject({ code: "provider_failed" });
@@ -277,7 +278,7 @@ describe("Eval service", () => {
     await expect(
       second.service.runCase({
         suiteId: secondSuite.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       }),
     ).rejects.toMatchObject({ code: "provider_failed" });
@@ -300,7 +301,7 @@ describe("Eval service", () => {
       service.runCase(
         {
           suiteId: created.suiteId,
-          caseId: "case-emergency-train",
+          caseId: "case-aircon-selection-train",
           expectedWorkspaceRevision: 2,
         },
         controller.signal,
@@ -319,12 +320,12 @@ describe("Eval service", () => {
 
     const first = await service.runCase({
       suiteId: created.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
     });
     const second = await service.runCase({
       suiteId: created.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 3,
     });
 
@@ -336,7 +337,7 @@ describe("Eval service", () => {
     ).toEqual([1, 2]);
   });
 
-  it("fails closed when pinned Dream content no longer resolves", async () => {
+  it("fails closed when pinned Knowledge content no longer resolves", async () => {
     const { agent, dataSource, service } = await setup();
     const created = await createSeedSuite(service);
     const record = dataSource.records.get("demo")!;
@@ -346,7 +347,7 @@ describe("Eval service", () => {
     await expect(
       service.runCase({
         suiteId: created.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       }),
     ).rejects.toMatchObject({ code: "provider_failed" });

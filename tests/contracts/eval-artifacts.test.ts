@@ -19,7 +19,7 @@ const otherHash =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 const evalCase = {
-  id: "case-emergency-train",
+  id: "case-aircon-selection-train",
   title: "Emergency symptoms",
   split: "train" as const,
   type: "emergency_triage" as const,
@@ -29,7 +29,7 @@ const evalCase = {
       {
         id: "message-1",
         role: "patient" as const,
-        text: "I have chest pain.",
+        text: "I have aircon service.",
         language: "English",
         sentAt: "2026-07-13T12:00:00.000Z",
       },
@@ -40,7 +40,7 @@ const evalCase = {
     bookingContext: null,
     playbookVersions: [
       {
-        fileId: "file-triage",
+        fileId: "file-aircon-service-selection",
         versionId: "playbook-v1",
         contentHash: hash,
       },
@@ -53,7 +53,7 @@ const evalCase = {
     expectedStaffResponse: "Please seek urgent care now.",
     rubricRefs: [
       {
-        id: "crit-emergency",
+        id: "crit-aircon-selection",
         version: 1,
       },
     ],
@@ -65,11 +65,11 @@ const evalCase = {
 
 const suite = {
   id: "suite-1",
-  datasetId: "dataset-seed",
+  datasetId: "dataset-aircon-ops",
   cases: [evalCase],
   rubrics: [
     {
-      id: "crit-emergency",
+      id: "crit-aircon-selection",
       label: "Emergency safety",
       instruction: "Direct urgent symptoms to emergency care.",
       required: true,
@@ -81,7 +81,7 @@ const suite = {
     bundleHash: otherHash,
     versions: [
       {
-        fileId: "file-triage",
+        fileId: "file-aircon-service-selection",
         versionId: "playbook-v1",
         contentHash: hash,
       },
@@ -114,7 +114,7 @@ const agentResult = {
   handoffReason: null,
   evidence: [
     {
-      fileId: "file-triage",
+      fileId: "file-aircon-service-selection",
       versionId: "playbook-v1",
       contentHash: hash,
       excerpt: "urgent care",
@@ -136,7 +136,7 @@ const judgeResult = {
   rationale: "The candidate follows the required escalation.",
   criterionResults: [
     {
-      criterionId: "crit-emergency",
+      criterionId: "crit-aircon-selection",
       verdict: "pass" as const,
       reason: "The response directs urgent care.",
       evidence: "Please seek urgent care now.",
@@ -147,7 +147,7 @@ const judgeResult = {
     model: "judge-model",
     promptVersion: "judge-prompt-v1",
     rubricVersions: {
-      "crit-emergency": 1,
+      "crit-aircon-selection": 1,
     },
     runId: "judge-run-1",
     latencyMs: 100,
@@ -161,7 +161,7 @@ const judgeResult = {
 const runArtifact = {
   id: "eval-run-1",
   suiteId: "suite-1",
-  caseId: "case-emergency-train",
+  caseId: "case-aircon-selection-train",
   attempt: 1,
   candidateResponse: "Please seek urgent care now.",
   agentResult,
@@ -227,7 +227,7 @@ describe("frozen Eval artifact contracts", () => {
               ...evalCase.judgeBundle,
               rubricRefs: [
                 {
-                  id: "crit-emergency",
+                  id: "crit-aircon-selection",
                   version: 2,
                 },
               ],
@@ -328,8 +328,8 @@ describe("frozen Eval artifact contracts", () => {
   it("validates thin create, case-run, and review requests", () => {
     expect(
       evalSuiteCreateRequestSchema.parse({
-        datasetId: "dataset-seed",
-        caseIds: ["case-emergency-train"],
+        datasetId: "dataset-aircon-ops",
+        caseIds: ["case-aircon-selection-train"],
         playbookVersionId: "playbook-v1",
         expectedWorkspaceRevision: 1,
       }),
@@ -348,14 +348,14 @@ describe("frozen Eval artifact contracts", () => {
     expect(
       evalCaseRunRequestSchema.parse({
         suiteId: "suite-1",
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       }),
     ).toBeTruthy();
     expect(
       evalCaseRunResultSchema.parse({
         suiteId: "suite-1",
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         attempt: 1,
         status: "committed",
         evalRunId: "eval-run-1",
@@ -392,10 +392,10 @@ describe("frozen Eval artifact contracts", () => {
   it("rejects duplicate case IDs and unknown request fields", () => {
     expect(
       evalSuiteCreateRequestSchema.safeParse({
-        datasetId: "dataset-seed",
+        datasetId: "dataset-aircon-ops",
         caseIds: [
-          "case-emergency-train",
-          "case-emergency-train",
+          "case-aircon-selection-train",
+          "case-aircon-selection-train",
         ],
         playbookVersionId: "playbook-v1",
         expectedWorkspaceRevision: 1,
@@ -404,7 +404,7 @@ describe("frozen Eval artifact contracts", () => {
     expect(
       evalCaseRunRequestSchema.safeParse({
         suiteId: "suite-1",
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
         judgeBundle: evalCase.judgeBundle,
       }).success,

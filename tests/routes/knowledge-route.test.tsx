@@ -4,22 +4,22 @@ import { forwardRef } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createCanonicalServerState } from "../../src/domain";
-import DreamRoute from "../../src/routes/dream/dream-route";
+import { createCanonicalSeed, createCanonicalServerState, type Correction } from "../../src/domain";
+import KnowledgeRoute from "../../src/routes/knowledge/knowledge-route";
 import { AppStoreProvider } from "../../src/store/app-store-context";
+import { saveAppState } from "../../src/store/repository";
 import { createAppStore, type AppStore } from "../../src/store/use-app-store";
 
 vi.mock("@uiw/react-codemirror", () => ({
   default: forwardRef<
     HTMLTextAreaElement,
     {
-      "aria-label"?: string;
       onChange?: (value: string) => void;
       value?: string;
     }
-  >(({ "aria-label": ariaLabel, onChange, value }, ref) => (
+  >(({ onChange, value }, ref) => (
     <textarea
-      aria-label={ariaLabel}
+      aria-label="Playbook Markdown editor"
       onChange={(event) => onChange?.(event.target.value)}
       ref={ref}
       value={value}
@@ -36,6 +36,32 @@ class MemoryStorage implements Storage {
   removeItem(key: string) { this.data.delete(key); }
   setItem(key: string, value: string) { this.data.set(key, value); }
 }
+
+const selectionOldLine = "For poor cooling and a musty smell, quote the RM99 general service.";
+const selectionNewLine =
+  "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.";
+
+const selectionCorrection: Correction = {
+  id: "corr-aircon-selection",
+  fileId: "file-aircon-service-selection",
+  oldText: selectionOldLine,
+  newText: selectionNewLine,
+  evidence: "Combined symptoms need chemical wash.",
+  status: "pending",
+  sourceCaseId: "case-aircon-selection-train",
+  lineHint: 3,
+};
+
+const bookingCorrection: Correction = {
+  id: "corr-aircon-booking",
+  fileId: "file-aircon-booking",
+  oldText: "customer explicitly confirms one slot and the address.",
+  newText: "customer explicitly confirms one slot, the address, and SMS confirmation.",
+  evidence: "Explicit booking confirmation train case.",
+  status: "pending",
+  sourceCaseId: "case-aircon-confirm-train",
+  lineHint: 4,
+};
 
 function installMatchMedia(width: number) {
   Object.defineProperty(window, "matchMedia", {
@@ -57,6 +83,22 @@ function installMatchMedia(width: number) {
   });
 }
 
+function createKnowledgeStore(options?: {
+  corrections?: Correction[];
+  playbookFileId?: string;
+}): AppStore {
+  const storage = new MemoryStorage();
+  const state = createCanonicalSeed();
+  if (options?.corrections) {
+    state.corrections = options.corrections;
+  }
+  if (options?.playbookFileId) {
+    state.selections.playbookFileId = options.playbookFileId;
+  }
+  saveAppState(storage, state);
+  return createAppStore(storage);
+}
+
 function LocationProbe() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,7 +106,7 @@ function LocationProbe() {
     <>
       <output aria-label="Current location">{`${location.pathname}${location.search}`}</output>
       <button
-        onClick={() => navigate("/dream?file=file-mandarin-prescription")}
+        onClick={() => navigate("/knowledge?file=file-aircon-rate-card")}
         type="button"
       >
         Test file deep link
@@ -73,14 +115,18 @@ function LocationProbe() {
   );
 }
 
-function renderDream(options: { width?: number; store?: AppStore; entry?: string } = {}) {
+function renderKnowledge(options: {
+  width?: number;
+  store?: AppStore;
+  entry?: string;
+} = {}) {
   installMatchMedia(options.width ?? 1440);
-  const store = options.store ?? createAppStore(new MemoryStorage());
+  const store = options.store ?? createKnowledgeStore();
   const result = render(
     <AppStoreProvider store={store}>
-      <MemoryRouter initialEntries={[options.entry ?? "/dream"]}>
+      <MemoryRouter initialEntries={[options.entry ?? "/knowledge"]}>
         <Routes>
-          <Route path="/dream" element={<><DreamRoute /><LocationProbe /></>} />
+          <Route path="/knowledge" element={<><KnowledgeRoute /><LocationProbe /></>} />
           <Route path="/eval" element={<div>Evaluation destination</div>} />
         </Routes>
       </MemoryRouter>
@@ -89,16 +135,22 @@ function renderDream(options: { width?: number; store?: AppStore; entry?: string
   return { ...result, store };
 }
 
-describe("Dream route", () => {
+describe("Knowledge route", () => {
   beforeEach(() => installMatchMedia(1440));
   afterEach(cleanup);
 
   it("keeps the editable playbook dominant with adjacent files and changes", async () => {
-    renderDream();
+    renderKnowledge();
 
     expect(screen.getByRole("heading", { name: "Knowledge" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Dream release gate" })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: "Knowledge release gate" })).toHaveTextContent(
       "Active SOPv1",
+    );
+    expect(screen.getByRole("region", { name: "Knowledge release gate" })).toHaveTextContent(
+      "Prior version",
+    );
+    expect(screen.getByRole("region", { name: "Knowledge release gate" })).toHaveTextContent(
+      "None until first activation",
     );
     expect(screen.getByRole("navigation", { name: "Playbook files" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Playbook editor" })).toBeInTheDocument();
@@ -108,16 +160,21 @@ describe("Dream route", () => {
     expect(
       (await screen.findByRole("textbox", { name: "Playbook Markdown editor" }) as HTMLTextAreaElement)
         .value,
-    ).toContain("Seek urgent care for chest pain.");
+    ).toContain("General service: RM99 per unit.");
     expect(screen.getAllByText("Saved")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Test Changes" })).toBeEnabled();
-    expect(screen.queryByText(/dashboard|overview|dream cycle/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check saved text" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Roll back: Available after the first candidate is activated",
+      }),
+    ).toBeDisabled();
+    expect(screen.queryByText(/dashboard|overview|knowledge cycle/i)).not.toBeInTheDocument();
   });
 
   it("uses an IDE tree and scopes new files and folders to the selected folder", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge();
 
     expect(screen.getByRole("tree", { name: "Playbook explorer" })).toBeInTheDocument();
     const dataFolder = screen.getByRole("treeitem", { name: "data" });
@@ -153,21 +210,21 @@ describe("Dream route", () => {
 
   it("restores a selected nested file with its folder expanded", async () => {
     const user = userEvent.setup();
-    const store = createAppStore(new MemoryStorage());
+    const store = createKnowledgeStore();
     expect(
       store.getState().createPlaybookFile({
-        path: "playbooks/data/clinic-context.md",
-        title: "Clinic context",
+        path: "playbooks/data/service-area.md",
+        title: "Service area",
       }).ok,
     ).toBe(true);
 
-    renderDream({ store });
+    renderKnowledge({ store });
 
     expect(screen.getByRole("treeitem", { name: "data" })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
-    expect(screen.getByRole("treeitem", { name: /clinic context/i })).toHaveAttribute(
+    expect(screen.getByRole("treeitem", { name: /service area/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -180,22 +237,27 @@ describe("Dream route", () => {
 
   it("reveals playbook definitions on hover without adding visible helper copy", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge();
 
-    await user.hover(screen.getByRole("term", { name: "Triage" }));
+    await user.hover(screen.getByRole("term", { name: "Aircon rate card" }));
     expect(
-      screen.getByRole("tooltip", { name: /prioritizes urgent symptoms/i }),
+      screen.getByRole("tooltip", { name: /fixed rm99 general service/i }),
     ).toBeInTheDocument();
-    await user.unhover(screen.getByRole("term", { name: "Triage" }));
-    await user.hover(screen.getByRole("term", { name: "Malay booking" }));
+    await user.unhover(screen.getByRole("term", { name: "Aircon rate card" }));
+    await user.hover(screen.getByRole("term", { name: "Aircon booking" }));
     expect(
-      screen.getByRole("tooltip", { name: /handles appointment requests in Malay/i }),
+      screen.getByRole("tooltip", { name: /collects symptoms, slots, and address/i }),
     ).toBeInTheDocument();
   });
 
   it("blocks review while dirty, saves, approves, and verifies saved text", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge({
+      store: createKnowledgeStore({
+        corrections: [selectionCorrection],
+        playbookFileId: "file-aircon-service-selection",
+      }),
+    });
     const editor = await screen.findByRole("textbox", { name: "Playbook Markdown editor" });
 
     await user.type(editor, "\nDocument escalation context.");
@@ -205,36 +267,44 @@ describe("Dream route", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getAllByText("Saved")).not.toHaveLength(0));
     await user.click(screen.getByRole("button", { name: "Approve correction" }));
-    expect((editor as HTMLTextAreaElement).value).toContain("Call 999 guidance");
+    expect((editor as HTMLTextAreaElement).value).toContain(selectionNewLine);
 
-    await user.click(screen.getByRole("button", { name: "Test Changes" }));
-    expect(screen.getByRole("region", { name: "Test Changes results" })).toHaveTextContent(
+    await user.click(screen.getByRole("button", { name: "Check saved text" }));
+    expect(screen.getByRole("region", { name: "Saved text check results" })).toHaveTextContent(
       "Preparing saved-text verification",
     );
     await waitFor(() =>
-      expect(screen.getByRole("region", { name: "Test Changes results" })).toHaveTextContent(
+      expect(screen.getByRole("region", { name: "Saved text check results" })).toHaveTextContent(
         "1 passed",
       ),
     );
-    expect(screen.getByRole("region", { name: "Test Changes results" })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: "Saved text check results" })).toHaveTextContent(
       "Evaluation Lab scores stay separate",
     );
-    const results = screen.getByRole("region", { name: "Test Changes results" });
-    expect(results).toHaveTextContent("Line 3");
+    const results = screen.getByRole("region", { name: "Saved text check results" });
+    expect(results).toHaveTextContent("Line 4");
     expect(results).toHaveTextContent("Before");
-    expect(results).toHaveTextContent("Seek urgent care for chest pain.");
+    expect(results).toHaveTextContent(selectionOldLine);
     expect(results).toHaveTextContent("After");
-    expect(results).toHaveTextContent("Call 999 guidance for chest pain with sweating.");
-    expect(results).toHaveTextContent("Saved line 3 matches the approved text.");
+    expect(results).toHaveTextContent(selectionNewLine);
+    expect(results).toHaveTextContent("Saved line 4 matches the approved text.");
   });
 
   it("does not claim an approved correction caused a stale proposal after an ordinary save", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge({
+      store: createKnowledgeStore({
+        corrections: [selectionCorrection],
+        playbookFileId: "file-aircon-service-selection",
+      }),
+    });
     const editor = await screen.findByRole("textbox", { name: "Playbook Markdown editor" });
 
     await user.clear(editor);
-    await user.type(editor, "# Triage\n\nCall 999 guidance for chest pain with sweating.\n");
+    await user.type(
+      editor,
+      `# Aircon service selection\n\nRoutine cleaning uses the RM99 general service.\n${selectionNewLine}\nDo not diagnose parts or promise a repair outcome.\n`,
+    );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     const stale = await screen.findByText(/Saved text no longer contains the proposed line/i);
@@ -246,30 +316,53 @@ describe("Dream route", () => {
   it("renders every server command failure as a failed operation", async () => {
     const user = userEvent.setup();
     const state = await createCanonicalServerState();
-    const store = createAppStore(new MemoryStorage(), {
+    const storage = new MemoryStorage();
+    const local = createCanonicalSeed();
+    local.corrections = [selectionCorrection];
+    local.selections.playbookFileId = "file-aircon-service-selection";
+    saveAppState(storage, local);
+    const execute = vi.fn(async () => {
+      throw new Error("Workspace revision is stale.");
+    });
+    const store = createAppStore(storage, {
       workspaceClient: {
         async load() {
-          return { revision: 1, state, workspaceId: "demo" };
+          return {
+            revision: 1,
+            state: {
+              ...state,
+              corrections: local.corrections,
+              selections: local.selections,
+            },
+            workspaceId: "demo",
+          };
         },
       },
       workspaceCommandClient: {
-        async execute() {
-          throw new Error("Workspace revision is stale.");
-        },
+        execute,
       },
     });
-    renderDream({ store });
+    renderKnowledge({ store });
 
     await user.click(await screen.findByRole("button", { name: "Approve correction" }));
-    const message = await screen.findByText("Workspace revision is stale.");
-    expect(message.closest(".operation-status")).toHaveClass("operation-status--failed");
+    await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      const banner = screen.getByText("Workspace revision is stale.");
+      expect(banner.closest(".operation-status")).toHaveClass("operation-status--failed");
+    });
   });
 
   it("renders one pane on mobile and follows file, changes, then Focus Line choreography", async () => {
     const user = userEvent.setup();
-    renderDream({ width: 390 });
+    renderKnowledge({
+      width: 390,
+      store: createKnowledgeStore({
+        corrections: [selectionCorrection],
+        playbookFileId: "file-aircon-service-selection",
+      }),
+    });
 
-    expect(screen.getByRole("tablist", { name: "Dream panes" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Knowledge panes" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Playbook files" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Playbook editor" })).not.toBeInTheDocument();
     screen.getByRole("tab", { name: "Files" }).focus();
@@ -278,52 +371,82 @@ describe("Dream route", () => {
     await user.keyboard("{Home}");
     expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
 
-    await user.click(screen.getByRole("treeitem", { name: /triage\.md/i }));
-    expect(screen.getByRole("region", { name: "Playbook editor" })).toBeInTheDocument();
+    await user.click(screen.getByRole("treeitem", { name: /aircon service selection/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("region", { name: "Playbook editor" })).toBeInTheDocument(),
+    );
     expect(screen.queryByRole("navigation", { name: "Playbook files" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Changes" }));
     expect(screen.getByRole("complementary", { name: "Proposed changes" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Focus Line" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Focus correction at line 3" }));
+    await user.click(screen.getByRole("button", { name: "Focus correction at line 4" }));
     expect(screen.getByRole("region", { name: "Playbook editor" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Playbook Markdown editor" })).toHaveFocus();
   });
 
-  it("opens a correction deep link in its owning file and consumes the query", () => {
-    renderDream({ entry: "/dream?correction=corr-malay-booking", width: 390 });
+  it("opens a correction deep link in its owning file and consumes the query", async () => {
+    const storage = new MemoryStorage();
+    const state = createCanonicalSeed();
+    state.corrections = [bookingCorrection];
+    saveAppState(storage, state);
+    renderKnowledge({
+      entry: "/knowledge?correction=corr-aircon-booking",
+      store: createAppStore(storage),
+      width: 390,
+    });
 
-    expect(screen.getAllByText("playbooks/malay-booking.md")).not.toHaveLength(0);
+    await waitFor(() =>
+      expect(screen.getAllByText("playbooks/aircon-booking.md")).not.toHaveLength(0),
+    );
     expect(screen.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText(/SMS confirmation before closing/)).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/dream");
+    expect(screen.getByText(/Explicit booking confirmation train case/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Correction opened from Eval evidence. Review the diff, replay affected cases, then activate only if the full suite passes./i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/knowledge");
   });
 
   it("reprocesses a new same-route file deep link", async () => {
     const user = userEvent.setup();
-    renderDream({ entry: "/dream?correction=corr-malay-booking", width: 390 });
+    const storage = new MemoryStorage();
+    const state = createCanonicalSeed();
+    state.corrections = [bookingCorrection];
+    saveAppState(storage, state);
+    renderKnowledge({
+      entry: "/knowledge?correction=corr-aircon-booking",
+      store: createAppStore(storage),
+      width: 390,
+    });
     await user.click(screen.getByRole("button", { name: "Test file deep link" }));
 
-    expect(screen.getAllByText("playbooks/mandarin-prescription.md")).not.toHaveLength(0);
+    expect(screen.getAllByText("playbooks/aircon-rate-card.md")).not.toHaveLength(0);
     expect(screen.getByRole("tab", { name: "Editor" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/dream");
+    expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/knowledge");
   });
 
   it("rejects without changing saved text and keeps the decided line focusable", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge({
+      store: createKnowledgeStore({
+        corrections: [selectionCorrection],
+        playbookFileId: "file-aircon-service-selection",
+      }),
+    });
     const editor = await screen.findByRole("textbox", { name: "Playbook Markdown editor" });
     const before = (editor as HTMLTextAreaElement).value;
     await user.click(screen.getByRole("button", { name: "Reject correction" }));
 
     expect((editor as HTMLTextAreaElement).value).toBe(before);
     expect(screen.getByText("rejected", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Focus correction at line 3" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Focus correction at line 4" })).toBeEnabled();
   });
 
   it("creates a file through maintenance controls and surfaces path validation inline", async () => {
     const user = userEvent.setup();
-    renderDream();
+    renderKnowledge();
 
     await user.click(screen.getByRole("button", { name: "More file actions" }));
     await user.click(screen.getByRole("menuitem", { name: "New File" }));

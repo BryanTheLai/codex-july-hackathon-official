@@ -191,8 +191,44 @@ describe("agent provider adapter", () => {
         text: input.text,
         tools: [],
         tool_choice: "none",
+        max_output_tokens: 2048,
+        reasoning: { effort: "none" },
       },
       { signal: controller.signal },
+    );
+  });
+
+  it("rejects reasoning-only empty Responses output for non-tool turns", async () => {
+    const createResponse = createAgentProviderAdapter(
+      {
+        apiKey: "provider-key",
+        apiMode: "responses",
+        baseUrl: "https://provider.example/v1",
+        liveEnabled: true,
+        model: "agent-model",
+      },
+      {
+        responses: {
+          create: vi.fn(async () => ({
+            model: "provider-model",
+            output_text: "",
+            output: [{ type: "reasoning" }],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            },
+          })),
+        },
+        chat: { completions: { create: vi.fn() } },
+      },
+    );
+
+    await expect(createResponse(input)).rejects.toEqual(
+      new AgentProviderError(
+        "provider_failed",
+        "Agent provider returned empty Responses output (reasoning-only).",
+      ),
     );
   });
 
@@ -270,7 +306,7 @@ describe("agent provider adapter", () => {
             type: "function_call",
             call_id: "call-1",
             name: "list_available_slots",
-            arguments: '{"date":null,"provider":"Dr. Farah"}',
+            arguments: '{"date":null}',
           },
         ],
         usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
@@ -359,7 +395,7 @@ describe("agent provider adapter", () => {
                   type: "function",
                   function: {
                     name: "list_available_slots",
-                    arguments: '{"date":null,"provider":"Dr. Farah"}',
+                    arguments: '{"date":null}',
                   },
                 },
               ],

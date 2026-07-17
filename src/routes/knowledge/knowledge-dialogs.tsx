@@ -81,15 +81,15 @@ export function FileDialog({
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="dream-dialog__overlay" />
-        <Dialog.Content className="dream-dialog__content">
-          <Dialog.Title className="dream-dialog__title">
+        <Dialog.Overlay className="knowledge-dialog__overlay" />
+        <Dialog.Content className="knowledge-dialog__content">
+          <Dialog.Title className="knowledge-dialog__title">
             {mode === "create" ? "New playbook file" : "Rename playbook file"}
           </Dialog.Title>
-          <Dialog.Description className="dream-dialog__description">
+          <Dialog.Description className="knowledge-dialog__description">
             {mode === "create" ? "Create in" : "Rename inside"} <code>{location}</code>
           </Dialog.Description>
-          <label className="dream-dialog__field">
+          <label className="knowledge-dialog__field">
             File title
             <input
               aria-label="File title"
@@ -103,7 +103,7 @@ export function FileDialog({
               value={title}
             />
           </label>
-          <label className="dream-dialog__field">
+          <label className="knowledge-dialog__field">
             File name
             <input
               aria-label="File name"
@@ -115,13 +115,13 @@ export function FileDialog({
               value={name}
             />
           </label>
-          {error ? <p className="dream-inline-error" role="alert">{error}</p> : null}
-          <div className="dream-dialog__actions">
+          {error ? <p className="knowledge-inline-error" role="alert">{error}</p> : null}
+          <div className="knowledge-dialog__actions">
             <Dialog.Close asChild>
-              <button className="dream-button" type="button">Cancel</button>
+              <button className="knowledge-button" type="button">Cancel</button>
             </Dialog.Close>
             <button
-              className="dream-button dream-button--primary"
+              className="knowledge-button knowledge-button--primary"
               disabled={!name.trim() || !title.trim() || submitting}
               onClick={submit}
               type="button"
@@ -168,13 +168,13 @@ export function FolderDialog({
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
-        <Dialog.Overlay className="dream-dialog__overlay" />
-        <Dialog.Content className="dream-dialog__content">
-          <Dialog.Title className="dream-dialog__title">New playbook folder</Dialog.Title>
-          <Dialog.Description className="dream-dialog__description">
+        <Dialog.Overlay className="knowledge-dialog__overlay" />
+        <Dialog.Content className="knowledge-dialog__content">
+          <Dialog.Title className="knowledge-dialog__title">New playbook folder</Dialog.Title>
+          <Dialog.Description className="knowledge-dialog__description">
             Create inside <code>{parentPath}/</code>
           </Dialog.Description>
-          <label className="dream-dialog__field">
+          <label className="knowledge-dialog__field">
             Folder name
             <input
               aria-label="Folder name"
@@ -184,13 +184,13 @@ export function FolderDialog({
               value={name}
             />
           </label>
-          {error ? <p className="dream-inline-error" role="alert">{error}</p> : null}
-          <div className="dream-dialog__actions">
+          {error ? <p className="knowledge-inline-error" role="alert">{error}</p> : null}
+          <div className="knowledge-dialog__actions">
             <Dialog.Close asChild>
-              <button className="dream-button" type="button">Cancel</button>
+              <button className="knowledge-button" type="button">Cancel</button>
             </Dialog.Close>
             <button
-              className="dream-button dream-button--primary"
+              className="knowledge-button knowledge-button--primary"
               disabled={!name.trim()}
               onClick={submit}
               type="button"
@@ -225,21 +225,21 @@ export function DeleteFileDialog({
   return (
     <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dream-dialog__overlay" />
-        <AlertDialog.Content className="dream-dialog__content">
-          <AlertDialog.Title className="dream-dialog__title">
+        <AlertDialog.Overlay className="knowledge-dialog__overlay" />
+        <AlertDialog.Content className="knowledge-dialog__content">
+          <AlertDialog.Title className="knowledge-dialog__title">
             Delete {file?.path ?? "playbook file"}?
           </AlertDialog.Title>
-          <AlertDialog.Description className="dream-dialog__description">
+          <AlertDialog.Description className="knowledge-dialog__description">
             Protected seed files and files with correction history cannot be deleted.
           </AlertDialog.Description>
-          {error ? <p className="dream-inline-error" role="alert">{error}</p> : null}
-          <div className="dream-dialog__actions">
+          {error ? <p className="knowledge-inline-error" role="alert">{error}</p> : null}
+          <div className="knowledge-dialog__actions">
             <AlertDialog.Cancel asChild>
-              <button className="dream-button" type="button">Cancel</button>
+              <button className="knowledge-button" type="button">Cancel</button>
             </AlertDialog.Cancel>
             <button
-              className="dream-button dream-button--risk"
+              className="knowledge-button knowledge-button--risk"
               onClick={() => {
                 void (async () => {
                   setDeleting(true);
@@ -281,20 +281,20 @@ export function DiscardDraftDialog({
   return (
     <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="dream-dialog__overlay" />
-        <AlertDialog.Content className="dream-dialog__content">
-          <AlertDialog.Title className="dream-dialog__title">
+        <AlertDialog.Overlay className="knowledge-dialog__overlay" />
+        <AlertDialog.Content className="knowledge-dialog__content">
+          <AlertDialog.Title className="knowledge-dialog__title">
             Discard draft for {file?.path ?? "this file"}?
           </AlertDialog.Title>
-          <AlertDialog.Description className="dream-dialog__description">
+          <AlertDialog.Description className="knowledge-dialog__description">
             Only unsaved draft text is removed. The last saved playbook stays unchanged.
           </AlertDialog.Description>
-          <div className="dream-dialog__actions">
+          <div className="knowledge-dialog__actions">
             <AlertDialog.Cancel asChild>
-              <button className="dream-button" type="button">Keep draft</button>
+              <button className="knowledge-button" type="button">Keep draft</button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
-              <button className="dream-button dream-button--risk" onClick={onDiscard} type="button">
+              <button className="knowledge-button knowledge-button--risk" onClick={onDiscard} type="button">
                 Discard draft
               </button>
             </AlertDialog.Action>

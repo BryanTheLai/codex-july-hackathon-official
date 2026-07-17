@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Synthetic multilingual clinic operations workbench.",
+  "description": "Multilingual aircon service desk MSME demo with governed SOP learning loop.",
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "start": "tsx server/index.ts --production",
     "bootstrap:demo": "tsx server/bootstrap-demo.ts",
+    "demo:seed": "tsx server/demo-seed-cli.ts",
+    "demo:reset": "tsx server/demo-reset.ts",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "oxlint --deny-warnings src server tests e2e",
@@ -21,7 +23,8 @@
     "url": "git+https://github.com/BryanTheLai/codex-hack-july.git"
   },
   "keywords": [
-    "healthcare",
+    "msme",
+    "aircon",
     "evaluation",
     "synthetic-demo"
   ],

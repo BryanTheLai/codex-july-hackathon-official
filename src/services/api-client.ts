@@ -321,9 +321,9 @@ export function createHttpWorkspaceCommandClient(
           signal,
         },
         schema: workspaceCommandResultSchema,
-        networkError: "The Dream release server could not be reached.",
-        invalidResponseError: "The Dream release server returned invalid state.",
-        requestError: "The Dream release request failed.",
+        networkError: "The Knowledge release server could not be reached.",
+        invalidResponseError: "The Knowledge release server returned invalid state.",
+        requestError: "The Knowledge release request failed.",
       });
     },
   };

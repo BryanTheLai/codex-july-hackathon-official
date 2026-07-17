@@ -11,7 +11,7 @@ function CaseTypeLabel({ type }: { type: EvalCaseType }) {
   const definition: Record<EvalCaseType, string> = {
     booking: EVAL_GLOSSARY.booking,
     emergency_triage: EVAL_GLOSSARY.emergencyTriage,
-    general: "General patient questions outside the specialized case types.",
+    general: "General customer questions outside the specialized case types.",
     lab_follow_up: EVAL_GLOSSARY.labFollowUp,
     prescription: EVAL_GLOSSARY.prescription,
   };
@@ -32,7 +32,7 @@ function SplitLabel({ split }: { split: EvalCase["split"] }) {
 
 function SourceLabel({ evalCase }: { evalCase: EvalCase }) {
   if (evalCase.source.kind === "autonomous_feedback") {
-    return "Patient feedback";
+    return "Customer feedback";
   }
   if (evalCase.source.kind === "hitl") {
     return "Resolved staff chat";
@@ -72,7 +72,7 @@ function Result({ evalCase, running }: { evalCase: EvalCase; running: boolean })
       </span>
       <small>{evalCase.grade ? `${passed}/${results.length} rules passed` : "Run to evaluate"}</small>
       {isFailed && evalCase.grade?.rationale ? (
-        <span className="eval-result__rationale" style={{ display: "block", marginTop: "4px", fontSize: "0.8rem", color: "#ef4444", maxWidth: "250px", whiteSpace: "normal", wordBreak: "break-word" }}>
+        <span className="eval-result__rationale">
           {evalCase.grade.rationale}
         </span>
       ) : null}
@@ -255,7 +255,7 @@ export function EvalCases(props: EvalCasesProps) {
             <th aria-sort={ariaSort("item")}>
               <button onClick={() => props.onSort("item")} type="button">Case</button>
             </th>
-            <th>Patient context</th>
+            <th>Customer context</th>
             <th aria-sort={ariaSort("grade")}>
               <button onClick={() => props.onSort("grade")} type="button">Result</button>
             </th>

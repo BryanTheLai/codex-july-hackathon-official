@@ -209,7 +209,7 @@ export function createWorkspaceCommandService({
   ): Promise<WorkspaceCommandResult> {
     const initial = await loadAtRevision(command.expectedWorkspaceRevision);
     if (initial.state.playbookHistory.candidateVersionId !== command.candidateVersionId) {
-      fail("release_blocked", "Dream candidate is no longer current", false);
+      fail("release_blocked", "Knowledge candidate is no longer current", false);
     }
     const dataset = initial.state.evalDatasets.find((candidate) => candidate.id === command.datasetId);
     if (!dataset) fail("not_found", "Eval dataset was not found", false);
@@ -344,11 +344,11 @@ export function createWorkspaceCommandService({
             fail("feature_disabled", "LLM SOP proposer is not configured", false);
           }
           if (workspace.state.playbookHistory.candidateVersionId) {
-            fail("release_blocked", "Finish or discard the current Dream candidate first", false);
+            fail("release_blocked", "Finish or discard the current Knowledge candidate first", false);
           }
           const failedRun = latestFailedTrainRun(workspace.state, command.datasetId);
           if (!failedRun) {
-            fail("release_blocked", "Run a failed train Eval case against the active Dream bundle first", false);
+            fail("release_blocked", "Run a failed train Eval case against the active Knowledge bundle first", false);
           }
           const active = workspace.state.playbookHistory.versions.find(
             (candidate) => candidate.id === workspace.state.playbookHistory.activeVersionId,
@@ -376,11 +376,11 @@ export function createWorkspaceCommandService({
           );
           const file = active.files.find((candidate) => candidate.id === proposal.fileId);
           if (!file) {
-            fail("release_blocked", "LLM proposal selected a file outside the active Dream bundle", false);
+            fail("release_blocked", "LLM proposal selected a file outside the active Knowledge bundle", false);
           }
           const occurrences = file.content.split(proposal.oldText).length - 1;
           if (occurrences !== 1 || proposal.oldText === proposal.newText) {
-            fail("release_blocked", "LLM proposal must make one exact safe Dream replacement", false);
+            fail("release_blocked", "LLM proposal must make one exact safe Knowledge replacement", false);
           }
           if (
             workspace.state.corrections.some(
@@ -391,7 +391,7 @@ export function createWorkspaceCommandService({
                 correction.newText === proposal.newText,
             )
           ) {
-            fail("release_blocked", "An identical Dream proposal is already awaiting review", false);
+            fail("release_blocked", "An identical Knowledge proposal is already awaiting review", false);
           }
           next = structuredClone(workspace.state);
           next.corrections.push({

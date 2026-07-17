@@ -40,6 +40,8 @@ export interface GoogleCalendarConnectionDataSource {
 
 export interface GoogleCalendarEventDataSource {
   upsert(record: GoogleCalendarEventRecord): Promise<void>;
+  listByWorkspace(workspaceId: string): Promise<GoogleCalendarEventRecord[]>;
+  deleteMapping(workspaceId: string, conversationId: string): Promise<void>;
 }
 
 export interface GoogleCalendarConnectionRepository {
@@ -49,6 +51,8 @@ export interface GoogleCalendarConnectionRepository {
 
 export interface GoogleCalendarEventRepository {
   save(input: Omit<GoogleCalendarEventRecord, "lastSyncedAt">): Promise<void>;
+  listByWorkspace(workspaceId: string): Promise<GoogleCalendarEventRecord[]>;
+  deleteMapping(workspaceId: string, conversationId: string): Promise<void>;
 }
 
 export function createGoogleCalendarConnectionRepository(
@@ -85,6 +89,18 @@ export function createGoogleCalendarEventRepository(
           ...input,
           lastSyncedAt: timestampSchema.parse(now()),
         }),
+      );
+    },
+    async listByWorkspace(workspaceId) {
+      const records = await dataSource.listByWorkspace(
+        workspaceIdSchema.parse(workspaceId),
+      );
+      return records.map((record) => googleCalendarEventRecordSchema.parse(record));
+    },
+    async deleteMapping(workspaceId, conversationId) {
+      await dataSource.deleteMapping(
+        workspaceIdSchema.parse(workspaceId),
+        conversationId,
       );
     },
   };

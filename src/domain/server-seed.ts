@@ -41,6 +41,10 @@ export async function createCanonicalServerState(): Promise<ServerDomainStatePay
       revision: 1,
       patient: {
         ...conversation.patient,
+        medicalRecordNumber:
+          conversation.patient.medicalRecordNumber === ""
+            ? null
+            : conversation.patient.medicalRecordNumber,
         externalContactId: null,
       },
       channel: "demo",
@@ -69,4 +73,21 @@ export async function createCanonicalServerState(): Promise<ServerDomainStatePay
       ],
     },
   });
+}
+
+export type CompiledSeedLoader = (
+  seedKey: string,
+) => Promise<ServerDomainStatePayload | null>;
+
+export async function loadCompiledServerSeed(
+  loader: CompiledSeedLoader,
+  seedKey: string,
+): Promise<ServerDomainStatePayload> {
+  const compiled = await loader(seedKey);
+  if (!compiled) {
+    throw new Error(
+      `Compiled demo seed "${seedKey}" is missing. Run: npm run demo:seed -- --seed ${seedKey}`,
+    );
+  }
+  return serverDomainStateSchema.parse(compiled);
 }

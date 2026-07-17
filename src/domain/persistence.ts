@@ -33,7 +33,6 @@ import { cloneState } from "./shared";
 import { defaultCriteriaForType } from "./eval-support";
 
 const legacyBookingSchema = z.object({
-  provider: z.string().optional(),
   slotIso: z.string(),
   reason: z.string(),
   status: z.enum(["pending", "approved", "rejected"]),

@@ -47,7 +47,7 @@ function RoutedShell() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<div>Chat workbench</div>} />
-          <Route path="dream" element={<div>Dream workbench</div>} />
+          <Route path="knowledge" element={<div>Knowledge workbench</div>} />
           <Route path="eval" element={<div>Eval workbench</div>} />
         </Route>
       </Routes>
@@ -93,7 +93,7 @@ describe("app shell", () => {
     expect(links[0]).toHaveAccessibleName("Chat Control");
     expect(links[0]).toHaveAttribute("href", "/");
     expect(links[1]).toHaveAccessibleName("Knowledge");
-    expect(links[1]).toHaveAttribute("href", "/dream");
+    expect(links[1]).toHaveAttribute("href", "/knowledge");
     expect(links[2]).toHaveAccessibleName("Evals");
     expect(links[2]).toHaveAttribute("href", "/eval");
   });

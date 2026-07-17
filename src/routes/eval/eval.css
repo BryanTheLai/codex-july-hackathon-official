@@ -318,10 +318,17 @@
 }
 
 .eval-support-rail {
+  width: 280px;
   min-height: 0;
+  flex: 0 0 280px;
   overflow-y: auto;
   border-left: 1px solid var(--kaunter-hairline);
   background: var(--kaunter-quiet);
+}
+
+.eval-support-rail .eval-summary {
+  min-width: 0;
+  border-bottom: 1px solid var(--kaunter-hairline);
 }
 
 .eval-workbench--middle {
@@ -341,7 +348,7 @@
 .eval-middle-support .eval-summary {
   min-height: 56px;
   max-height: 56px;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   border-bottom: 0;
 }
 
@@ -493,6 +500,7 @@
   display: flex;
   min-width: 0;
   min-height: 0;
+  flex: 1;
   flex-direction: column;
   background: var(--kaunter-raised);
 }
@@ -684,6 +692,16 @@
 .eval-result small {
   color: var(--kaunter-muted);
   font-size: 11px;
+}
+
+.eval-result__rationale {
+  display: block;
+  max-width: 250px;
+  margin-top: 4px;
+  color: var(--kaunter-risk-fg);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .eval-result--running {

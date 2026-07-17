@@ -1,6 +1,6 @@
 export * from "./types";
 export { createCanonicalSeed, resetDemo } from "./seed";
-export { createCanonicalServerState } from "./server-seed";
+export { createCanonicalServerState, loadCompiledServerSeed } from "./server-seed";
 export {
   PlaybookReleaseError,
   activatePlaybookCandidate,
@@ -106,8 +106,8 @@ export {
   discardPlaybookDraft,
   approveCorrection,
   rejectCorrection,
-  runTestChanges,
-} from "./dream";
+  runSavedTextCheck,
+} from "./knowledge";
 export {
   hitlImportAvailability,
   playbookIdForConversation,

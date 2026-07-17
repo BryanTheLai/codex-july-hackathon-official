@@ -49,7 +49,7 @@ export {
   WORKFLOW_STATUSES,
 };
 
-export const FIXTURE_TIME_ISO = "2026-07-08T10:00:00+08:00";
+export const FIXTURE_TIME_ISO = "2026-07-18T08:00:00+08:00";
 
 export type ConversationId = string;
 export type PlaybookFileId = string;
@@ -170,7 +170,7 @@ export type SyntheticOutputResult =
   | { ok: true; output: string }
   | { ok: false; error: string };
 
-export type TestChangesResult = {
+export type SavedTextCheckResult = {
   passed: number;
   evaluated: number;
   pending: number;
@@ -308,6 +308,6 @@ export type MigrationResult =
   | { ok: true; state: AppState }
   | { ok: false; error: string };
 
-export type TestChangesMutationResult = MutationResult & {
-  result: TestChangesResult;
+export type SavedTextCheckMutationResult = MutationResult & {
+  result: SavedTextCheckResult;
 };

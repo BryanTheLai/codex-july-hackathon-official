@@ -83,7 +83,7 @@ export function applyMutation(
   return result;
 }
 
-export function applyTestChangesMutation(
+export function applySavedTextCheckMutation(
   set: Setter,
   repository: AppStateRepository,
   result: MutationResult & { result?: unknown },

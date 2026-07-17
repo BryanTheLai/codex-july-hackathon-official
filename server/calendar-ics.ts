@@ -12,6 +12,7 @@ const invitationInputSchema = z
     location: z.string().trim().min(1).max(256).nullable(),
     sequence: z.number().int().nonnegative(),
     startIso: z.iso.datetime({ offset: true }),
+    summary: z.literal("Appointment").default("Appointment"),
     uid: z.string().trim().min(1).max(512),
   })
   .strict()
@@ -25,12 +26,9 @@ const invitationInputSchema = z
     }
   });
 
-export type CalendarInvitationInput = z.infer<typeof invitationInputSchema>;
+export type CalendarInvitationInput = z.input<typeof invitationInputSchema>;
 
-/**
- * Creates an appointment-only RFC 5545 invitation. Patient identity, reason,
- * medical data, and conversation content are deliberately excluded.
- */
+/** Appointment-only RFC 5545; excludes patient, reason, medical, and conversation data. */
 export function createCalendarInvitation(input: CalendarInvitationInput): string {
   const invitation = invitationInputSchema.parse(input);
   const calendar = ical({
@@ -53,7 +51,7 @@ export function createCalendarInvitation(input: CalendarInvitationInput): string
       invitation.kind === "cancel"
         ? ICalEventStatus.CANCELLED
         : ICalEventStatus.CONFIRMED,
-    summary: "Appointment",
+    summary: invitation.summary,
   });
   return calendar.toString();
 }

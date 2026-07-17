@@ -1,4 +1,4 @@
-import type { Conversation, Message } from "../../domain";
+import type { Conversation, EvalDataset, Message } from "../../domain";
 
 export type ChatFilter = "all" | "needs_review" | "ai_handling" | "resolved";
 export type ChatView = "inbox" | "schedule";
@@ -129,7 +129,7 @@ export function formatBookingSlot(iso: string): string {
 }
 
 export function triageGuidance(conversation: Conversation): string {
-  return conversation.triageGuidance ?? "No synthetic triage guidance for this patient.";
+  return conversation.triageGuidance ?? "No synthetic service notes for this customer.";
 }
 
 export function scheduleDays(fixtureTime: string) {
@@ -152,4 +152,24 @@ export function hasResolvedStaffReply(conversation: Conversation): boolean {
     conversation.workflowStatus === "resolved" &&
     conversation.messages.some((message) => message.role === "staff")
   );
+}
+
+export function autonomousFeedbackEvalCaseId(
+  conversationId: string,
+  datasets: EvalDataset[],
+): string | null {
+  const protectedDataset = datasets.find((dataset) => dataset.protected);
+  if (!protectedDataset) {
+    return null;
+  }
+  let lastMatch: string | null = null;
+  for (const evalCase of protectedDataset.cases) {
+    if (
+      evalCase.source.kind === "autonomous_feedback" &&
+      evalCase.source.conversationId === conversationId
+    ) {
+      lastMatch = evalCase.id;
+    }
+  }
+  return lastMatch;
 }

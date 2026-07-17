@@ -26,7 +26,7 @@ const judgeConfig = {
 function historyRow(
   id: string,
   caseId: string,
-  datasetId = "dataset-seed",
+  datasetId = "dataset-aircon-ops",
 ) {
   return {
     id,
@@ -240,7 +240,19 @@ async function dirtyServerState(): Promise<ServerDomainStatePayload> {
     protected: false,
   });
   current.playbookFolders.push("playbooks/manual");
-  current.corrections[0]!.newText = "Dirty synthetic correction";
+  if (current.corrections.length === 0) {
+    current.corrections.push({
+      id: "correction-seed",
+      fileId: "file-aircon-service-selection",
+      oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+      newText: "Dirty synthetic correction",
+      evidence: "Seed correction",
+      status: "pending",
+      sourceCaseId: seedCase.id,
+    });
+  } else {
+    current.corrections[0]!.newText = "Dirty synthetic correction";
+  }
   current.corrections.push(
     {
       id: "correction-hitl",
@@ -253,7 +265,7 @@ async function dirtyServerState(): Promise<ServerDomainStatePayload> {
     },
     {
       id: "correction-legacy-seed",
-      fileId: "file-triage",
+      fileId: "file-aircon-service-selection",
       oldText: "old",
       newText: "new",
       evidence: "Legacy synthetic evidence",
@@ -351,7 +363,7 @@ describe("synthetic-only reset merge", () => {
 
     const reset = mergeSyntheticReset(current, canonical);
     const dataset = reset.evalDatasets.find(
-      (item) => item.id === "dataset-seed",
+      (item) => item.id === "dataset-aircon-ops",
     )!;
     const canonicalDataset = canonical.evalDatasets[0]!;
 

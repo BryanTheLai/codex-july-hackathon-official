@@ -30,6 +30,7 @@ import {
 } from "../src/contracts/eval";
 import {
   createCanonicalServerState,
+  loadCompiledServerSeed,
   mergeSyntheticReset,
   telegramInboundMessageId,
 } from "../src/domain";
@@ -62,6 +63,7 @@ import {
   type WorkspaceCommandService,
 } from "./workspace-command-service";
 import { createCorrectionProposer } from "./correction-proposer";
+import { DEFAULT_DEMO_SEED_KEY } from "./bootstrap-demo";
 import type { ApiError } from "./api-contract";
 import {
   apiErrorSchema,
@@ -90,6 +92,7 @@ import {
   createSupabaseOutboxDataSource,
   createSupabaseTelegramDeliveryDataSource,
   createSupabaseTelegramEventDataSource,
+  createSupabaseDemoSeedDataSource,
   createSupabaseWorkspaceDataSource,
   readSupabaseConfig,
 } from "./supabase";
@@ -225,6 +228,7 @@ type WorkspaceAppOptions = {
   workspaceId: string;
   repository: WorkspaceRepository;
   createCanonicalState: () => Promise<ServerDomainStatePayload>;
+  loadTemplateCanonicalState?: () => Promise<ServerDomainStatePayload>;
 };
 
 type TelegramAppOptions = {
@@ -265,12 +269,18 @@ function configuredWorkspace(): WorkspaceAppOptions | null {
     return null;
   }
   const client = createSupabaseServerClient(config);
+  const seedDataSource = createSupabaseDemoSeedDataSource(client);
   return {
     workspaceId: config.workspaceId,
     repository: createWorkspaceRepository(
       createSupabaseWorkspaceDataSource(client),
     ),
     createCanonicalState: createCanonicalServerState,
+    loadTemplateCanonicalState: () =>
+      loadCompiledServerSeed(
+        (seedKey) => seedDataSource.readCompiled(seedKey),
+        DEFAULT_DEMO_SEED_KEY,
+      ),
   };
 }
 
@@ -324,6 +334,7 @@ function configuredGoogleCalendar(
 function configuredAgent(
   workspace: WorkspaceAppOptions | null,
   googleCalendar: GoogleCalendarService | null,
+  outboxRepository: OutboxRepository | null,
 ): AgentRunner | null {
   if (!process.env.LLM_API_KEY) {
     return null;
@@ -341,6 +352,8 @@ function configuredAgent(
         ? {
             toolExecutor: createAutonomousBookingToolExecutor({
               calendarAvailability: googleCalendar ?? undefined,
+              outboxRepository: outboxRepository ?? undefined,
+              requireConnectedCalendar: config.liveEnabled,
               workspaceId: workspace.workspaceId,
               workspaceRepository: workspace.repository,
             }),
@@ -502,9 +515,64 @@ function autonomousActionRevision(
   }
   return {
     calendar:
-      mutation.name === "create_booking" || mutation.name === "reschedule_booking",
+      mutation.name === "create_booking" ||
+      mutation.name === "reschedule_booking" ||
+      mutation.name === "cancel_booking",
     conversationRevision: mutation.conversationRevision,
   };
+}
+
+async function recordStaffHandoff(input: {
+  conversationId: string;
+  reason: string;
+  runId: string;
+  workspace: WorkspaceAppOptions;
+}): Promise<number> {
+  const messageId = `agent-handoff:${input.runId}`;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const workspace = await input.workspace.repository.load(input.workspace.workspaceId);
+    if (!workspace) {
+      throw new Error("Workspace was not found");
+    }
+    const index = workspace.state.conversations.findIndex(
+      (candidate) => candidate.id === input.conversationId,
+    );
+    if (index < 0) {
+      throw new Error("Conversation was not found");
+    }
+    const conversation = workspace.state.conversations[index]!;
+    if (conversation.messages.some((message) => message.id === messageId)) {
+      return conversation.revision;
+    }
+    const nextState = structuredClone(workspace.state);
+    const current = nextState.conversations[index]!;
+    nextState.conversations[index] = {
+      ...current,
+      agentMode: "staff_only",
+      labels: current.labels.includes("staff-handoff")
+        ? current.labels
+        : [...current.labels, "staff-handoff"],
+      messages: [
+        ...current.messages,
+        {
+          id: messageId,
+          role: "system",
+          text: `Staff handoff requested: ${input.reason}`,
+          sentAt: new Date().toISOString(),
+        },
+      ],
+      revision: current.revision + 1,
+    };
+    const saved = await input.workspace.repository.save(
+      input.workspace.workspaceId,
+      workspace.revision,
+      nextState,
+    );
+    if (saved.ok) {
+      return saved.workspace.state.conversations[index]!.revision;
+    }
+  }
+  throw new Error("Staff handoff could not be recorded");
 }
 
 async function runTelegramAutoReply(input: {
@@ -669,6 +737,14 @@ async function runTelegramAutoReply(input: {
       ...(mode === "both" ? { voiceSource: "tts" as const } : {}),
     });
     if (delivery.status === "sent") {
+      if (result.proposedAction === "staff_handoff" && result.handoffReason) {
+        await recordStaffHandoff({
+          conversationId: conversation.id,
+          reason: result.handoffReason,
+          runId: result.runId,
+          workspace,
+        });
+      }
       log.info("telegram_auto_reply_sent", {
         ...logContext,
         conversationId: conversation.id,
@@ -1120,7 +1196,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       ? configuredGoogleCalendar(workspace, outboxRepository)
       : options.googleCalendar;
   const agent = options.agent === undefined
-    ? configuredAgent(workspace, googleCalendar)
+    ? configuredAgent(workspace, googleCalendar, outboxRepository)
     : options.agent;
   const telegram =
     options.telegram === undefined
@@ -1868,7 +1944,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       if (!workflow) {
         sendApiError(response, 503, {
           code: "feature_disabled",
-          error: "Dream release workflows are not configured.",
+          error: "Knowledge release workflows are not configured.",
           retryable: false,
         });
         return;
@@ -1986,7 +2062,28 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
           );
           return;
         }
-        const canonical = await workspace.createCanonicalState();
+        let canonical: ServerDomainStatePayload;
+        if (workspace.loadTemplateCanonicalState) {
+          try {
+            canonical = await workspace.loadTemplateCanonicalState();
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Demo seed template is unavailable.";
+            if (message.includes("missing")) {
+            sendApiError(response, 503, {
+              code: "invalid_request",
+              error: message,
+              retryable: false,
+            });
+              return;
+            }
+            throw error;
+          }
+        } else {
+          canonical = await workspace.createCanonicalState();
+        }
         const nextState = mergeSyntheticReset(current.state, canonical);
         const result = await workspace.repository.save(
           workspace.workspaceId,
@@ -2241,14 +2338,14 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         if (error instanceof ZodError) {
           sendApiError(response, 502, {
             code: "provider_failed",
-            error: "The model provider returned invalid judge evidence.",
+            error: "The model provider returned invalid judge evidence. Retry the run; if it repeats, check the judge model configuration.",
             retryable: true,
           });
           return;
         }
         sendApiError(response, 502, {
           code: "provider_failed",
-          error: "The model provider did not return a judge result.",
+          error: "The model provider did not return a judge result. Retry the run; if it repeats, check the judge model configuration.",
           retryable: true,
         });
       }

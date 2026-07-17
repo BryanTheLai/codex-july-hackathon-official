@@ -9,19 +9,14 @@ const SCENARIOS: Array<{
   description: string;
 }> = [
   {
-    value: "emergency_chest_pain",
-    label: "Emergency chest pain",
-    description: "Adds an urgent WhatsApp fixture for a synthetic patient.",
+    value: "aircon_malay_booking",
+    label: "Malay aircon booking",
+    description: "Adds a Malay WhatsApp fixture for a routine general-service booking.",
   },
   {
-    value: "malay_booking",
-    label: "Malay booking",
-    description: "Adds a routine Malay appointment fixture.",
-  },
-  {
-    value: "mandarin_voice",
-    label: "Mandarin voice transcript",
-    description: "Adds text marked as a transcript. No audio is created.",
+    value: "aircon_package_complaint",
+    label: "Package selection complaint",
+    description: "Adds a fixture where the customer disputes the quoted service package.",
   },
 ];
 
@@ -34,13 +29,13 @@ export function SimulateDialog({
   onOpenChange: (open: boolean) => void;
   onSimulate: (scenario: SimulateScenario) => MutationResult;
 }) {
-  const [scenario, setScenario] = useState<SimulateScenario>("emergency_chest_pain");
+  const [scenario, setScenario] = useState<SimulateScenario>("aircon_malay_booking");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) {
-      setScenario("emergency_chest_pain");
+      setScenario("aircon_malay_booking");
       setRunning(false);
       setError("");
     }
@@ -67,9 +62,9 @@ export function SimulateDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="chat-dialog__overlay" />
         <Dialog.Content className="chat-dialog__content">
-          <Dialog.Title className="chat-dialog__title">Simulate Patient</Dialog.Title>
+          <Dialog.Title className="chat-dialog__title">Simulate Customer</Dialog.Title>
           <Dialog.Description className="chat-dialog__description">
-            Add one deterministic synthetic conversation. No patient, clinic, or external service
+            Add one deterministic synthetic conversation. No customer, job site, or external service
             is contacted.
           </Dialog.Description>
           <label className="chat-dialog__field">
@@ -105,7 +100,7 @@ export function SimulateDialog({
               onClick={submit}
               type="button"
             >
-              {running ? "Adding synthetic patient" : "Add synthetic patient"}
+              {running ? "Adding synthetic customer" : "Add synthetic customer"}
             </button>
           </div>
         </Dialog.Content>

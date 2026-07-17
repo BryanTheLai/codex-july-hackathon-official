@@ -36,7 +36,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     page.getByText(mobile ? "Demo" : "Synthetic Demo", { exact: true }).first(),
   ).toBeVisible();
   const firstQueueRow = page.getByRole("button", {
-    name: "Open conversation with Ahmad bin Hassan",
+    name: "Open conversation with Farid Demo",
   });
   expect(Math.round((await firstQueueRow.boundingBox())?.height ?? 0)).toBeLessThanOrEqual(68);
   await expectNoDocumentOverflow(page);
@@ -53,7 +53,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     });
 
     await page
-      .getByRole("button", { name: "Open conversation with Ahmad bin Hassan" })
+      .getByRole("button", { name: "Open conversation with Farid Demo" })
       .click();
     await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
     await expect(page.getByLabel("Autonomous agent handling")).toBeVisible();
@@ -71,7 +71,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     });
 
     await page.getByRole("button", { name: "Details" }).click();
-    await expect(page.getByRole("complementary", { name: "Patient context" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Customer context" })).toBeVisible();
     await expectMobileTargets(page);
     await expectNoDocumentOverflow(page);
     await page.getByRole("button", { name: "Close details" }).click();
@@ -79,7 +79,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
   } else {
     await expect(page.getByRole("region", { name: "Conversation queue" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Patient context" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Customer context" })).toBeVisible();
     const navBox = await page.getByRole("link", { name: "Chat Control" }).boundingBox();
     const demoBox = await page.locator(".app-shell__demo").boundingBox();
     const resetBox = await page.getByRole("button", { name: "Reset Demo" }).boundingBox();
@@ -109,31 +109,33 @@ test("Chat Control satisfies its responsive workbench contract", async ({
       path: "test-results/screenshots/chat-desktop-1440.png",
     });
     await page
-      .getByRole("button", { name: "Open conversation with Mei Lin Tan" })
+      .getByRole("button", { name: "Open conversation with Farid Demo" })
       .click();
-    await expect(page.getByText("我想续开降压药。", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Voice transcript")).toBeVisible();
+    await expect(
+      page
+        .getByLabel("Conversation messages")
+        .getByText("That package is wrong. I said it is not cooling and smells musty.", {
+          exact: true,
+        }),
+    ).toBeVisible();
     await page.screenshot({
       fullPage: true,
-      path: "test-results/screenshots/chat-desktop-mandarin.png",
+      path: "test-results/screenshots/chat-desktop-package-selection.png",
     });
     await page
-      .getByRole("button", { name: "Open conversation with Nurul Aisyah" })
+      .getByRole("button", { name: "Open conversation with Aina Demo" })
       .click();
     const patientContext = page.getByRole("complementary", {
-      name: "Patient context",
+      name: "Customer context",
     });
     await expect(patientContext.getByRole("button", { name: "Approve booking" })).toHaveCount(0);
     await expect(patientContext.getByRole("button", { name: "Reject booking" })).toHaveCount(0);
-    await expect(patientContext.getByLabel("Booking status timeline")).toContainText("Requested");
-    await expect(patientContext.getByLabel("Booking status timeline")).toContainText(
-      "Availability checked",
-    );
+    await expect(patientContext.getByLabel("Booking status timeline")).toHaveCount(0);
     await page.getByRole("button", { name: "Generate draft" }).click();
     await expect(page.getByText("Autonomous action trace")).toBeVisible();
     await expect(
       page.getByText(
-        "Completed: Checked demo availability; waiting for the patient's preferred date and time.",
+        "Completed: Checked demo availability; waiting for the customer's preferred date and time.",
       ),
     ).toBeVisible();
   }
@@ -150,16 +152,13 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     }),
   ).toBeVisible();
   await expectNoDocumentOverflow(page);
-  if (!mobile) {
-    await page.getByRole("button", { name: "Edit booking for Nurul Aisyah" }).click();
-    await expect(page.getByRole("dialog", { name: "Edit booking" })).toBeVisible();
-    await page.screenshot({
-      fullPage: true,
-      path: "test-results/screenshots/chat-desktop-booking-dialog.png",
-    });
-    await page.getByRole("button", { name: "Cancel" }).click();
+  if (mobile) {
+    await page.getByRole("button", { name: "More chat actions" }).click();
+    await page.getByRole("menuitemradio", { name: "Inbox" }).click();
+  } else {
+    await page.getByRole("tab", { name: "Inbox" }).click();
   }
-  await page.getByRole("button", { name: "Open conversation with Nurul Aisyah" }).click();
+  await page.getByRole("button", { name: "Open conversation with Aina Demo" }).click();
   if (mobile) {
     await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
   } else {
@@ -167,7 +166,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
   }
   expect(
     requestedUrls.filter((url) =>
-      /\/src\/routes\/(?:dream|eval)\/|react-codemirror|recharts|tanstack/i.test(url),
+      /\/src\/routes\/(?:knowledge|eval)\/|react-codemirror|recharts|tanstack/i.test(url),
     ),
   ).toEqual([]);
   await expect(runtimeErrors).toEqual([]);

@@ -8,8 +8,8 @@ import {
 
 const request: JudgeRequest = {
   runId: "client-run-1",
-  datasetId: "dataset-seed",
-  caseId: "case-booking-train",
+  datasetId: "dataset-aircon-ops",
+  caseId: "case-aircon-confirm-train",
   caseType: "booking",
   language: "Malay",
   candidateVersion: 1,
@@ -18,7 +18,7 @@ const request: JudgeRequest = {
   expectedResponse: "Confirm the next available appointment slot.",
   rubrics: [
     {
-      id: "crit-booking",
+      id: "crit-aircon-confirm",
       label: "Booking next step",
       instruction: "Explain the next booking step without inventing a confirmed slot.",
       required: true,
@@ -33,7 +33,7 @@ const judgeResponse: JudgeResponse = {
   rationale: "The reply gives the next step.",
   criterionResults: [
     {
-      criterionId: "crit-booking",
+      criterionId: "crit-aircon-confirm",
       verdict: "pass",
       reason: "The reply says confirmation is still pending.",
       evidence: "will confirm the slot",
@@ -43,7 +43,7 @@ const judgeResponse: JudgeResponse = {
     provider: "openai",
     model: "gpt-5.6",
     promptVersion: "2026-07-12.1",
-    rubricVersions: { "crit-booking": 1 },
+    rubricVersions: { "crit-aircon-confirm": 1 },
     runId: "client-run-1",
     latencyMs: 20,
     simulated: false,

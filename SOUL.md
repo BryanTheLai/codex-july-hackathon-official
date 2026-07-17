@@ -6,7 +6,7 @@ audience:
   - "Frontend engineers"
   - "Coding agents changing any user-facing surface"
 purpose: "Preserve the product's focus, taste, and anti-generic interface rules across rebuilds."
-status: "Canonical design contract with a verified local workbench implementation, including the narrow-screen Dream overflow path."
+status: "Canonical design contract with a verified local workbench implementation, including the narrow-screen Knowledge overflow path."
 created_at: "2026-07-14"
 last_updated: "2026-07-17"
 last_verified: "2026-07-17"
@@ -23,7 +23,7 @@ source_basis:
   - "Braintrust evaluation concepts: https://www.braintrust.dev/docs/evaluate"
   - "Langfuse experiment concepts: https://langfuse.com/docs/evaluation/core-concepts"
   - "Perplexity source transparency: https://www.perplexity.ai/help-center/en/articles/10352895-how-does-perplexity-work"
-  - "The operator's hand-drawn Dream references"
+  - "The operator's hand-drawn Knowledge references"
   - "PROJECT.md behavior, safety, and spatial contract"
 relationship_to_project: "SOUL.md guides taste and attention. PROJECT.md governs observable behavior, data, safety, page geometry, and acceptance."
 stack_policy: "No framework, component library, editor, table, chart, or storage choice is required."
@@ -45,7 +45,7 @@ production claim.
 The artifact changes by route:
 
 - Chat Control: a patient conversation.
-- Dream: a playbook file and its proposed line changes.
+- Knowledge: a playbook file and its proposed line changes.
 - Evals: an evaluation case and its grading evidence.
 
 The interface exists to help the human inspect and decide. It is not a home page, management
@@ -99,14 +99,14 @@ References teach information hierarchy. They do not dictate the brand.
 | Reference | KaunterAI copies conceptually | KaunterAI deliberately rejects | Why it fits KaunterAI |
 |---|---|---|---|
 | [Chatwoot dashboard](https://chatwoot.help/hc/user-guide/articles/1677231493-lesson-2-dashboard-basics) | A scannable queue, selected conversation, reply composer, and customer context visible in one working frame | Its global navigation rail, omnichannel administration, campaigns, reports, and broad contact-management surface | Clinic staff need the thread and patient context at decision time, but KaunterAI has only three routes and does not need a support-suite shell |
-| [Cursor review](https://cursor.com/docs/cursor-review/pr-page) | A synchronized changed-file list, focused artifact, review comments, and per-change decision loop | Agent-management chrome, pull-request metadata, merge controls, source control, and session-level bulk approval | Dream needs a human to inspect evidence and decide one proposed text change without leaving the file |
-| [VS Code workbench](https://code.visualstudio.com/docs/editing/userinterface) and [Markdown diffs](https://code.visualstudio.com/docs/languages/markdown) | A narrow file explorer, dominant editor, line focus, visible old/new treatment, and a lower panel for test output | Activity bar, terminal, extensions, debug tooling, movable layout settings, and dark IDE styling | Dream is file-centered and test-backed, but its only job is playbook review, so the workbench grammar transfers without full IDE complexity |
+| [Cursor review](https://cursor.com/docs/cursor-review/pr-page) | A synchronized changed-file list, focused artifact, review comments, and per-change decision loop | Agent-management chrome, pull-request metadata, merge controls, source control, and session-level bulk approval | Knowledge needs a human to inspect evidence and decide one proposed text change without leaving the file |
+| [VS Code workbench](https://code.visualstudio.com/docs/editing/userinterface) and [Markdown diffs](https://code.visualstudio.com/docs/languages/markdown) | A narrow file explorer, dominant editor, line focus, visible old/new treatment, and a lower panel for test output | Activity bar, terminal, extensions, debug tooling, movable layout settings, and dark IDE styling | Knowledge is file-centered and test-backed, but its only job is playbook review, so the workbench grammar transfers without full IDE complexity |
 | [Braintrust evaluations](https://www.braintrust.dev/docs/evaluate) | Dataset cases with inputs, expected outputs, generated outputs, scorers, and immutable run evidence | Playground sprawl, multi-model comparison controls, production observability, cost and latency dashboards, and CI surfaces | The Evaluation Lab must keep raw case evidence primary while still showing whether a candidate changed across runs |
 | [Langfuse evaluation concepts](https://langfuse.com/docs/evaluation/core-concepts) | A clear separation between datasets, experiment runs, item-level outputs, and scores | Trace trees, spans, prompt management, production telemetry, and generic observability navigation | KaunterAI needs reproducible synthetic run history and item-level rationale, not an observability platform |
-| [Perplexity source transparency](https://www.perplexity.ai/help-center/en/articles/10352895-how-does-perplexity-work) | Put evidence next to the claim it supports, keep the reading surface calm, and make deeper sources available without blocking the main answer | Consumer search, discovery feeds, focus modes, source carousels, marketing chrome, and Perplexity branding | Dream corrections and Eval grades are only trustworthy when a reviewer can read the proposal and its evidence in the same visual beat |
-| Hand-drawn Dream frame | Left files, center editor, right corrections, independent scroll, and a visible Test Changes action | A dead Dream Cycle button with no defined behavior | It makes the saved playbook the dominant artifact and keeps every human decision next to the proposed change |
+| [Perplexity source transparency](https://www.perplexity.ai/help-center/en/articles/10352895-how-does-perplexity-work) | Put evidence next to the claim it supports, keep the reading surface calm, and make deeper sources available without blocking the main answer | Consumer search, discovery feeds, focus modes, source carousels, marketing chrome, and Perplexity branding | Knowledge corrections and Eval grades are only trustworthy when a reviewer can read the proposal and its evidence in the same visual beat |
+| Hand-drawn Knowledge frame | Left files, center editor, right corrections, independent scroll, and a visible Check saved text action | A dead Knowledge Cycle button with no defined behavior | It makes the saved playbook the dominant artifact and keeps every human decision next to the proposed change |
 
-The Dream reference includes a Dream Cycle action. KaunterAI does not expose that control while
+The Knowledge reference includes a Knowledge Cycle action. KaunterAI does not expose that control while
 candidate iteration belongs to Evals. A control does not earn space until it has one clear,
 testable effect.
 
@@ -120,7 +120,7 @@ All routes share a thin top shell and a task-specific workbench.
 
 ```text
 +------------------------------------------------------------------------+
-| KaunterAI | Chat Control | Dream | Evals       Synthetic Demo | Reset |
+| KaunterAI | Chat Control | Knowledge | Evals       Synthetic Demo | Reset |
 +------------------------------------------------------------------------+
 | route toolbar: title, current context, direct actions                  |
 +------------------------------------------------------------------------+
@@ -258,9 +258,9 @@ decision:
 | Route | Primary decision | What stays quieter |
 |---|---|---|
 | Chat Control | Respond to or act on the selected patient conversation | Search, Schedule, and simulation utilities |
-| Dream | Approve, reject, or focus the selected file's pending correction | File maintenance |
+| Knowledge | Approve, reject, or focus the selected file's pending correction | File maintenance |
 | Evals, no case selected | Run the suite or open one raw case | Dataset and criterion maintenance |
-| Evals, case selected | Inspect or run that case | Run Suite and aggregate context |
+| Evals, case selected | Inspect or run that case | Run all cases and aggregate context |
 
 A maintenance action never receives stronger emphasis than the task decision. Exact action order
 and placement live in `PROJECT.md` sections 7.2, 8.12, and 9.2.
@@ -288,7 +288,7 @@ Schedule is a view inside Chat Control, not a fourth route:
 ```text
 +--------------------+--------------------------------------------------+
 | seven day index    | selected day                                     |
-| date + count       | time | patient | provider | booking state        |
+| date + count       | time | patient | booking state                    |
 | compact list       | booking rows, not calendar cards                 |
 +--------------------+--------------------------------------------------+
 ```
@@ -296,7 +296,7 @@ Schedule is a view inside Chat Control, not a fourth route:
 It uses the same row density, patient names, status text, and selected edge as the queue. It is
 not a month calendar, KPI panel, or color-block planning dashboard.
 
-### 9.2 Dream
+### 9.2 Knowledge
 
 ```text
 +--------------+--------------------------------------+------------------+
@@ -307,7 +307,7 @@ not a month calendar, KPI panel, or color-block planning dashboard.
 +--------------+--------------------------------------+------------------+
 ```
 
-Dream is an editor with a review rail. It is not a document dashboard. Pending corrections stay
+Knowledge is an editor with a review rail. It is not a document dashboard. Pending corrections stay
 expanded. Decided corrections compress. Test results open as a dock, not another route or tab.
 
 ### 9.3 Evals
@@ -393,7 +393,7 @@ Responsive design changes the interaction model. It does not squeeze the desktop
 - Shell: text labels may collapse to icons; navigation and Reset remain reachable.
 - Synthetic Demo remains visible as a compact Demo label at every width.
 - Chat Control: three columns -> two columns plus drawer -> one-pane sequence.
-- Dream: three columns -> Files, Editor, and Changes tabs with one rendered pane.
+- Knowledge: three columns -> Files, Editor, and Changes tabs with one rendered pane.
 - Evals: table and summary rail -> compact summary, filters, case cards, and chart in History.
 - Every mobile target is at least 44 by 44 CSS pixels.
 - Names may ellipsize before timestamps.
@@ -418,8 +418,8 @@ Critical child bounds must also fit.
 | Icon-only state | Hides meaning and accessibility | Text plus number or state |
 | Hamburger on wide screens | Hides direct task actions | Ordered toolbar with maintenance overflow only |
 | Generic data grid features | Adds resize, pin, export, and settings with no user need | The named evaluation columns and limited sorting |
-| Folder tree in Dream | Adds hierarchy the product does not use | Flat playbook file list |
-| Replay route or tab | Splits one review task into another destination | Bottom test dock inside Dream |
+| Folder tree in Knowledge | Adds hierarchy the product does not use | Flat playbook file list |
+| Replay route or tab | Splits one review task into another destination | Bottom test dock inside Knowledge |
 | Detached Sources modal | Makes evidence a second task | Evidence directly below the claim, correction, or grade it supports |
 | Multi-panel mobile squeeze | Preserves geometry but destroys usability | One-pane choreography or cards |
 | Illustration-heavy empty state | Adds noise to an operational tool | One or two lines of actionable copy |
@@ -427,7 +427,7 @@ Critical child bounds must also fit.
 
 ## 14. Screenshot review gate
 
-Review `/`, `/dream`, and `/eval` at 1440 by 900, 390 by 844, and 320 by 568 CSS pixels.
+Review `/`, `/knowledge`, and `/eval` at 1440 by 900, 390 by 844, and 320 by 568 CSS pixels.
 
 The normative release gate is `PROJECT.md` section 14.7. The questions below are the design
 review lens.
@@ -444,7 +444,7 @@ Fail the design when any answer is no:
 7. Does each pane have one clear scroll owner?
 8. Are maintenance actions quieter than task actions?
 9. Does mobile change panes instead of shrinking desktop columns?
-10. Are synthetic, sandbox, transcript-only, and Test Changes versus Eval-score boundaries visible
+10. Are synthetic, sandbox, transcript-only, and Check saved text versus Eval-score boundaries visible
     at the moment they matter?
 11. Are there zero dead controls?
 12. Would removing any visible region make the primary workflow incomplete?

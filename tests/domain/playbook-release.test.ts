@@ -5,6 +5,8 @@ import {
   activatePlaybookCandidate,
   createCandidateFromCorrection,
   createCandidateFromDraft,
+  createCandidateFromFile,
+  createCandidateFromFileDeletion,
   createCandidateFromMarkdownImport,
   createCanonicalServerState,
   discardPlaybookCandidate,
@@ -12,16 +14,31 @@ import {
 } from "../../src/domain";
 
 const TIME = "2026-07-14T12:00:00.000Z";
+const SERVICE_SELECTION_FILE_ID = "file-aircon-service-selection";
 
-describe("versioned Dream release state", () => {
+describe("versioned Knowledge release state", () => {
   it("creates an inactive correction candidate without changing the active Chat bundle", async () => {
     const seed = await createCanonicalServerState();
-    const correction = seed.corrections.find(
-      (candidate) => candidate.fileId === "file-triage" && candidate.status === "pending",
-    )!;
+    const withCorrection = {
+      ...seed,
+      corrections: [
+        {
+          id: "corr-aircon-selection",
+          fileId: SERVICE_SELECTION_FILE_ID,
+          oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+          newText:
+            "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.",
+          evidence: "Combined symptoms train case failed package selection criterion.",
+          status: "pending" as const,
+          sourceCaseId: "case-aircon-selection-train",
+          lineHint: 4,
+        },
+      ],
+    };
+    const correction = withCorrection.corrections[0]!;
 
     const next = await createCandidateFromCorrection({
-      state: seed,
+      state: withCorrection,
       candidateVersionId: "candidate-2",
       correctionId: correction.id,
       createdAt: TIME,
@@ -66,14 +83,56 @@ describe("versioned Dream release state", () => {
     );
   });
 
+  it("composes candidate file edits and removes the candidate when they net to the active bundle", async () => {
+    const seed = await createCanonicalServerState();
+    const fileId = "file-follow-up";
+    const withFile = await createCandidateFromFile({
+      state: seed,
+      candidateVersionId: "candidate-file",
+      file: {
+        id: fileId,
+        path: "playbooks/follow-up.md",
+        title: "Follow-up",
+        content: "# Follow-up\nInitial guidance.\n",
+      },
+      createdAt: TIME,
+    });
+    const edited = await createCandidateFromDraft({
+      state: withFile,
+      candidateVersionId: "candidate-edited",
+      fileId,
+      content: "# Follow-up\nUpdated guidance.\n",
+      createdAt: TIME,
+    });
+
+    expect(
+      edited.playbookHistory.versions
+        .find((version) => version.id === "candidate-edited")
+        ?.files.find((file) => file.id === fileId)?.content,
+    ).toBe("# Follow-up\nUpdated guidance.\n");
+
+    const deleted = await createCandidateFromFileDeletion({
+      state: edited,
+      candidateVersionId: "candidate-deleted",
+      fileId,
+      createdAt: TIME,
+    });
+
+    expect(deleted.playbookHistory.candidateVersionId).toBeNull();
+    expect(deleted.playbookHistory.versions).toHaveLength(1);
+    expect(deleted.playbookFiles.some((file) => file.id === fileId)).toBe(false);
+  });
+
   it("discards an inactive candidate without changing the active SOP or rewriting history", async () => {
     const seed = await createCanonicalServerState();
-    const triage = seed.playbookHistory.versions[0]!.files.find((file) => file.id === "file-triage")!;
+    const rateCard = seed.playbookHistory.versions[0]!.files.find(
+      (file) => file.id === "file-aircon-rate-card",
+    )!;
     const candidate = await createCandidateFromDraft({
       state: seed,
       candidateVersionId: "candidate-2",
-      fileId: triage.id,
-      content: `${triage.content}\nDraft-only instruction.\n`,
+      fileId: rateCard.id,
+      content: `${rateCard.content}\nDraft-only instruction.\n`,
       createdAt: TIME,
     });
 
@@ -86,17 +145,21 @@ describe("versioned Dream release state", () => {
     expect(discarded.playbookHistory.candidateVersionId).toBeNull();
     expect(discarded.playbookHistory.activeVersionId).toBe("playbook-version-1");
     expect(discarded.playbookHistory.versions.some((version) => version.id === "candidate-2")).toBe(true);
-    expect(discarded.playbookFiles.find((file) => file.id === triage.id)?.savedContent).toBe(triage.content);
+    expect(discarded.playbookFiles.find((file) => file.id === rateCard.id)?.savedContent).toBe(
+      rateCard.content,
+    );
   });
 
   it("requires Ready evidence before activation and restores by creating a new immutable version", async () => {
     const seed = await createCanonicalServerState();
-    const triage = seed.playbookHistory.versions[0]!.files.find((file) => file.id === "file-triage")!;
+    const rateCard = seed.playbookHistory.versions[0]!.files.find(
+      (file) => file.id === "file-aircon-rate-card",
+    )!;
     const candidate = await createCandidateFromDraft({
       state: seed,
       candidateVersionId: "candidate-2",
-      fileId: triage.id,
-      content: `${triage.content}\nAlways acknowledge a patient concern.\n`,
+      fileId: rateCard.id,
+      content: `${rateCard.content}\nAlways acknowledge a customer concern.\n`,
       createdAt: TIME,
     });
 
@@ -106,7 +169,7 @@ describe("versioned Dream release state", () => {
         candidateVersionId: "candidate-2",
         activatedAt: TIME,
       }),
-    ).toThrow(new PlaybookReleaseError("release_blocked", "Dream candidate is not Ready for activation"));
+    ).toThrow(new PlaybookReleaseError("release_blocked", "Knowledge candidate is not Ready for activation"));
 
     const ready = structuredClone(candidate);
     ready.playbookHistory.versions.find((item) => item.id === "candidate-2")!.passingSuiteId =
@@ -136,7 +199,7 @@ describe("versioned Dream release state", () => {
     expect(
       restored.playbookHistory.versions
         .find((item) => item.id === "restore-3")
-        ?.files.find((file) => file.id === triage.id)?.content,
-    ).toBe(triage.content);
+        ?.files.find((file) => file.id === rateCard.id)?.content,
+    ).toBe(rateCard.content);
   });
 });

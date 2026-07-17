@@ -6,6 +6,10 @@ import type {
   JudgeProviderCreateInput,
   JudgeProviderCreateOutput,
 } from "./judge-service";
+import {
+  createResponsesWithStability,
+  extractResponsesOutputText,
+} from "./responses-stability";
 
 type ChatCompletionsOutput = {
   model?: string;
@@ -21,12 +25,27 @@ type ChatCompletionsOutput = {
   };
 };
 
+type ResponsesCreateInput = JudgeProviderCreateInput & {
+  max_output_tokens?: number;
+  reasoning?: { effort: "none" | "low" | "medium" | "high" };
+};
+
+type ResponsesRawOutput = {
+  model?: string;
+  output_text?: string | null;
+  output?: Array<{
+    type: string;
+    content?: Array<{ type: string; text?: string }>;
+  }>;
+  usage?: JudgeProviderCreateOutput["usage"];
+};
+
 type JudgeProviderClient = {
   responses: {
     create(
-      input: JudgeProviderCreateInput,
+      input: ResponsesCreateInput,
       options: { signal?: AbortSignal },
-    ): Promise<JudgeProviderCreateOutput>;
+    ): Promise<ResponsesRawOutput>;
   };
   chat: {
     completions: {
@@ -61,7 +80,7 @@ function defaultClient(config: JudgeProviderConfig): JudgeProviderClient {
   return {
     responses: {
       async create(input, options) {
-        return client.responses.create(input, options);
+        return client.responses.create(input as never, options) as Promise<ResponsesRawOutput>;
       },
     },
     chat: {
@@ -95,8 +114,25 @@ export function createJudgeProviderAdapter(
   client: JudgeProviderClient = defaultClient(config),
 ): CreateProviderResponse {
   if (config.apiMode === "responses") {
-    return (input, signal) =>
-      client.responses.create(input, { signal });
+    return async (input, signal) => {
+      const response = await createResponsesWithStability(
+        (payload, options) =>
+          client.responses.create(payload as ResponsesCreateInput, options),
+        { ...input },
+        signal,
+      );
+      const outputText = extractResponsesOutputText(response);
+      if (!outputText.trim()) {
+        throw new Error(
+          "Judge provider returned empty Responses output (reasoning-only).",
+        );
+      }
+      return {
+        model: response.model,
+        output_text: outputText,
+        usage: response.usage,
+      };
+    };
   }
   return async (input, signal) =>
     chatOutput(

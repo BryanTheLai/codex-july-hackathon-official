@@ -176,8 +176,8 @@ function postJson(url: string, body: unknown): Promise<Response> {
 
 async function createSuite(baseUrl: string) {
   const response = await postJson(`${baseUrl}/api/eval/suites`, {
-    datasetId: "dataset-seed",
-    caseIds: ["case-emergency-train"],
+    datasetId: "dataset-aircon-ops",
+    caseIds: ["case-aircon-selection-train"],
     playbookVersionId: "playbook-version-1",
     expectedWorkspaceRevision: 1,
   });
@@ -227,10 +227,10 @@ describe("workspace-backed Eval endpoints", () => {
     const suite = await createSuite(baseUrl);
 
     const response = await postJson(
-      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`,
+      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`,
       {
         suiteId: suite.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: suite.workspaceRevision,
       },
     );
@@ -238,7 +238,7 @@ describe("workspace-backed Eval endpoints", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       attempt: 1,
       status: "committed",
       evalRunId: "eval-run-1",
@@ -254,21 +254,21 @@ describe("workspace-backed Eval endpoints", () => {
   it("rejects stale, mismatched, and judge-injected requests before providers run", async () => {
     const { agent, baseUrl, judge } = await configuredServer();
     const suite = await createSuite(baseUrl);
-    const url = `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`;
+    const url = `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`;
 
     const stale = await postJson(url, {
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 1,
     });
     const mismatch = await postJson(url, {
       suiteId: "different-suite",
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
     });
     const injected = await postJson(url, {
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
       judgeBundle: {
         expectedStaffResponse: "hidden",
@@ -289,7 +289,7 @@ describe("workspace-backed Eval endpoints", () => {
       `${baseUrl}/api/eval/suites`,
       {
         datasetId: "missing-dataset",
-        caseIds: ["case-emergency-train"],
+        caseIds: ["case-aircon-selection-train"],
         playbookVersionId: "playbook-version-1",
         expectedWorkspaceRevision: 1,
       },
@@ -297,7 +297,7 @@ describe("workspace-backed Eval endpoints", () => {
     const evalCase = await postJson(
       `${baseUrl}/api/eval/suites`,
       {
-        datasetId: "dataset-seed",
+        datasetId: "dataset-aircon-ops",
         caseIds: ["missing-case"],
         playbookVersionId: "playbook-version-1",
         expectedWorkspaceRevision: 1,
@@ -306,8 +306,8 @@ describe("workspace-backed Eval endpoints", () => {
     const playbook = await postJson(
       `${baseUrl}/api/eval/suites`,
       {
-        datasetId: "dataset-seed",
-        caseIds: ["case-emergency-train"],
+        datasetId: "dataset-aircon-ops",
+        caseIds: ["case-aircon-selection-train"],
         playbookVersionId: "missing-playbook",
         expectedWorkspaceRevision: 1,
       },
@@ -325,8 +325,8 @@ describe("workspace-backed Eval endpoints", () => {
   it("allows only one concurrent suite freeze to win the workspace revision", async () => {
     const { baseUrl, repository } = await configuredServer();
     const body = {
-      datasetId: "dataset-seed",
-      caseIds: ["case-emergency-train"],
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
       playbookVersionId: "playbook-version-1",
       expectedWorkspaceRevision: 1,
     };
@@ -358,10 +358,10 @@ describe("workspace-backed Eval endpoints", () => {
     const suite = await createSuite(baseUrl);
 
     const response = await postJson(
-      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`,
+      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`,
       {
         suiteId: suite.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       },
     );
@@ -386,10 +386,10 @@ describe("workspace-backed Eval endpoints", () => {
     const suite = await createSuite(baseUrl);
 
     const response = await postJson(
-      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`,
+      `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`,
       {
         suiteId: suite.suiteId,
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       },
     );
@@ -423,10 +423,10 @@ describe("workspace-backed Eval endpoints", () => {
       },
     });
     const suite = await createSuite(baseUrl);
-    const url = `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`;
+    const url = `${baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`;
     const body = {
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
     };
 
@@ -452,10 +452,10 @@ describe("workspace-backed Eval endpoints", () => {
       },
     });
     const suite = await createSuite(limited.baseUrl);
-    const url = `${limited.baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-emergency-train/run`;
+    const url = `${limited.baseUrl}/api/eval/suites/${suite.suiteId}/cases/case-aircon-selection-train/run`;
     const body = {
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: 2,
     };
 
@@ -468,8 +468,8 @@ describe("workspace-backed Eval endpoints", () => {
     const response = await postJson(
       `${disabled.baseUrl}/api/eval/suites`,
       {
-        datasetId: "dataset-seed",
-        caseIds: ["case-emergency-train"],
+        datasetId: "dataset-aircon-ops",
+        caseIds: ["case-aircon-selection-train"],
         playbookVersionId: "playbook-version-1",
         expectedWorkspaceRevision: 1,
       },

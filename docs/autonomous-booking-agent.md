@@ -10,7 +10,9 @@ KaunterAI is a multilingual clinic front desk that can autonomously:
 - find an available appointment slot;
 - create and confirm an appointment;
 - reschedule or cancel a confirmed appointment;
-- send the response and, when configured, an `.ics` calendar file;
+- send the response and, when configured, a publish or cancellation `.ics` calendar file;
+- send a clinical handoff acknowledgment, record the reason, and switch the conversation to
+  `staff_only`;
 - record the action in the conversation; and
 - turn an agent-recognized patient correction into an Eval candidate for a human-written reference.
 
@@ -37,7 +39,7 @@ flowchart LR
   A --> G[flag_autonomous_action_wrong]
   G --> E[Eval candidate: empty human reference]
   E --> H[Human writes correction]
-  H --> D[Eval, then Dream proposal and replay]
+  H --> D[Eval, then Knowledge proposal and replay]
 ```
 
 The model never writes the workspace directly. It selects a function, the server validates its arguments, and the function performs the committed action. A patient-facing response is sent only after the booking function has reported success.
@@ -53,7 +55,7 @@ telegram_events (update id, payload hash, normalized event)
   -> workspace demo_state (one optimistic revision)
        -> conversations[] (one per Telegram chat, own revision)
             -> messages[] (patient, sent reply, autonomous audit)
-            -> booking? (provider, slotIso, reason, status, booking revision)
+            -> booking? (slotIso, reason, status, booking revision)
        -> evalDatasets[] -> cases[] (autonomous_feedback source, human reference)
        -> playbookHistory (pinned agent evidence)
   -> telegram_deliveries (request id, provider receipt, sync status)
@@ -76,9 +78,9 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |
-| `list_available_slots` | provider, local date or `null` | provider is `Dr. Farah`, `Dr. Lim`, or `Dr. Siti Rahman` | Returns deterministic demo slots, filtered through Google FreeBusy only when the admin connection is active |
-| `create_booking` | provider, returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking |
-| `reschedule_booking` | provider, returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking |
+| `list_available_slots` | local date or `null` | workspace and date are valid; live mode requires connected Google Calendar | Returns deterministic slots in demo mode or Google-filtered slots in live mode |
+| `create_booking` | returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking and enqueues Google Calendar sync |
+| `reschedule_booking` | returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking and enqueues Google Calendar sync |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |
 | `flag_autonomous_action_wrong` | concise reason | conversation has patient input; server creates a bounded Eval candidate | Adds a `autonomous_feedback` candidate with no reference answer |
 
@@ -91,7 +93,7 @@ No dependency was added for this feature. The MVP uses the repository's existing
 | Layer | Existing dependency / service | Purpose |
 | --- | --- | --- |
 | Agent reasoning and tools | `openai` 6.x | Structured final output and function-call loop |
-| Input and tool validation | `zod` 4.x | Strict request, provider, and booking arguments |
+| Input and tool validation | `zod` 4.x | Strict request and booking arguments |
 | Webhook/API | Express 5 | Telegram ingress and delivery endpoints |
 | Durable state | Supabase Postgres | Workspace CAS, inbound-event/delivery records, outbox, and optional Google sync ledger |
 | Calendar | Native `fetch` + Google Calendar API | Optional single-admin FreeBusy plus event create/update/delete; `ical-generator` still makes the Telegram invite |
@@ -106,14 +108,14 @@ agent got something wrong. It has no regex, keyword, or client-side button trigg
 `flag_autonomous_action_wrong`, the server creates an `autonomous_feedback` Eval case containing
 the patient messages and the model's concise reason. The case intentionally has an empty expected
 human output, so it cannot run in Eval until a human supplies the correction. The human response is
-the hidden reference; the autonomous response is never allowed to grade itself. Dream can then
+the hidden reference; the autonomous response is never allowed to grade itself. Knowledge can then
 propose and replay an immutable playbook correction before activation.
 
 The agent does not rewrite its own system prompt from a single message: that would turn untrusted
 feedback into a prompt-injection path. The feedback function is a learning signal, not a policy
 mutation.
 
-This is deliberate autonomy: the agent acts immediately in its permitted workflow, while changes to the policy that governs every future patient still use the existing Eval and Dream release gate.
+This is deliberate autonomy: the agent acts immediately in its permitted workflow, while changes to the policy that governs every future patient still use the existing Eval and Knowledge release gate.
 
 ## Tradeoffs considered
 
@@ -139,9 +141,9 @@ These are the 20 candidate approaches considered for autonomous booking. The sel
 | 16 | Retry workspace CAS conflicts from fresh state | Selected: safe, bounded, and preserves patient recency. |
 | 17 | Persist a narrow job outbox | Selected: two typed jobs make automatic replies and calendar synchronization recoverable without Redis or a second service. |
 | 18 | Let feedback mutate the prompt automatically | Rejected: feedback can be malicious or unrepresentative. |
-| 19 | Send feedback through Eval and Dream | Selected: learns from evidence while retaining agent release control. |
+| 19 | Send feedback through Eval and Knowledge | Selected: learns from evidence while retaining agent release control. |
 | 20 | Add multi-agent orchestration | Deferred: one reliable autonomous agent is more persuasive than simulated complexity. |
 
 ## Known boundary
 
-This is a working autonomous booking MVP, not authorization, tenancy, consent management, EHR/PMS authority, multi-calendar scheduling, or a real-clinic safety certification. A real owner-controlled provider smoke remains required before public use with patient data.
+This is a working autonomous booking MVP, not authorization, tenancy, consent management, EHR/PMS authority, multi-calendar scheduling, or a real-clinic safety certification. A real owner-controlled external-service smoke remains required before public use with patient data.

@@ -41,7 +41,9 @@ class InMemoryCalendarDataSource implements CalendarDeliveryDataSource {
   }
 }
 
-async function workspaceWithApprovedTelegramBooking() {
+async function workspaceWithTelegramBooking(
+  status: "approved" | "cancelled" = "approved",
+) {
   const base = await createCanonicalServerState();
   const merged = mergeTelegramInboundText(base, {
     channel: "telegram",
@@ -59,9 +61,9 @@ async function workspaceWithApprovedTelegramBooking() {
   if (!conversation) throw new Error("Telegram conversation was not created");
   conversation.booking = {
     reason: "Routine review",
-    revision: 1,
+    revision: status === "cancelled" ? 2 : 1,
     slotIso: "2099-07-21T02:00:00.000Z",
-    status: "approved",
+    status,
   };
   return merged.state;
 }
@@ -69,7 +71,7 @@ async function workspaceWithApprovedTelegramBooking() {
 describe("calendar dispatch service", () => {
   it("sends one private ICS attachment and returns its durable receipt", async () => {
     const workspaceRepository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
-    await workspaceRepository.bootstrap("demo", await workspaceWithApprovedTelegramBooking());
+    await workspaceRepository.bootstrap("demo", await workspaceWithTelegramBooking());
     const calendarRepository = createCalendarDeliveryRepository(new InMemoryCalendarDataSource());
     const sendDocument = vi.fn<ChannelAdapter["sendDocument"]>(async () => ({
       acceptedAt: "2026-07-13T12:01:00.000Z",
@@ -123,9 +125,45 @@ describe("calendar dispatch service", () => {
     });
   });
 
+  it("sends a cancellation ICS for a cancelled booking", async () => {
+    const workspaceRepository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
+    await workspaceRepository.bootstrap(
+      "demo",
+      await workspaceWithTelegramBooking("cancelled"),
+    );
+    const dataSource = new InMemoryCalendarDataSource();
+    const sendDocument = vi.fn<ChannelAdapter["sendDocument"]>(async () => ({
+      acceptedAt: "2026-07-13T12:01:00.000Z",
+      providerMessageId: "9005",
+    }));
+    const service = createCalendarDispatchService({
+      adapter: { sendDocument },
+      config: {
+        defaultDurationMinutes: 30,
+        enabled: true,
+        location: "KaunterAI Clinic",
+        uidDomain: "calendar.kaunterai.test",
+      },
+      deliveryRepository: createCalendarDeliveryRepository(dataSource),
+      now: () => new Date("2026-07-13T12:00:00.000Z"),
+      workspaceId: "demo",
+      workspaceRepository,
+    });
+
+    await service.send({
+      conversationId: "telegram-conversation:-10042",
+      expectedConversationRevision: 1,
+    });
+
+    const content = new TextDecoder().decode(sendDocument.mock.calls[0]?.[1].bytes);
+    expect(content).toContain("METHOD:CANCEL");
+    expect(content).toContain("STATUS:CANCELLED");
+    expect(dataSource.records[0]).toMatchObject({ kind: "cancel", calendarSequence: 1 });
+  });
+
   it("does not attach a calendar trace to a conversation changed after provider acceptance", async () => {
     const workspaceRepository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
-    await workspaceRepository.bootstrap("demo", await workspaceWithApprovedTelegramBooking());
+    await workspaceRepository.bootstrap("demo", await workspaceWithTelegramBooking());
     const sendDocument = vi.fn<ChannelAdapter["sendDocument"]>(async () => {
       const workspace = await workspaceRepository.load("demo");
       if (!workspace) throw new Error("Workspace missing");
@@ -184,7 +222,7 @@ describe("calendar dispatch service", () => {
 
   it("fails closed after a provider timeout instead of attempting a resend", async () => {
     const workspaceRepository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
-    await workspaceRepository.bootstrap("demo", await workspaceWithApprovedTelegramBooking());
+    await workspaceRepository.bootstrap("demo", await workspaceWithTelegramBooking());
     const sendDocument = vi.fn<ChannelAdapter["sendDocument"]>(async () => {
       throw new TelegramAdapterError("provider_timeout", "Telegram timed out");
     });

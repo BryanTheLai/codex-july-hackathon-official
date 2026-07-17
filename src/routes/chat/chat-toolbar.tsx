@@ -126,7 +126,7 @@ export function ChatToolbar({
 
       <button className="chat-toolbar__simulate" onClick={onSimulate} type="button">
         <UserRoundPlus aria-hidden="true" size={16} />
-        Simulate Patient
+        Simulate Customer
       </button>
 
       <DropdownMenu.Root>
@@ -194,7 +194,7 @@ export function ChatToolbar({
                 onSimulate();
               }}
             >
-              Simulate Patient
+              Simulate Customer
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>

@@ -65,7 +65,7 @@ export function buildLiveAgentRunRequest(
     throw new AgentWorkspaceError(
       "provider_failed",
       false,
-      "Active Dream bundle is unavailable",
+      "Active Knowledge bundle is unavailable",
     );
   }
 

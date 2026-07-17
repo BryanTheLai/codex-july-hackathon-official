@@ -4,7 +4,7 @@ import type {
   DeletePlaybookFileOptions,
   MutationResult,
   RenamePlaybookFileInput,
-  TestChangesMutationResult,
+  SavedTextCheckMutationResult,
 } from "./types";
 import { cloneState, err, ok, slugify, trimOrEmpty } from "./shared";
 
@@ -262,7 +262,7 @@ export function rejectCorrection(state: AppState, correctionId: string): Mutatio
   return ok(next);
 }
 
-export function runTestChanges(state: AppState, fileId: string): TestChangesMutationResult {
+export function runSavedTextCheck(state: AppState, fileId: string): SavedTextCheckMutationResult {
   const file = findFile(state, fileId);
   if (!file) {
     return {
@@ -298,7 +298,7 @@ export function runTestChanges(state: AppState, fileId: string): TestChangesMuta
       evaluated,
       pending,
       rejected,
-      boundaryNote: "Test Changes verifies saved playbook text only; Evaluation Lab scores stay separate.",
+      boundaryNote: "Check saved text verifies saved playbook text only; Evaluation Lab scores stay separate.",
       details,
     },
   };

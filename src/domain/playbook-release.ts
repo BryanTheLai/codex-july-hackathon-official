@@ -35,7 +35,7 @@ function activeVersion(state: ServerDomainStatePayload): PlaybookBundleVersionPa
     (candidate) => candidate.id === state.playbookHistory.activeVersionId,
   );
   if (!version) {
-    fail("not_found", "Active Dream bundle is unavailable");
+    fail("not_found", "Active Knowledge bundle is unavailable");
   }
   return version;
 }
@@ -46,7 +46,7 @@ function versionById(
 ): PlaybookBundleVersionPayload {
   const version = state.playbookHistory.versions.find((candidate) => candidate.id === versionId);
   if (!version) {
-    fail("not_found", "Dream bundle was not found");
+    fail("not_found", "Knowledge bundle was not found");
   }
   return version;
 }
@@ -97,27 +97,33 @@ export async function createPlaybookCandidate(
   input: CandidateInput & { state: ServerDomainStatePayload },
 ): Promise<ServerDomainStatePayload> {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
+  const active = activeVersion(state);
+  let baseFiles = active.files;
   if (state.playbookHistory.candidateVersionId) {
-    // Replace current uncommitted candidate version smoothly with the new candidate
     const existingId = state.playbookHistory.candidateVersionId;
+    baseFiles = versionById(state, existingId).files;
     state.playbookHistory.versions = state.playbookHistory.versions.filter(
       (version) => version.id !== existingId,
     );
     state.playbookHistory.candidateVersionId = null;
   }
   if (state.playbookHistory.versions.some((version) => version.id === input.candidateVersionId)) {
-    fail("invalid_input", "Dream candidate version already exists");
+    fail("invalid_input", "Knowledge candidate version already exists");
   }
 
-  const active = activeVersion(state);
-  const updated = input.update(structuredClone(active.files));
+  const updated = input.update(structuredClone(baseFiles));
   if (updated.length === 0) {
-    fail("invalid_input", "Dream candidate must contain at least one file");
+    fail("invalid_input", "Knowledge candidate must contain at least one file");
   }
   if (new Set(updated.map((file) => file.id)).size !== updated.length) {
-    fail("invalid_input", "Dream candidate file identifiers must be unique");
+    fail("invalid_input", "Knowledge candidate file identifiers must be unique");
   }
   const files = await snapshotFiles(updated);
+  const nextBundleHash = await bundleHash(files);
+  if (nextBundleHash === active.bundleHash) {
+    projectFiles(state, active.files, input.createdAt);
+    return serverDomainStateSchema.parse(state);
+  }
   const nextVersion: PlaybookBundleVersionPayload = {
     id: input.candidateVersionId,
     sequence: Math.max(...state.playbookHistory.versions.map((version) => version.sequence)) + 1,
@@ -125,7 +131,7 @@ export async function createPlaybookCandidate(
     restoredFromVersionId: null,
     kind: input.kind,
     files,
-    bundleHash: await bundleHash(files),
+    bundleHash: nextBundleHash,
     passingSuiteId: null,
     createdAt: input.createdAt,
     activatedAt: null,
@@ -144,13 +150,13 @@ export async function createCandidateFromCorrection(input: {
 }): Promise<ServerDomainStatePayload> {
   const correction = input.state.corrections.find((candidate) => candidate.id === input.correctionId);
   if (!correction) {
-    fail("not_found", "Dream correction was not found");
+    fail("not_found", "Knowledge correction was not found");
   }
   if (correction.status !== "pending") {
-    fail("release_blocked", "Dream correction has already been reviewed");
+    fail("release_blocked", "Knowledge correction has already been reviewed");
   }
   if (!correction.oldText || !correction.newText || correction.oldText === correction.newText) {
-    fail("invalid_input", "Dream correction must replace distinct non-empty text");
+    fail("invalid_input", "Knowledge correction must replace distinct non-empty text");
   }
 
   const next = await createPlaybookCandidate({
@@ -161,11 +167,11 @@ export async function createCandidateFromCorrection(input: {
     update(files) {
       const file = files.find((candidate) => candidate.id === correction.fileId);
       if (!file) {
-        fail("not_found", "Dream correction file was not found");
+        fail("not_found", "Knowledge correction file was not found");
       }
       const occurrences = file.content.split(correction.oldText).length - 1;
       if (occurrences !== 1) {
-        fail("release_blocked", "Dream correction no longer has one exact replacement target");
+        fail("release_blocked", "Knowledge correction no longer has one exact replacement target");
       }
       return files.map((candidate) =>
         candidate.id === file.id
@@ -188,7 +194,7 @@ export async function createCandidateFromDraft(input: {
   createdAt: string;
 }): Promise<ServerDomainStatePayload> {
   if (!input.content.trim()) {
-    fail("invalid_input", "Dream candidate content cannot be empty");
+    fail("invalid_input", "Knowledge candidate content cannot be empty");
   }
   return createPlaybookCandidate({
     state: input.state,
@@ -198,10 +204,10 @@ export async function createCandidateFromDraft(input: {
     update(files) {
       const file = files.find((candidate) => candidate.id === input.fileId);
       if (!file) {
-        fail("not_found", "Dream file was not found");
+        fail("not_found", "Knowledge file was not found");
       }
       if (file.content === input.content) {
-        fail("invalid_input", "Dream candidate does not change the active file");
+        fail("invalid_input", "Knowledge candidate does not change the active file");
       }
       return files.map((candidate) =>
         candidate.id === input.fileId ? { ...candidate, content: input.content } : candidate,
@@ -217,7 +223,7 @@ export async function createCandidateFromFile(input: {
   createdAt: string;
 }): Promise<ServerDomainStatePayload> {
   if (!/^playbooks(?:\/[a-z0-9][a-z0-9-]*)*\/[a-z0-9][a-z0-9-]*\.md$/i.test(input.file.path)) {
-    fail("invalid_input", "Dream files must use a playbooks/*.md path");
+    fail("invalid_input", "Knowledge files must use a playbooks/*.md path");
   }
   return createPlaybookCandidate({
     state: input.state,
@@ -227,11 +233,11 @@ export async function createCandidateFromFile(input: {
     update(files) {
       const existing = files.find((file) => file.id === input.file.id);
       if (!existing && files.some((file) => file.path === input.file.path)) {
-        fail("release_blocked", "Dream file path already exists in the active bundle");
+        fail("release_blocked", "Knowledge file path already exists in the active bundle");
       }
       if (existing) {
         if (files.some((file) => file.id !== existing.id && file.path === input.file.path)) {
-          fail("release_blocked", "Dream file path already exists in the active bundle");
+          fail("release_blocked", "Knowledge file path already exists in the active bundle");
         }
         return files.map((file) =>
           file.id === existing.id
@@ -257,10 +263,10 @@ export async function createCandidateFromFileDeletion(input: {
     kind: "edit",
     update(files) {
       const file = files.find((candidate) => candidate.id === input.fileId);
-      if (!file) fail("not_found", "Dream file was not found");
-      if (file.protected) fail("release_blocked", "Protected Dream file cannot be deleted");
+      if (!file) fail("not_found", "Knowledge file was not found");
+      if (file.protected) fail("release_blocked", "Protected Knowledge file cannot be deleted");
       if (input.state.corrections.some((correction) => correction.fileId === file.id)) {
-        fail("release_blocked", "Dream file with correction history cannot be deleted");
+        fail("release_blocked", "Knowledge file with correction history cannot be deleted");
       }
       return files.filter((candidate) => candidate.id !== file.id);
     },
@@ -289,7 +295,7 @@ export async function createCandidateFromMarkdownImport(input: {
     kind: "edit",
     update(files) {
       if (files.some((file) => file.id === input.fileId || file.path === input.path)) {
-        fail("release_blocked", "Markdown import already exists in the active Dream bundle");
+        fail("release_blocked", "Markdown import already exists in the active Knowledge bundle");
       }
       return [
         ...files,
@@ -313,12 +319,12 @@ export function markCandidateReady(input: {
 }): ServerDomainStatePayload {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
   if (state.playbookHistory.candidateVersionId !== input.candidateVersionId) {
-    fail("release_blocked", "Dream candidate is no longer current");
+    fail("release_blocked", "Knowledge candidate is no longer current");
   }
   const candidate = versionById(state, input.candidateVersionId);
   const suite = state.evalArtifacts.suites.find((item) => item.id === input.suiteId);
   if (!suite || suite.playbookBundle.versionId !== candidate.id) {
-    fail("release_blocked", "Full Eval replay is not pinned to the Dream candidate");
+    fail("release_blocked", "Full Eval replay is not pinned to the Knowledge candidate");
   }
   const dataset = state.evalDatasets.find((item) => item.id === suite.datasetId);
   if (
@@ -330,7 +336,7 @@ export function markCandidateReady(input: {
       (evalCase) => !suite.cases.some((candidateCase) => candidateCase.id === evalCase.id),
     )
   ) {
-    fail("release_blocked", "Dream candidate requires a full train and holdout Eval replay");
+    fail("release_blocked", "Knowledge candidate requires a full train and holdout Eval replay");
   }
   const latestRuns = new Map<string, (typeof state.evalArtifacts.runs)[number]>();
   for (const run of state.evalArtifacts.runs) {
@@ -343,7 +349,7 @@ export function markCandidateReady(input: {
       (evalCase) => latestRuns.get(evalCase.id)?.judgeResult.overallVerdict !== "pass",
     )
   ) {
-    fail("release_blocked", "Dream candidate needs a complete passing Eval replay before activation");
+    fail("release_blocked", "Knowledge candidate needs a complete passing Eval replay before activation");
   }
   candidate.passingSuiteId = suite.id;
   return serverDomainStateSchema.parse(state);
@@ -356,11 +362,11 @@ export function activatePlaybookCandidate(input: {
 }): ServerDomainStatePayload {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
   if (state.playbookHistory.candidateVersionId !== input.candidateVersionId) {
-    fail("release_blocked", "Dream candidate is no longer current");
+    fail("release_blocked", "Knowledge candidate is no longer current");
   }
   const candidate = versionById(state, input.candidateVersionId);
   if (!candidate.passingSuiteId) {
-    fail("release_blocked", "Dream candidate is not Ready for activation");
+    fail("release_blocked", "Knowledge candidate is not Ready for activation");
   }
   const previousActive = activeVersion(state);
   candidate.activatedAt = input.activatedAt;
@@ -378,7 +384,7 @@ export function discardPlaybookCandidate(input: {
 }): ServerDomainStatePayload {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
   if (state.playbookHistory.candidateVersionId !== input.candidateVersionId) {
-    fail("release_blocked", "Dream candidate is no longer current");
+    fail("release_blocked", "Knowledge candidate is no longer current");
   }
   versionById(state, input.candidateVersionId);
   state.playbookHistory.candidateVersionId = null;
@@ -393,14 +399,14 @@ export async function rollbackPlaybook(input: {
 }): Promise<ServerDomainStatePayload> {
   const state = serverDomainStateSchema.parse(structuredClone(input.state));
   if (state.playbookHistory.candidateVersionId) {
-    fail("release_blocked", "Finish or discard the Dream candidate before rollback");
+    fail("release_blocked", "Finish or discard the Knowledge candidate before rollback");
   }
   const targetId = state.playbookHistory.rollbackTargetVersionId;
   if (!targetId) {
-    fail("release_blocked", "No prior Dream version is available to restore");
+    fail("release_blocked", "No prior Knowledge version is available to restore");
   }
   if (state.playbookHistory.versions.some((version) => version.id === input.restoreVersionId)) {
-    fail("invalid_input", "Dream restore version already exists");
+    fail("invalid_input", "Knowledge restore version already exists");
   }
   const current = activeVersion(state);
   const target = versionById(state, targetId);

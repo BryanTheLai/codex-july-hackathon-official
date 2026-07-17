@@ -25,22 +25,22 @@ import {
   DiscardDraftDialog,
   FileDialog,
   FolderDialog,
-} from "./dream-dialogs";
+} from "./knowledge-dialogs";
 import {
   fileCorrections,
   pendingCount,
-  type DreamPane,
+  type KnowledgePane,
   type TestDockState,
-} from "./dream-model";
-import { DreamToolbar } from "./dream-toolbar";
+} from "./knowledge-model";
+import { KnowledgeToolbar } from "./knowledge-toolbar";
 import { OperationStatusBanner } from "../../components/operation-status";
 import type { OperationStatus } from "../../contracts/workflow";
 import { FileListPane } from "./file-list-pane";
 import { TestDock } from "./test-dock";
-import "./dream.css";
+import "./knowledge.css";
 
-const PANES: DreamPane[] = ["files", "editor", "changes"];
-type DreamFeedback = {
+const PANES: KnowledgePane[] = ["files", "editor", "changes"];
+type KnowledgeFeedback = {
   message: string;
   state: "succeeded" | "failed";
 };
@@ -50,15 +50,15 @@ const EditorPane = lazy(async () => {
   return { default: module.EditorPane };
 });
 
-export default function DreamRoute() {
+export default function KnowledgeRoute() {
   const store = useAppStore((value) => value);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mobile = useMediaQuery("(max-width: 999px)");
   const narrowMobile = useMediaQuery("(max-width: 339px)");
-  const [pane, setPane] = useState<DreamPane>(store.routeUi.dreamPane);
+  const [pane, setPane] = useState<KnowledgePane>(store.routeUi.knowledgePane);
   const [focusedCorrectionId, setFocusedCorrectionId] = useState<string | null>(
-    store.routeUi.dreamCorrectionId,
+    store.routeUi.knowledgeCorrectionId,
   );
   const [focusLine, setFocusLine] = useState<number | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
@@ -74,7 +74,8 @@ export default function DreamRoute() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<DreamFeedback | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [feedback, setFeedback] = useState<KnowledgeFeedback | null>(null);
   const [releaseBusy, setReleaseBusy] = useState(false);
   const [testDock, setTestDock] = useState<TestDockState>({ status: "closed" });
   const testToken = useRef(0);
@@ -95,7 +96,7 @@ export default function DreamRoute() {
     [selectedFile, store.state.corrections],
   );
   const query = searchParams.toString();
-  const release = store.dreamRelease;
+  const release = store.knowledgeRelease;
   const linkedDatasetId =
     store.state.evalDatasets.find((dataset) =>
       dataset.cases.some((evalCase) =>
@@ -112,7 +113,7 @@ export default function DreamRoute() {
   const localVersion = store.state.evalDatasets[0]?.candidateVersion ?? 1;
   const operationStatus: OperationStatus | null = feedback
     ? {
-        scope: "dream",
+        scope: "knowledge",
         state: feedback.state,
         message: feedback.message,
         action: null,
@@ -133,14 +134,22 @@ export default function DreamRoute() {
 
   useEffect(() => {
     store.updateRouteUi({
-      dreamCorrectionId: focusedCorrectionId,
-      dreamPane: pane,
+      knowledgeCorrectionId: focusedCorrectionId,
+      knowledgePane: pane,
     });
   }, [focusedCorrectionId, pane, store.updateRouteUi]);
 
   useEffect(() => {
-    void store.refreshDreamWorkspace();
-  }, [store.refreshDreamWorkspace]);
+    let active = true;
+    void store.refreshKnowledgeWorkspace().finally(() => {
+      if (active) {
+        setWorkspaceReady(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [store.refreshKnowledgeWorkspace]);
 
   useEffect(() => {
     if (store.resetVersion === 0) {
@@ -167,7 +176,7 @@ export default function DreamRoute() {
   }, [store.resetVersion]);
 
   useEffect(() => {
-    if (!query) {
+    if (!query || !workspaceReady) {
       return;
     }
     const correctionId = searchParams.get("correction");
@@ -175,6 +184,9 @@ export default function DreamRoute() {
     const correction = store.state.corrections.find(
       (candidate) => candidate.id === correctionId,
     );
+    if (correctionId && !correction) {
+      return;
+    }
     const file = correction
       ? store.state.playbookFiles.find((candidate) => candidate.id === correction.fileId)
       : store.state.playbookFiles.find((candidate) => candidate.id === fileId);
@@ -185,9 +197,14 @@ export default function DreamRoute() {
     }
     if (correction) {
       setFocusedCorrectionId(correction.id);
+      setFeedback({
+        message:
+          "Correction opened from Eval evidence. Review the diff, replay affected cases, then activate only if the full suite passes.",
+        state: "succeeded",
+      });
     }
     setSearchParams(new URLSearchParams(), { replace: true });
-  }, [query]);
+  }, [query, store.state.corrections, store.state.playbookFiles, workspaceReady]);
 
   useEffect(
     () => () => {
@@ -200,7 +217,7 @@ export default function DreamRoute() {
     [],
   );
 
-  const showFeedback = (message: string, state: DreamFeedback["state"] = "succeeded") => {
+  const showFeedback = (message: string, state: KnowledgeFeedback["state"] = "succeeded") => {
     setFeedback({ message, state });
   };
 
@@ -214,26 +231,26 @@ export default function DreamRoute() {
   const releaseFallback = (message: string) =>
     /not configured|could not be reached|request failed/i.test(message);
 
-  const stageDreamFile = async (
+  const stageKnowledgeFile = async (
     local: MutationResult,
     fileId: string,
     applyLocal: () => MutationResult,
   ): Promise<MutationResult> => {
     if (!local.ok) return local;
     const file = local.state.playbookFiles.find((candidate) => candidate.id === fileId);
-    if (!file) return { ok: false, state: store.state, error: "Dream file was not found" };
-    const remote = await store.stageDreamFile(file);
+    if (!file) return { ok: false, state: store.state, error: "Knowledge file was not found" };
+    const remote = await store.stageKnowledgeFile(file);
     if (remote.ok) return remote;
     return releaseFallback(remote.error) ? report(applyLocal()) : remote;
   };
 
-  const stageDreamFileDeletion = async (
+  const stageKnowledgeFileDeletion = async (
     local: MutationResult,
     fileId: string,
     applyLocal: () => MutationResult,
   ): Promise<MutationResult> => {
     if (!local.ok) return local;
-    const remote = await store.stageDreamFileDeletion(fileId);
+    const remote = await store.stageKnowledgeFileDeletion(fileId);
     if (remote.ok) return remote;
     return releaseFallback(remote.error) ? report(applyLocal()) : remote;
   };
@@ -267,7 +284,7 @@ export default function DreamRoute() {
         return;
       }
       clearTestTimers();
-      const result = store.runTestChanges(selectedFile.id);
+      const result = store.runSavedTextCheck(selectedFile.id);
       if (!result.ok) {
         setTestDock({ message: result.error, status: "error" });
         return;
@@ -295,7 +312,7 @@ export default function DreamRoute() {
           setSaving(false);
           return;
         }
-        const remote = await store.createDreamCandidateFromDraft(fileId, draft);
+        const remote = await store.createKnowledgeCandidateFromDraft(fileId, draft);
         const fallback = releaseFallback(remote.ok ? "" : remote.error);
         const result = remote.ok
           ? remote
@@ -315,7 +332,7 @@ export default function DreamRoute() {
             ? { ...current, stale: true }
             : current.status === "closed"
               ? current
-              : { message: "Saved text changed. Run Test Changes again.", status: "error" },
+              : { message: "Saved text changed. Check the saved text again.", status: "error" },
         );
         } else {
           showFeedback(result.error, "failed");
@@ -359,13 +376,13 @@ export default function DreamRoute() {
     setTestDock((current) =>
       current.status === "complete"
         ? { ...current, stale: true }
-        : { message: "Correction state changed. Run Test Changes again.", status: "error" },
+        : { message: "Correction state changed. Check the saved text again.", status: "error" },
     );
   };
 
   const approveCorrection = (correction: Correction) => {
     void (async () => {
-      const remote = await store.acceptDreamCorrection(correction.id);
+      const remote = await store.acceptKnowledgeCorrection(correction.id);
       const fallback = releaseFallback(remote.ok ? "" : remote.error);
       if (remote.ok) {
         showFeedback("Inactive candidate created from the approved correction.");
@@ -382,7 +399,7 @@ export default function DreamRoute() {
 
   const runReleaseReplay = (scope: "affected" | "full") => {
     if (!release?.candidateVersionId || !linkedDatasetId) {
-      showFeedback("Link a Dream correction to an Eval dataset before replaying it.", "failed");
+      showFeedback("Link a Knowledge correction to an Eval dataset before replaying it.", "failed");
       return;
     }
     const candidateVersionId = release.candidateVersionId;
@@ -390,30 +407,50 @@ export default function DreamRoute() {
     void (async () => {
       setReleaseBusy(true);
       try {
-        const result = await store.replayDreamCandidate(
-          candidateVersionId,
-          datasetId,
-          scope,
-        );
-        if (!result.ok) {
-          showFeedback(result.error, "failed");
-          return;
-        }
-        showFeedback(
-          result.replay?.ready
-            ? `Full train and holdout replay: ${result.replay.passedCases}/${result.replay.totalCases} passed${
-                result.replay.beforeFailedCases > 0
-                  ? `; ${result.replay.beforeFailedCases} previously failed active SOP.`
-                  : "."
-              } Candidate is Ready.`
-            : result.replay?.passed
-              ? `${scope === "affected" ? "Affected" : "Full"} replay: ${result.replay.passedCases}/${result.replay.totalCases} passed${
+        const replayScopes = scope === "full"
+          ? (["affected", "full"] as const)
+          : (["affected"] as const);
+        for (const replayScope of replayScopes) {
+          const result = await store.replayKnowledgeCandidate(
+            candidateVersionId,
+            datasetId,
+            replayScope,
+          );
+          if (!result.ok) {
+            showFeedback(result.error, "failed");
+            return;
+          }
+          if (!result.replay) {
+            showFeedback("Eval replay completed without evidence.", "failed");
+            return;
+          }
+          if (!result.replay.passed) {
+            showFeedback(
+              `${replayScope === "affected" ? "Affected train cases" : "All eval cases"}: ${result.replay.passedCases}/${result.replay.totalCases} passed.`,
+              "failed",
+            );
+            return;
+          }
+          if (replayScope === "affected" && scope === "full") {
+            showFeedback(
+              `Affected train cases: ${result.replay.passedCases}/${result.replay.totalCases} passed. Replaying all eval cases.`,
+            );
+            continue;
+          }
+          showFeedback(
+            result.replay.ready
+              ? `All eval cases: ${result.replay.passedCases}/${result.replay.totalCases} passed${
                   result.replay.beforeFailedCases > 0
                     ? `; ${result.replay.beforeFailedCases} previously failed active SOP.`
                     : "."
-                }`
-              : `${scope === "affected" ? "Affected" : "Full"} replay: ${result.replay?.passedCases ?? 0}/${result.replay?.totalCases ?? 0} passed.`,
-        );
+                } Candidate is Ready.`
+              : `${replayScope === "affected" ? "Affected train cases" : "All eval cases"}: ${result.replay.passedCases}/${result.replay.totalCases} passed${
+                  result.replay.beforeFailedCases > 0
+                    ? `; ${result.replay.beforeFailedCases} previously failed active SOP.`
+                    : "."
+                }`,
+          );
+        }
       } finally {
         setReleaseBusy(false);
       }
@@ -426,7 +463,7 @@ export default function DreamRoute() {
     void (async () => {
       setReleaseBusy(true);
       try {
-        const result = await store.activateDreamCandidate(candidateVersionId);
+        const result = await store.activateKnowledgeCandidate(candidateVersionId);
         showFeedback(
           result.ok ? "Candidate activated. New Chat drafts use this SOP." : result.error,
           result.ok ? "succeeded" : "failed",
@@ -443,7 +480,7 @@ export default function DreamRoute() {
     void (async () => {
       setReleaseBusy(true);
       try {
-        const result = await store.discardDreamCandidate(candidateVersionId);
+        const result = await store.discardKnowledgeCandidate(candidateVersionId);
         showFeedback(
           result.ok ? "Candidate discarded. Active SOP remains unchanged." : result.error,
           result.ok ? "succeeded" : "failed",
@@ -458,7 +495,7 @@ export default function DreamRoute() {
     void (async () => {
       setReleaseBusy(true);
       try {
-        const result = await store.rollbackDreamPlaybook();
+        const result = await store.rollbackKnowledgePlaybook();
         showFeedback(
           result.ok ? "Prior SOP restored as a new immutable version." : result.error,
           result.ok ? "succeeded" : "failed",
@@ -483,7 +520,7 @@ export default function DreamRoute() {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "") || "imported-sop";
-      const result = await store.importDreamMarkdown(
+      const result = await store.importKnowledgeMarkdown(
         `playbooks/imported/${base}.md`,
         file.name.replace(/\.md$/i, ""),
         await file.text(),
@@ -497,7 +534,7 @@ export default function DreamRoute() {
     })();
   };
 
-  const tabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: DreamPane) => {
+  const tabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: KnowledgePane) => {
     const currentIndex = PANES.indexOf(current);
     const target =
       event.key === "Home"
@@ -548,7 +585,7 @@ export default function DreamRoute() {
     />
   );
   const editorPane = (
-    <Suspense fallback={<div className="dream-editor-loading" role="status">Loading Markdown editor</div>}>
+    <Suspense fallback={<div className="knowledge-editor-loading" role="status">Loading Markdown editor</div>}>
       <EditorPane
         corrections={corrections}
         dock={dock}
@@ -582,7 +619,7 @@ export default function DreamRoute() {
   );
 
   return (
-    <section aria-labelledby="dream-route-title" className="route-root dream-route">
+    <section aria-labelledby="knowledge-route-title" className="route-root knowledge-route">
       <input
         accept=".md,text/markdown"
         aria-label="Import Markdown SOP"
@@ -591,7 +628,7 @@ export default function DreamRoute() {
         ref={markdownImportRef}
         type="file"
       />
-      <DreamToolbar
+      <KnowledgeToolbar
         file={selectedFile}
         onDelete={() => setDeleteOpen(true)}
         onDiscard={() => setDiscardOpen(true)}
@@ -610,7 +647,7 @@ export default function DreamRoute() {
         releaseBusy={releaseBusy}
         saving={saving}
       />
-      <section aria-label="Dream release gate" className="dream-release-gate">
+      <section aria-label="Knowledge release gate" className="knowledge-release-gate">
         <div>
           <span>Active SOP</span>
           <strong>v{release?.activeVersionSequence ?? localVersion}</strong>
@@ -627,26 +664,30 @@ export default function DreamRoute() {
           </strong>
           <small>
             {release?.candidateVersionId
-              ? "Replay affected cases, then full suite before activation."
-              : "Approve a correction or save a draft to create one."}
+              ? "Replay all eval cases runs affected train cases first, then all train and holdout cases."
+              : "Edit -> Replay all eval cases (affected train first) -> Activate. Approve a correction or save a draft to create a candidate."}
           </small>
         </div>
         <div>
-          <span>Release path</span>
-          <strong>Edit → Replay → Activate</strong>
+          <span>Prior version</span>
+          <strong>
+            {release?.rollbackTargetVersionSequence
+              ? `v${release.rollbackTargetVersionSequence} available`
+              : "None until first activation"}
+          </strong>
           <small>Rollback restores the prior SOP as a new immutable version.</small>
         </div>
       </section>
       <OperationStatusBanner status={operationStatus} />
       {mobile ? (
-        <div aria-label="Dream panes" className="dream-tabs" role="tablist">
+        <div aria-label="Knowledge panes" className="knowledge-tabs" role="tablist">
           {PANES.map((item) => (
             <button
               aria-label={item === "files" ? "Files" : item === "editor" ? "Editor" : "Changes"}
-              aria-controls={`dream-panel-${item}`}
+              aria-controls={`knowledge-panel-${item}`}
               aria-selected={pane === item}
               data-pane={item}
-              id={`dream-tab-${item}`}
+              id={`knowledge-tab-${item}`}
               key={item}
               onClick={() => setPane(item)}
               onKeyDown={(event) => tabKeyDown(event, item)}
@@ -663,14 +704,14 @@ export default function DreamRoute() {
         </div>
       ) : null}
       <div
-        aria-label="Dream workbench"
-        className={`route-workbench dream-workbench${mobile ? " dream-workbench--mobile" : ""}`}
+        aria-label="Knowledge workbench"
+        className={`route-workbench knowledge-workbench${mobile ? " knowledge-workbench--mobile" : ""}`}
       >
         {mobile ? (
           <div
-            aria-labelledby={`dream-tab-${pane}`}
-            className="dream-mobile-panel"
-            id={`dream-panel-${pane}`}
+            aria-labelledby={`knowledge-tab-${pane}`}
+            className="knowledge-mobile-panel"
+            id={`knowledge-panel-${pane}`}
             role="tabpanel"
           >
             {pane === "files" ? filesPane : pane === "editor" ? editorPane : changesPane}
@@ -691,7 +732,7 @@ export default function DreamRoute() {
           const local = createPlaybookFile(store.state, { path, title });
           const fileId = local.ok ? local.state.selections.playbookFileId : null;
           const result = fileId
-            ? await stageDreamFile(local, fileId, () => store.createPlaybookFile({ path, title }))
+            ? await stageKnowledgeFile(local, fileId, () => store.createPlaybookFile({ path, title }))
             : local;
           if (result.ok) {
             if (fileId) store.selectPlaybookFile(fileId);
@@ -706,7 +747,7 @@ export default function DreamRoute() {
         onOpenChange={(open) => !open && setFileDialog(null)}
         onRename={async (path, title) => {
           if (!selectedFile) return { error: "No file selected", ok: false, state: store.state };
-          return stageDreamFile(
+          return stageKnowledgeFile(
             renamePlaybookFile(store.state, { fileId: selectedFile.id, path, title }),
             selectedFile.id,
             () => store.renamePlaybookFile({ fileId: selectedFile.id, path, title }),
@@ -731,7 +772,7 @@ export default function DreamRoute() {
         file={selectedFile}
         onDelete={async () => {
           if (!selectedFile) return { error: "No file selected", ok: false, state: store.state };
-          return stageDreamFileDeletion(
+          return stageKnowledgeFileDeletion(
             deletePlaybookFile(store.state, { confirmed: true, fileId: selectedFile.id }),
             selectedFile.id,
             () => store.deletePlaybookFile({ confirmed: true, fileId: selectedFile.id }),
@@ -750,7 +791,7 @@ export default function DreamRoute() {
         onOpenChange={setDiscardOpen}
         open={discardOpen}
       />
-      {narrowMobile ? <span className="visually-hidden">Narrow mobile Dream layout</span> : null}
+      {narrowMobile ? <span className="visually-hidden">Narrow mobile Knowledge layout</span> : null}
     </section>
   );
 }

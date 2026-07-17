@@ -1,5 +1,4 @@
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -20,6 +19,7 @@ import type {
 import { ApiClientError } from "../../src/services/api-client";
 import {
   beginTelegramSpeechTranscription,
+  createCanonicalSeed,
   createCanonicalServerState,
   failTelegramSpeechTranscription,
   linkAcceptedTelegramOutboundText,
@@ -29,6 +29,7 @@ import {
 } from "../../src/domain";
 import ChatRoute from "../../src/routes/chat/chat-route";
 import { AppStoreProvider } from "../../src/store/app-store-context";
+import { saveAppState } from "../../src/store/repository";
 import { createAppStore, type AppStore } from "../../src/store/use-app-store";
 
 class MemoryStorage implements Storage {
@@ -85,13 +86,33 @@ function renderChat(options: { width?: number; store?: AppStore } = {}) {
         <Routes>
           <Route path="/" element={<ChatRoute />} />
           <Route path="/eval" element={<div>Evaluation Lab destination</div>} />
-          <Route path="/dream" element={<div>Dream destination</div>} />
+          <Route path="/knowledge" element={<div>Knowledge destination</div>} />
         </Routes>
       </MemoryRouter>
     </AppStoreProvider>,
   );
 
   return { ...result, store };
+}
+
+function createStoreWithBooking(status: "pending" | "approved" = "pending") {
+  const storage = new MemoryStorage();
+  const state = createCanonicalSeed();
+  state.conversations = state.conversations.map((conversation) =>
+    conversation.id === "convo-aircon-booking"
+      ? {
+          ...conversation,
+          booking: {
+            slotIso: "2026-07-19T10:00:00+08:00",
+            reason: "General service",
+            status,
+            revision: 1,
+          },
+        }
+      : conversation,
+  );
+  saveAppState(storage, state);
+  return createAppStore(storage);
 }
 
 async function telegramServerState() {
@@ -166,9 +187,9 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("heading", { name: "Chat Control" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Conversation queue" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Patient context" })).toBeInTheDocument();
-    expect(screen.getByText("Emergency")).toBeInTheDocument();
-    expect(screen.getAllByText("Ahmad bin Hassan").length).toBeGreaterThan(0);
+    expect(screen.getByRole("complementary", { name: "Customer context" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent("Routine");
+    expect(screen.getAllByText("Aina Demo").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Demo simulation").length).toBeGreaterThan(0);
     expect(screen.queryByText(/overview|welcome back|total conversations/i)).not.toBeInTheDocument();
   });
@@ -205,13 +226,14 @@ describe("Chat Control route", () => {
     renderChat();
 
     const selected = screen.getByRole("region", { name: "Selected conversation" });
-    expect(within(selected).getByText("I have chest pain and sweating since this morning.")).toHaveAttribute(
-      "data-message-side",
-      "incoming",
-    );
     expect(
       within(selected).getByText(
-        "Please seek urgent care now. This demo did not contact emergency services.",
+        "Saya nak servis biasa untuk satu aircond wall unit 1.5 HP di SS2.",
+      ),
+    ).toHaveAttribute("data-message-side", "incoming");
+    expect(
+      within(selected).getByText(
+        "General service is RM99 per unit. Which date and time do you prefer?",
       ),
     ).toHaveAttribute("data-message-side", "outgoing");
     expect(within(selected).getByText("Autonomous agent")).toBeInTheDocument();
@@ -219,33 +241,29 @@ describe("Chat Control route", () => {
       within(selected).getByLabelText("Autonomous agent handling"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open conversation with Rajesh Kumar" }));
+    await user.click(screen.getByRole("button", { name: "Open conversation with Mei Demo" }));
     expect(within(selected).getByText("Conversation resolved by staff.")).toHaveAttribute(
       "data-message-side",
       "system",
     );
     expect(within(selected).getByLabelText("Staff only handling")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open conversation with Mei Lin Tan" }));
-    expect(within(selected).getByText("我想续开降压药。")).toBeInTheDocument();
-    expect(within(selected).getByLabelText("Voice transcript")).toBeInTheDocument();
-    expect(within(selected).queryByText("Transcript")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open conversation with Farid Demo" }));
+    expect(
+      within(selected).getByText("My 1.5 HP wall unit is not cooling and smells musty."),
+    ).toBeInTheDocument();
+    expect(within(selected).getByText("General service is RM99 per unit.")).toBeInTheDocument();
+    expect(within(selected).getByText("That package is wrong. I said it is not cooling and smells musty.")).toBeInTheDocument();
   });
 
   it("shows clear English translations and previews auto-translated staff replies", async () => {
     const user = userEvent.setup();
     renderChat();
 
-    await user.click(screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }));
+    await user.click(screen.getByRole("button", { name: "Open conversation with Aina Demo" }));
     const selected = screen.getByRole("region", { name: "Selected conversation" });
-    expect(within(selected).getAllByText("English translation")).toHaveLength(2);
     expect(
-      within(selected).getByText("I would like to make an appointment with Dr. Siti Rahman."),
-    ).toBeInTheDocument();
-    expect(
-      within(selected).getByText(
-        "Please share your preferred date and time. I will check a slot and confirm the appointment.",
-      ),
+      within(selected).getByText("Saya nak servis biasa untuk satu aircond wall unit 1.5 HP di SS2."),
     ).toBeInTheDocument();
 
     const autoTranslate = within(selected).getByRole("button", { name: "Auto-translate" });
@@ -279,7 +297,7 @@ describe("Chat Control route", () => {
     const user = userEvent.setup();
     renderChat();
 
-    await user.click(screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }));
+    await user.click(screen.getByRole("button", { name: "Open conversation with Aina Demo" }));
     const selected = screen.getByRole("region", { name: "Selected conversation" });
     await user.click(within(selected).getByRole("button", { name: "Auto-translate" }));
     await user.type(within(selected).getByRole("textbox", { name: "Message" }), "Unsupported phrase");
@@ -305,17 +323,17 @@ describe("Chat Control route", () => {
       run: vi.fn().mockResolvedValue({
         runId: "agent-run-1",
         draft: {
-          englishText: "Please seek urgent care now.",
+          englishText: "General service is RM99 per unit.",
           patientLanguage: "Malay",
-          patientText: "Sila dapatkan rawatan kecemasan sekarang.",
+          patientText: "General service is RM99 per unit.",
         },
         proposedAction: "reply",
         handoffReason: null,
         evidence: [
           {
-            fileId: "triage",
-            versionId: "dream-v1",
-            contentHash: "hash-triage",
+            fileId: "file-aircon-service-selection",
+            versionId: "knowledge-v1",
+            contentHash: "hash-aircon-service-selection",
             excerpt: "Escalate urgent symptoms.",
           },
         ],
@@ -324,7 +342,7 @@ describe("Chat Control route", () => {
             callId: "call-booking-1",
             name: "create_booking",
             status: "completed",
-            summary: "Booking confirmed with Dr. Farah for 09:00 MYT.",
+            summary: "Booking confirmed for 09:00 MYT.",
             conversationRevision: 5,
             evalCaseId: "case-agent-feedback-1",
           },
@@ -365,14 +383,14 @@ describe("Chat Control route", () => {
       await within(selected).findByText("Agent ready"),
     ).toBeInTheDocument();
     expect(
-      within(selected).getByText("Please seek urgent care now."),
-    ).toBeInTheDocument();
+      within(selected).getAllByText("General service is RM99 per unit."),
+    ).toHaveLength(2);
     expect(
       within(selected).getByText("Escalate urgent symptoms."),
     ).toBeInTheDocument();
     expect(within(selected).getByText("Autonomous action trace")).toBeInTheDocument();
     expect(
-      within(selected).getByText("Completed: Booking confirmed with Dr. Farah for 09:00 MYT."),
+      within(selected).getByText("Completed: Booking confirmed for 09:00 MYT."),
     ).toBeInTheDocument();
     expect(within(selected).getByRole("link", { name: "Open Eval candidate" })).toHaveAttribute(
       "href",
@@ -383,7 +401,7 @@ describe("Chat Control route", () => {
     ).toBeInTheDocument();
     expect(
       within(selected).getByRole("textbox", { name: "Message" }),
-    ).toHaveValue("Sila dapatkan rawatan kecemasan sekarang.");
+    ).toHaveValue("General service is RM99 per unit.");
     expect(
       store.getState().state.conversations[0]?.messages.length,
     ).toBe(beforeMessages);
@@ -484,7 +502,7 @@ describe("Chat Control route", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Open conversation with Nurul Aisyah",
+        name: "Open conversation with Farid Demo",
       }),
     );
 
@@ -494,13 +512,9 @@ describe("Chat Control route", () => {
     const nextSelected = screen.getByRole("region", {
       name: "Selected conversation",
     });
-    expect(nextSelected).toHaveTextContent("Nurul Aisyah");
+    expect(nextSelected).toHaveTextContent("Farid Demo");
     expect(within(nextSelected).getByText("Agent idle")).toBeInTheDocument();
-    expect(
-      within(nextSelected).queryByText(
-        "Please seek urgent care now.",
-      ),
-    ).not.toBeInTheDocument();
+    expect(within(nextSelected).getByRole("textbox", { name: "Message" })).toHaveValue("");
   });
 
   it("loads real Telegram text into Chat on entry without replacing synthetic threads", async () => {
@@ -536,7 +550,7 @@ describe("Chat Control route", () => {
     ).toBeEnabled();
     expect(
       screen.getByRole("button", {
-        name: "Open conversation with Ahmad bin Hassan",
+        name: "Open conversation with Farid Demo",
       }),
     ).toBeInTheDocument();
   });
@@ -1107,7 +1121,7 @@ describe("Chat Control route", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Open conversation with Ahmad bin Hassan",
+        name: "Open conversation with Farid Demo",
       }),
     );
 
@@ -1129,16 +1143,18 @@ describe("Chat Control route", () => {
     const user = userEvent.setup();
     renderChat();
 
-    const emergency = screen.getByRole("button", { name: "Emergency, 1 conversation" });
-    expect(emergency).toHaveAttribute("aria-expanded", "true");
-    await user.click(emergency);
+    const routine = screen.getByRole("button", {
+      name: "Autonomous agent, 2 conversations",
+    });
+    expect(routine).toHaveAttribute("aria-expanded", "true");
+    await user.click(routine);
 
-    expect(emergency).toHaveAttribute("aria-expanded", "false");
+    expect(routine).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.queryByRole("button", { name: "Open conversation with Ahmad bin Hassan" }),
+      screen.queryByRole("button", { name: "Open conversation with Farid Demo" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
-      "Ahmad bin Hassan",
+      "Aina Demo",
     );
   });
 
@@ -1146,19 +1162,19 @@ describe("Chat Control route", () => {
     const user = userEvent.setup();
     const { store } = renderChat();
 
-    await user.type(screen.getByRole("searchbox", { name: /search conversations/i }), "Nurul");
+    await user.type(screen.getByRole("searchbox", { name: /search conversations/i }), "Farid");
     const queue = screen.getByRole("region", { name: "Conversation queue" });
-    expect(within(queue).getByText("Nurul Aisyah")).toBeInTheDocument();
-    expect(within(queue).queryByText("Ahmad bin Hassan")).not.toBeInTheDocument();
+    expect(within(queue).getByText("Farid Demo")).toBeInTheDocument();
+    expect(within(queue).queryByText("Aina Demo")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
-      "Nurul Aisyah",
+      "Farid Demo",
     );
 
     await user.clear(screen.getByRole("searchbox", { name: /search conversations/i }));
     await user.selectOptions(screen.getByRole("combobox", { name: /filter conversations/i }), [
       "resolved",
     ]);
-    expect(within(queue).getByText("Rajesh Kumar")).toBeInTheDocument();
+    expect(within(queue).getByText("Mei Demo")).toBeInTheDocument();
 
     await user.clear(screen.getByRole("searchbox", { name: /search conversations/i }));
     await user.type(screen.getByRole("searchbox", { name: /search conversations/i }), "nobody");
@@ -1202,41 +1218,47 @@ describe("Chat Control route", () => {
 
   it("edits patient details, hides booking gates, labels, and handles emergency escalation", async () => {
     const user = userEvent.setup();
-    renderChat();
+    const storage = new MemoryStorage();
+    const state = createCanonicalSeed();
+    const complaint = state.conversations.find(
+      (conversation) => conversation.id === "convo-aircon-complaint",
+    )!;
+    complaint.urgency = "emergency";
+    complaint.labels = [...complaint.labels, "emergency"];
+    state.selections.conversationId = complaint.id;
+    saveAppState(storage, state);
+    renderChat({ store: createAppStore(storage) });
 
-    await user.click(screen.getByRole("button", { name: "Edit patient" }));
-    const name = screen.getByRole("textbox", { name: "Patient name" });
+    await user.click(screen.getByRole("button", { name: "Edit customer" }));
+    const name = screen.getByRole("textbox", { name: "Customer name" });
     await user.clear(name);
     await user.type(name, "Ahmad Hassan");
-    await user.click(screen.getByRole("button", { name: "Save patient" }));
+    await user.click(screen.getByRole("button", { name: "Save customer" }));
     expect(screen.getAllByText("Ahmad Hassan").length).toBeGreaterThan(0);
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Add label" }), "follow-up");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Add label" }), "booking");
     await user.click(screen.getByRole("button", { name: "Add selected label" }));
-    expect(screen.getByText("follow-up")).toBeInTheDocument();
+    expect(screen.getByText("booking")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Escalate emergency" }));
     expect(screen.getByRole("alertdialog")).toHaveTextContent(
-      "This turns off the synthetic agent and keeps the thread with staff. This demo does not contact a nurse, ambulance, 999, or any external service.",
+      "Escalate unsupported requests to the owner. This demo does not contact emergency services.",
     );
     await user.click(screen.getByRole("button", { name: "Confirm staff handoff" }));
     expect(
-      within(screen.getByRole("complementary", { name: "Patient context" })).getByText(
+      within(screen.getByRole("complementary", { name: "Customer context" })).getByText(
         "Staff only",
       ),
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }),
+      screen.getByRole("button", { name: "Open conversation with Aina Demo" }),
     );
     expect(screen.queryByRole("button", { name: "Approve booking" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject booking" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Booking status timeline" })).toHaveTextContent(
-      "Requested",
-    );
-    expect(screen.getByRole("region", { name: "Booking status timeline" })).toHaveTextContent(
-      "Availability checked",
-    );
+    expect(
+      screen.queryByRole("region", { name: "Booking status timeline" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the provider-accepted calendar invitation in the booking timeline", async () => {
@@ -1247,18 +1269,21 @@ describe("Chat Control route", () => {
       state: {
         ...state.state,
         conversations: state.state.conversations.map((conversation) =>
-        conversation.id === "convo-booking"
+        conversation.id === "convo-aircon-booking"
           ? {
               ...conversation,
-              booking: conversation.booking
-                ? { ...conversation.booking, status: "approved" as const }
-                : conversation.booking,
+              booking: {
+                slotIso: "2026-07-19T10:00:00+08:00",
+                reason: "General service",
+                status: "approved" as const,
+                revision: 1,
+              },
               messages: [
                 ...conversation.messages,
                 {
                   id: "calendar-receipt",
                   role: "system" as const,
-                  text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${conversation.booking?.revision ?? 1}.`,
+                  text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision 1.`,
                   sentAt: "2026-07-17T01:00:00.000Z",
                 },
               ],
@@ -1269,7 +1294,7 @@ describe("Chat Control route", () => {
     }));
     renderChat({ store });
 
-    await user.click(screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }));
+    await user.click(screen.getByRole("button", { name: "Open conversation with Aina Demo" }));
 
     const timeline = screen.getByRole("region", { name: "Booking status timeline" });
     expect(timeline).toHaveTextContent("Availability checked");
@@ -1279,27 +1304,27 @@ describe("Chat Control route", () => {
 
   it("previews and saves a pending booking update in the synthetic workspace", async () => {
     const user = userEvent.setup();
-    renderChat();
+    renderChat({ store: createStoreWithBooking() });
 
-    await user.click(screen.getByRole("button", { name: /Nurul Aisyah/i }));
+    await user.click(screen.getByRole("button", { name: /Aina Demo/i }));
     await user.click(screen.getByRole("button", { name: "Edit booking" }));
     const dialog = screen.getByRole("dialog", { name: "Edit booking" });
     expect(dialog).toHaveTextContent("Nothing is sent to Telegram");
     const save = within(dialog).getByRole("button", { name: "Save booking" });
-    expect(within(dialog).getByText("Exact patient message preview")).toBeInTheDocument();
+    expect(within(dialog).getByText("Exact customer message preview")).toBeInTheDocument();
     expect(save).toBeDisabled();
     const dateTime = within(dialog).getByLabelText("Booking date and time");
     const reason = within(dialog).getByLabelText("Booking reason");
     await user.clear(dateTime);
     await user.type(dateTime, "2026-07-10T14:30");
     await user.clear(reason);
-    await user.type(reason, "Medication review");
+    await user.type(reason, "Chemical wash");
     expect(within(dialog).getByText(/Permintaan temu janji anda telah dikemas kini/)).toBeVisible();
     expect(within(dialog).getByText(/Your appointment request was updated/)).toBeVisible();
     await user.click(save);
 
-    const rail = screen.getByRole("complementary", { name: "Patient context" });
-    expect(within(rail).getByText("Medication review")).toBeInTheDocument();
+    const rail = screen.getByRole("complementary", { name: "Customer context" });
+    expect(within(rail).getByText("Chemical wash")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
       "Permintaan temu janji anda telah dikemas kini",
     );
@@ -1310,13 +1335,9 @@ describe("Chat Control route", () => {
 
   it("cancels an approved appointment in the synthetic workspace and removes it from Schedule", async () => {
     const user = userEvent.setup();
-    const { store } = renderChat();
+    renderChat({ store: createStoreWithBooking("approved") });
 
-    act(() => {
-      store.getState().approveBooking("convo-booking");
-    });
-
-    await user.click(screen.getByRole("button", { name: /Nurul Aisyah/i }));
+    await user.click(screen.getByRole("button", { name: /Aina Demo/i }));
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
     const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
     expect(dialog).toHaveTextContent("Temu janji anda");
@@ -1335,37 +1356,40 @@ describe("Chat Control route", () => {
     const user = userEvent.setup();
     renderChat();
 
-    await user.click(screen.getByRole("button", { name: "Simulate Patient" }));
-    const dialog = screen.getByRole("dialog", { name: "Simulate Patient" });
+    await user.click(screen.getByRole("button", { name: "Simulate Customer" }));
+    const dialog = screen.getByRole("dialog", { name: "Simulate Customer" });
     expect(within(dialog).queryByRole("option", { name: "Walk-in registration" })).not.toBeInTheDocument();
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Scenario" }), [
-      "mandarin_voice",
+      "aircon_package_complaint",
     ]);
-    await user.click(within(dialog).getByRole("button", { name: "Add synthetic patient" }));
-    expect(screen.getAllByText("Li Wei").length).toBeGreaterThan(0);
-    expect(screen.getByText("我想了解处方续药流程。")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Add synthetic customer" }));
+    expect(screen.getAllByText("Siti Demo").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("My 1.5 HP wall unit is not cooling and smells musty."),
+    ).toHaveLength(2);
 
     await user.click(screen.getByRole("tab", { name: "Schedule" }));
     expect(screen.getByRole("region", { name: "Schedule day index" })).toHaveTextContent(
-      "1 booking",
+      "0 bookings",
     );
+    await user.click(screen.getByRole("tab", { name: "Inbox" }));
     await user.click(
-      screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }),
+      screen.getByRole("button", { name: "Open conversation with Aina Demo" }),
     );
     expect(screen.getByRole("tab", { name: "Inbox" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
-      "Nurul Aisyah",
+      "Aina Demo",
     );
   });
 
   it("opens the shared booking editor from Schedule and reflects the selected day count", async () => {
     const user = userEvent.setup();
-    renderChat();
+    renderChat({ store: createStoreWithBooking() });
 
     await user.click(screen.getByRole("tab", { name: "Schedule" }));
     expect(screen.queryByText("No clinic booking was made.")).not.toBeInTheDocument();
     expect(screen.getByText("1 booking scheduled")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Edit booking for Nurul Aisyah" }));
+    await user.click(screen.getByRole("button", { name: "Edit booking for Aina Demo" }));
     expect(screen.getByRole("dialog", { name: "Edit booking" })).toBeInTheDocument();
   });
 
@@ -1374,8 +1398,8 @@ describe("Chat Control route", () => {
     const { store } = renderChat();
 
     await user.click(screen.getByRole("tab", { name: "Schedule" }));
-    const patient = screen.getByLabelText("Patient for new booking");
-    await user.selectOptions(patient, screen.getByRole("option", { name: /Rajesh Kumar/i }));
+    const patient = screen.getByLabelText("Customer for new booking");
+    await user.selectOptions(patient, screen.getByRole("option", { name: /Mei Demo/i }));
     await user.click(screen.getByRole("button", { name: "Create booking" }));
 
     const dialog = screen.getByRole("dialog", { name: "Create booking" });
@@ -1385,7 +1409,7 @@ describe("Chat Control route", () => {
     expect(screen.getByText("Booking saved")).toBeInTheDocument();
     expect(
       store.getState().state.conversations.find(
-        (conversation) => conversation.patient.name === "Rajesh Kumar",
+        (conversation) => conversation.patient.name === "Mei Demo",
       )?.booking,
     ).toMatchObject({ status: "approved" });
   });
@@ -1396,14 +1420,14 @@ describe("Chat Control route", () => {
 
     expect(screen.getByRole("region", { name: "Conversation queue" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Selected conversation" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("complementary", { name: "Patient context" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Customer context" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Open conversation with Ahmad/i }));
+    await user.click(screen.getByRole("button", { name: /Open conversation with Farid/i }));
     expect(screen.getByRole("region", { name: "Selected conversation" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Conversation queue" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Details" }));
-    expect(screen.getByRole("complementary", { name: "Patient context" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Customer context" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Selected conversation" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close details" }));
@@ -1411,12 +1435,12 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("region", { name: "Conversation queue" })).toBeInTheDocument();
   });
 
-  it("imports the latest staff reply into Eval and opens the routed Dream playbook", async () => {
+  it("imports the latest staff reply into Eval and opens the routed Knowledge playbook", async () => {
     const user = userEvent.setup();
     const { store } = renderChat();
     const before = store.getState().state.evalDatasets[0]!.cases.length;
 
-    await user.click(screen.getByRole("button", { name: /Nurul Aisyah/i }));
+    await user.click(screen.getByRole("button", { name: /Aina Demo/i }));
     const importConversation = screen.getByRole("button", {
       name: "Add resolved conversation to Evals",
     });
@@ -1444,24 +1468,28 @@ describe("Chat Control route", () => {
     renderChat();
 
     const emergencyRow = screen.getByRole("button", {
-      name: "Open conversation with Ahmad bin Hassan",
+      name: "Open conversation with Farid Demo",
     });
     expect(emergencyRow).toHaveTextContent("2026");
-    expect(screen.getByText(/Chest-pain fixture:/)).toBeInTheDocument();
+    expect(
+      screen.getByText("No synthetic service notes for this customer."),
+    ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "Open conversation with Rajesh Kumar" }),
+      screen.getByRole("button", { name: "Open conversation with Mei Demo" }),
     );
-    expect(screen.getByText("No synthetic triage guidance for this patient.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No synthetic service notes for this customer."),
+    ).toBeInTheDocument();
   });
 
-  it("keeps Filter and Simulate Patient inside More at 320px", async () => {
+  it("keeps Filter and Simulate Customer inside More at 320px", async () => {
     const user = userEvent.setup();
     renderChat({ width: 320 });
 
     await user.click(screen.getByRole("button", { name: "More chat actions" }));
     const menu = screen.getByRole("menu");
     expect(within(menu).getByText("Filter")).toBeInTheDocument();
-    expect(within(menu).getByText("Simulate Patient")).toBeInTheDocument();
+    expect(within(menu).getByText("Simulate Customer")).toBeInTheDocument();
   });
 });

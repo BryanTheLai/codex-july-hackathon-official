@@ -8,17 +8,17 @@ import {
 
 export const EVAL_GLOSSARY = {
   actualSynthetic: "Agent-generated reply produced without reading the staff-approved reply.",
-  booking: "Appointment scheduling and confirmation requests.",
-  emergencyTriage: "Case type for urgent escalation language and routing.",
+  booking: "Service visit scheduling and confirmation requests.",
+  emergencyTriage: "Urgent customer requests that need owner escalation.",
   expectedHitl: "Staff-approved reply used only as grading reference evidence. The agent never sees it during replay.",
-  improveSop: "A failure here can produce a reviewable Dream SOP proposal. It does not train or condition the agent.",
+  improveSop: "A failure here can produce a reviewable Knowledge SOP proposal. It does not train or condition the agent.",
   regressionGuard: "Held out from SOP improvement and used afterward to check that a proposed change did not cause a regression.",
   input: "Ordered conversation context supplied to the synthetic agent for replay.",
-  labFollowUp: "Laboratory result availability and clinician follow-up questions.",
-  prescription: "Medication renewal and approval checks.",
+  labFollowUp: "Legacy case type retained for compatibility; not used in the aircon demo seed.",
+  prescription: "Legacy case type retained for compatibility; not used in the aircon demo seed.",
   scoringRules: "Plain-language requirements the judge applies after the agent reply is generated.",
   typeColumn:
-    "Case intent: emergency triage, booking, prescription, lab follow up, and general.",
+    "Case intent: booking, general service selection, and other aircon desk scenarios.",
 } as const;
 
 export type EvalResultFilter = "all" | "pass" | "fail" | "needs_review" | "not_run";
@@ -56,9 +56,16 @@ export function metricsForDataset(dataset: EvalDataset): EvalMetrics {
   };
 }
 
+function formatMessageRole(role: string): string {
+  if (role === "patient") {
+    return "customer";
+  }
+  return role.replace("_", " ");
+}
+
 export function inputText(evalCase: EvalCase): string {
   return evalCase.inputConversation.messages
-    .map((message) => `${message.role.replace("_", " ")}: ${message.text}`)
+    .map((message) => `${formatMessageRole(message.role)}: ${message.text}`)
     .join("\n");
 }
 
@@ -154,6 +161,14 @@ export function nextSort(current: EvalSort, column: "item" | "grade"): EvalSort 
   return { column: "fixture", direction: "asc" };
 }
 
+const CASE_TYPE_LABELS: Record<EvalCaseType, string> = {
+  booking: "Booking",
+  emergency_triage: "Urgent escalation",
+  general: "General",
+  lab_follow_up: "Follow-up",
+  prescription: "Legacy",
+};
+
 export function formatCaseType(type: EvalCaseType): string {
-  return type.replaceAll("_", " ");
+  return CASE_TYPE_LABELS[type];
 }

@@ -121,7 +121,7 @@ function resolvePlaybookVersion(
   ) {
     fail(
       "provider_failed",
-      "Frozen Dream bundle is unavailable",
+      "Frozen Knowledge bundle is unavailable",
       false,
     );
   }
@@ -145,7 +145,7 @@ function buildSandboxAgentRequest(
       if (!file) {
         fail(
           "provider_failed",
-          "Frozen Dream content is unavailable",
+          "Frozen Knowledge content is unavailable",
           false,
         );
       }
@@ -194,7 +194,7 @@ function validateAgentEvidence(
     if (!content?.includes(evidence.excerpt)) {
       fail(
         "provider_failed",
-        "Agent evidence is not present in the frozen Dream bundle",
+        "Agent evidence is not present in the frozen Knowledge bundle",
         true,
       );
     }
@@ -252,6 +252,7 @@ function validateJudgeEvidence(
   request: JudgeRequest,
   result: JudgeResponse,
 ): void {
+  const recovery = "Retry the run; if it repeats, check the judge model configuration.";
   const expectedRubrics = new Map(
     request.rubrics.map((rubric) => [rubric.id, rubric.version]),
   );
@@ -262,7 +263,7 @@ function validateJudgeEvidence(
     result.metadata.runId !== request.runId ||
     result.criterionResults.length !== expectedRubrics.size
   ) {
-    fail("provider_failed", "Judge evidence pins are invalid", true);
+    fail("provider_failed", `Judge evidence pins are invalid. ${recovery}`, true);
   }
   for (const criterion of result.criterionResults) {
     if (
@@ -271,12 +272,12 @@ function validateJudgeEvidence(
       (criterion.evidence !== null &&
         !request.candidateResponse.includes(criterion.evidence))
     ) {
-      fail("provider_failed", "Judge evidence is invalid", true);
+      fail("provider_failed", `Judge evidence is invalid. ${recovery}`, true);
     }
     expectedRubrics.delete(criterion.criterionId);
   }
   if (expectedRubrics.size > 0) {
-    fail("provider_failed", "Judge rubric coverage is invalid", true);
+    fail("provider_failed", `Judge rubric coverage is invalid. ${recovery}`, true);
   }
 }
 

@@ -2,11 +2,25 @@ import CodeMirror, {
   type ReactCodeMirrorProps,
   type ReactCodeMirrorRef,
 } from "@uiw/react-codemirror";
-import { Decoration, EditorView, WidgetType } from "@codemirror/view";
+import { RangeSetBuilder, type Range } from "@codemirror/state";
+import { Decoration, EditorView, GutterMarker, WidgetType, gutterLineClass } from "@codemirror/view";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { Correction, PlaybookFile } from "../../domain";
-import { fileContent, textMetrics } from "./dream-model";
+import { fileContent, textMetrics } from "./knowledge-model";
+
+class CorrectionGutterMarker extends GutterMarker {
+  override elementClass: string;
+
+  constructor(className: string) {
+    super();
+    this.elementClass = className;
+  }
+
+  override eq(other: GutterMarker) {
+    return other instanceof CorrectionGutterMarker && other.elementClass === this.elementClass;
+  }
+}
 
 class CorrectionPreviewWidget extends WidgetType {
   constructor(
@@ -59,35 +73,43 @@ export function EditorPane({
   const content = file ? fileContent(file) : "";
   const metrics = textMetrics(content);
   const correctionDecorations = useMemo(() => {
-    const ranges = corrections.flatMap((correction) => {
+    const gutterBuilder = new RangeSetBuilder<GutterMarker>();
+    const widgetRanges: Range<Decoration>[] = [];
+
+    for (const correction of corrections) {
       const targetText =
         correction.status === "approved" ? correction.newText : correction.oldText;
       const offset = content.indexOf(targetText);
       if (offset < 0 || offset > content.length) {
-        return [];
+        continue;
       }
       const lineFrom = content.lastIndexOf("\n", Math.max(0, offset - 1)) + 1;
       const nextBreak = content.indexOf("\n", offset);
       const lineTo = nextBreak < 0 ? content.length : nextBreak;
-      const classes = [
-        "cm-correction-line",
-        `cm-correction-line--${correction.status}`,
-        correction.id === focusedCorrectionId ? "cm-correction-line--focused" : "",
+      const focused = correction.id === focusedCorrectionId;
+      const gutterClass = [
+        `cm-correction-gutter--${correction.status}`,
+        focused ? "cm-correction-gutter--focused" : "",
       ]
         .filter(Boolean)
         .join(" ");
-      const lineRange = Decoration.line({ attributes: { class: classes } }).range(lineFrom);
-      if (correction.status !== "pending") {
-        return [lineRange];
+      gutterBuilder.add(lineFrom, lineFrom, new CorrectionGutterMarker(gutterClass));
+
+      if (correction.status === "pending") {
+        const preview = Decoration.widget({
+          block: true,
+          side: 1,
+          widget: new CorrectionPreviewWidget(correction.oldText, correction.newText),
+        }).range(lineTo);
+        widgetRanges.push(preview);
       }
-      const preview = Decoration.widget({
-        block: true,
-        side: 1,
-        widget: new CorrectionPreviewWidget(correction.oldText, correction.newText),
-      }).range(lineTo);
-      return [lineRange, preview];
-    });
-    return [EditorView.decorations.of(Decoration.set(ranges, true))];
+    }
+
+    const extensions = [gutterLineClass.of(gutterBuilder.finish())];
+    if (widgetRanges.length > 0) {
+      extensions.push(EditorView.decorations.of(Decoration.set(widgetRanges, true)));
+    }
+    return extensions;
   }, [content, corrections, focusedCorrectionId]);
 
   useEffect(() => {
@@ -120,7 +142,7 @@ export function EditorPane({
   return (
     <section
       aria-label="Playbook editor"
-      className="dream-editor-pane"
+      className="knowledge-editor-pane"
       onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
@@ -131,15 +153,14 @@ export function EditorPane({
     >
       {file ? (
         <>
-          <header className="dream-editor-status">
+          <header className="knowledge-editor-status">
             <div>
               <strong>{file.path.replace("playbooks/", "")}</strong>
             </div>
             <span>{metrics.lines} lines | {metrics.words} words</span>
           </header>
-          <div className="dream-editor">
+          <div className="knowledge-editor">
             <CodeMirror
-              aria-label="Playbook Markdown editor"
               basicSetup={{
                 bracketMatching: true,
                 foldGutter: false,
@@ -164,7 +185,7 @@ export function EditorPane({
           {dock}
         </>
       ) : (
-        <div className="dream-empty">Select a playbook file to edit.</div>
+        <div className="knowledge-empty">Select a playbook file to edit.</div>
       )}
     </section>
   );

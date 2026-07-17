@@ -5,8 +5,8 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text and transcribed-voice control flow are implemented. A newly persisted live-agent Telegram message creates a durable Postgres outbox job for the function-calling agent and reply. Optional single-admin Google Calendar OAuth filters candidate slots with FreeBusy and synchronizes booking create, reschedule, cancel, and persisted Schedule edits; without a connection the deterministic demo schedule remains active. OpenAI remains the default speech provider and ElevenLabs direct STT/TTS can be selected independently. Dashboard authentication, EHR/PMS authority, and broader provider-quality validation remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM transcription with a provider-selected OpenAI Whisper or ElevenLabs Scribe v2 adapter, English glossing, browser transcription recovery, real outbound translation, provider-selected TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic replies through a durable Postgres outbox, and autonomous server-owned booking tools. It optionally connects one admin Google Calendar with OAuth refresh-token encryption, FreeBusy candidate filtering, and event CRUD while retaining deterministic demo availability as the no-connection fallback. It retains the existing no-provider deterministic Analyze fallback. Authentication, multi-user authorization, EHR/PMS authority, and live provider validation remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Knowledge candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text and transcribed-voice control flow are implemented. A newly persisted live-agent Telegram message creates a durable Postgres outbox job for the function-calling agent and reply. Single-admin Google Calendar OAuth filters candidate slots with FreeBusy and synchronizes booking create, reschedule, cancel, and persisted Schedule edits. The deterministic schedule is limited to non-live demo mode; live booking requires the Google connection. OpenAI remains the default speech provider and ElevenLabs direct STT/TTS can be selected independently. Dashboard authentication, EHR/PMS authority, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM transcription with a provider-selected OpenAI Whisper or ElevenLabs Scribe v2 adapter, English glossing, browser transcription recovery, real outbound translation, provider-selected TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic replies through a durable Postgres outbox, and autonomous server-owned booking tools. It connects one admin Google Calendar with OAuth refresh-token encryption, FreeBusy candidate filtering, and event CRUD. Deterministic availability remains a non-live demo fixture; live booking fails closed without Google. It retains the existing no-provider deterministic Analyze fallback. Authentication, multi-user authorization, EHR/PMS authority, and live provider validation remain deferred."
 created: "2026-07-08"
 last_updated: "2026-07-17"
 last_verified: "2026-07-17"
@@ -19,7 +19,7 @@ verification_method:
   - "Independent cold-read design, behavior, and causal-honesty audit"
 routes:
   chat_control: "/"
-  dream: "/dream"
+  knowledge: "/knowledge"
   eval: "/eval"
 schema_version: 4
 theme: "Light mode only"
@@ -33,7 +33,7 @@ contract_priority:
   - "Replaceable implementation details"
 stack_policy: "No framework, language, storage engine, editor, table, chart, or component library is required by this document."
 synthetic_boundary: "All patients, messages, playbooks, and candidate outputs are synthetic. Tests use a simulated judge; configured local runs may use OpenAI and record that result as live LLM evidence."
-production_gap: "The fixed demo workspace has live Supabase persistence, protected Telegram inbound delivery, a durable outbox, and optional one-admin Google Calendar synchronization, but no dashboard authentication, authorization, tenancy, multi-user coordination, EHR/PMS authority, or real-patient operating model. A real owner-controlled provider smoke remains required."
+production_gap: "The fixed demo workspace has live Supabase persistence, protected Telegram inbound delivery, a durable outbox, and optional one-admin Google Calendar synchronization, but no dashboard authentication, authorization, tenancy, multi-user coordination, EHR/PMS authority, or real-patient operating model. A real owner-controlled external-service smoke remains required."
 ---
 
 # KaunterAI Product and Rebuild Contract
@@ -178,11 +178,11 @@ judge result.
 
 ### Train split
 
-Cases eligible to diagnose failures and create Dream proposals.
+Cases eligible to diagnose failures and create Knowledge proposals.
 
 ### Holdout split
 
-Cases used to check whether a candidate generalizes. Holdout cases never generate Dream
+Cases used to check whether a candidate generalizes. Holdout cases never generate Knowledge
 proposals.
 
 ### Candidate version
@@ -197,9 +197,9 @@ A point-in-time record of overall, train, and holdout results after a suite run.
 
 ### Saved-text verification
 
-Dream Test Changes remains a local saved-text check. With the server release workflow configured,
-Dream save, Markdown import, or correction acceptance creates an inactive version instead; only
-affected replay followed by a complete passing train-and-holdout suite can make it Ready. Neither
+Check saved text is a local saved-text check. With the server release workflow configured,
+Knowledge save, Markdown import, or correction acceptance creates an inactive version instead; only
+affected train replay followed by a complete passing train-and-holdout suite can make it Ready. Neither
 path changes the active playbook until a human activates it.
 
 ### Deep link
@@ -219,10 +219,10 @@ The built baseline demonstrates this human-supervision loop:
 2. A staff reply can become the expected response for a train evaluation case.
 3. The server synchronizes the selected existing dataset before freezing a suite, so imported and
    manual cases run through the shared sandbox agent and judge when the release workflow is enabled.
-4. A failed train case can create one pending LLM-generated exact Dream correction.
+4. A failed train case can create one pending LLM-generated exact Knowledge correction.
 5. A human accepts that correction, a draft, or Markdown import into an inactive playbook candidate.
-6. Affected train cases must pass before the candidate can run the full train and holdout suite.
-7. Only a complete passing full suite marks the candidate Ready.
+6. Replay all eval cases runs affected train cases first and continues to the all-case train and holdout replay only when they pass.
+7. Only a complete passing all-case replay marks the candidate Ready.
 8. A human activates the Ready candidate; subsequent Chat requests resolve the new active bundle.
 9. Roll back creates a new immutable version from the immediately prior active SOP.
 
@@ -254,7 +254,7 @@ The product is intentionally small:
 - Secure multi-user operation.
 - Server durability or concurrency.
 - Production latency, throughput, cost, or availability.
-- Automatic model or agent improvement after Dream acceptance or activation.
+- Automatic model or agent improvement after Knowledge acceptance or activation.
 
 The synthetic "Voice transcript" fixture is text labeled as a transcript and has no play control.
 Live Telegram voice is a separate integration: it keeps the Telegram file reference, renders
@@ -286,8 +286,8 @@ The target rebuild uses fixtures. Any future live patient-facing agent must:
 +------------------+-------------------+-------------------+-----------+
                    |                   |                   |
                    v                   v                   v
-             Chat Control           Dream            Evaluation Lab
-                  /                /dream                /eval
+             Chat Control           Knowledge            Evaluation Lab
+                  /                /knowledge                /eval
                    |                   ^                   |
                    | latest staff     | pending           | failed
                    | reply            | correction        | baseline
@@ -296,11 +296,11 @@ The target rebuild uses fixtures. Any future live patient-facing agent must:
 
 ### The most important causal boundary
 
-Failure analysis and the Dream correction lifecycle are related but separate:
+Failure analysis and the Knowledge correction lifecycle are related but separate:
 
 - Analyze failures reads committed failed train runs and may add pending corrections.
 - Analyze failures does not rerun cases, increment a candidate version, or claim the agent improved.
-- Dream correction acceptance creates inactive candidate content.
+- Knowledge correction acceptance creates inactive candidate content.
 - Acceptance does not change the active playbook or retroactively change Evaluation Lab scores.
 - Activation changes the active playbook only after a full train and holdout suite is Ready.
 - Evaluation success does not auto-approve or deploy a correction.
@@ -422,7 +422,7 @@ deleting Telegram data or real Eval cases.
 The shell provides:
 
 - KaunterAI brand;
-- navigation for Chat Control, Dream, and Evals;
+- navigation for Chat Control, Knowledge, and Evals;
 - a visible Synthetic Demo label at every width, shortened to Demo only when space requires;
 - Reset Demo;
 - an accessible route-loading status;
@@ -434,7 +434,7 @@ At 1440px, the shell and every route use the same top-level frame:
 
 ```text
 +----------------------------------------------------------------------------+
-| 54px shell: KaunterAI | Chat Control | Dream | Evals | Synthetic Demo | Reset|
+| 54px shell: KaunterAI | Chat Control | Knowledge | Evals | Synthetic Demo | Reset|
 +----------------------------------------------------------------------------+
 | 46px route toolbar: one h1 | current context | direct actions | More        |
 +----------------------------------------------------------------------------+
@@ -467,15 +467,15 @@ Route-specific collapse points are deliberate and must not be replaced by one un
 |---|---|---|---|
 | Shell | 760px and wider: labels visible | Not applicable | Below 760px: icon-sized navigation with accessible names |
 | Chat Control | 1100px and wider: list, thread, rail | 760px to 1099px: 240-280px list, thread at least 480px, rail drawer | Below 760px or when the thread floor cannot fit: one-pane sequence |
-| Dream | 1200px and wider: 230px files, editor, 320px changes | 1000px to 1199px: 190px files, editor at least 480px, 280px changes | Below 1000px: one visible tab panel |
+| Knowledge | 1200px and wider: 230px files, editor, 320px changes | 1000px to 1199px: 190px files, editor at least 480px, 280px changes | Below 1000px: one visible tab panel |
 | Evals | 1200px and wider: main case work plus score-summary rail | 900px to 1199px: score summary above main work | Below 900px: compact summary, filters, case cards; chart in History drawer |
 
 ### Route loading and performance
 
 - Each route loads on demand.
 - Hovering or focusing a navigation item may preload its route.
-- Loading Chat Control must not fetch delivery assets used only by Dream or Evals.
-- Dream and Eval delivery assets may load after route intent is known.
+- Loading Chat Control must not fetch delivery assets used only by Knowledge or Evals.
+- Knowledge and Eval delivery assets may load after route intent is known.
 - No individual route delivery artifact may exceed 500 kB uncompressed.
 
 ### Small-screen shell
@@ -493,9 +493,9 @@ At narrow widths:
 
 | Route | Primary | Secondary | Contextual | Maintenance |
 |---|---|---|---|---|
-| Chat Control | Send in an active thread | Resolve or Reopen, booking decision, emergency escalation | Back, Details, agent mode, patient edit, Eval and Dream links | Search, Filter, Schedule, Simulate Patient |
-| Dream | Accept inside one pending correction | Reject, Save, Test Changes, Activate when Ready | Correction-card focus, file selection, source Eval link, Run Again | New File, Rename, Delete, Discard |
-| Evaluation Lab | Run Case when selected; otherwise Run Suite | New manual test, Analyze failures, Import conversations | Open test, Cancel active request, linked Dream correction | Dataset CRUD, scoring-rule CRUD, test Duplicate and Delete |
+| Chat Control | Send in an active thread | Resolve or Reopen, booking decision, emergency escalation | Back, Details, agent mode, patient edit, Eval and Knowledge links | Search, Filter, Schedule, Simulate Patient |
+| Knowledge | Accept inside one pending correction | Reject, Save, Check saved text, Activate when Ready | Correction-card focus, file selection, source Eval link, Run Again | New File, Rename, Delete, Discard |
+| Evaluation Lab | Run Case when selected; otherwise Run all cases | New manual test, Analyze failures, Import conversations | Open test, Cancel active request, linked Knowledge correction | Dataset CRUD, scoring-rule CRUD, test Duplicate and Delete |
 
 Only the current primary uses the filled petrol action. Secondary actions are bordered or text
 actions. Contextual actions stay beside the object they affect. Maintenance moves to More before
@@ -523,7 +523,7 @@ Staff use Chat Control to:
 10. Add or remove labels.
 11. Inspect the synthetic schedule.
 12. Simulate a new patient.
-13. Send staff HITL evidence to Evals or open the relevant Dream playbook.
+13. Send staff HITL evidence to Evals or open the relevant Knowledge playbook.
 
 ### 7.2 Layout modes
 
@@ -558,7 +558,7 @@ patient identity, synthetic triage guidance, booking, labels, then cross-route l
 | grouped rows     | message history scrolls                  | patient details    |
 | queue scrolls    | one 68ch transcript column               | triage guidance    |
 |                  |                                          | booking + labels   |
-|                  +------------------------------------------+ Eval/Dream links   |
+|                  +------------------------------------------+ Eval/Knowledge links   |
 |                  | composer pinned to pane bottom, min 108px| rail scrolls       |
 +------------------+------------------------------------------+--------------------+
 | workbench height = calc(100dvh - 100px)                                          |
@@ -643,7 +643,7 @@ relies on accidental wrapping.
 1440px
 +----------------------+---------------------------------------------------------+
 | day index 220px      | selected day + schedule-source badge                     |
-| 7 rows, date + count | 44px row: time | patient | provider | state             |
+| 7 rows, date + count | 44px row: time | patient | status                       |
 | index scrolls        | booking rows scroll; selecting patient returns to Inbox |
 +----------------------+---------------------------------------------------------+
 
@@ -651,7 +651,7 @@ relies on accidental wrapping.
 +------------------------------------------+
 | 44px day selector | schedule-source badge |
 | booking row: time + patient              |
-| provider + state                         |
+| status                                   |
 | one list scrolls                         |
 +------------------------------------------+
 
@@ -659,7 +659,7 @@ relies on accidental wrapping.
 +----------------------------------+
 | 44px Day select | source badge   |
 | booking row: time + patient      |
-| provider                         |
+| reason                           |
 | state on its own metadata line   |
 | one list scrolls                 |
 +----------------------------------+
@@ -919,7 +919,7 @@ The rail contains:
 - booking information and actions;
 - labels;
 - emergency escalation when applicable;
-- Eval and Dream links.
+- Eval and Knowledge links.
 
 Changing conversations cancels an unfinished patient edit. Saving must never apply patient A's
 form values to patient B.
@@ -948,7 +948,7 @@ Labels:
 
 ### 7.10 Booking
 
-A booking has provider, slot, reason, revision, and one of four states: pending, approved,
+A booking has a slot, reason, revision, and one of four states: pending, approved,
 rejected, or cancelled. The revision rejects an edit when the booking changed after the editor
 opened.
 
@@ -966,7 +966,7 @@ Approve, Reject, Edit, and Cancel:
 
 The edit action is **Save and notify** and remains disabled until a patient-facing fact changes.
 A pending edit is described as an updated request. An approved slot change is described as a
-reschedule. An approved provider or reason change is described as updated appointment details.
+reschedule. An approved reason change is described as updated appointment details.
 Reject applies only to a pending request. Cancel applies only to an approved appointment.
 Every booking action that uses "notify" adds a message to the local synthetic thread only. It does
 not claim delivery through WhatsApp, Telegram, SMS, email, or any external patient channel.
@@ -1000,7 +1000,7 @@ It:
 - starts from the fixed demo week;
 - shows either `Demo schedule fallback` or `Google Calendar synced` beside the selected day;
 - groups visible bookings by day;
-- shows time, patient, provider, and status;
+- shows time, patient, and status;
 - labels empty days honestly;
 - opens the selected conversation when a patient is chosen;
 - excludes rejected and cancelled bookings.
@@ -1131,7 +1131,7 @@ Run Case:
 
 ### 8.8 Suite run
 
-Run Suite:
+Run all cases:
 
 - freezes the selected case, rubric, playbook, agent, and judge configuration into one suite
   snapshot;
@@ -1162,12 +1162,12 @@ Behavior:
    match.
 4. Use the deterministic failure taxonomy when the proposer times out or returns an invalid or
    unsafe patch.
-5. Create or find pending Dream corrections with source-case and source-run evidence.
+5. Create or find pending Knowledge corrections with source-case and source-run evidence.
 6. Commit the pending corrections atomically.
 
 Analyze failures has no target pass rate, iteration count, suite rerun, candidate-version change,
 accepted playbook edit, or activation step. The proposer may draft a pending edit, but the visitor
-still owns Accept, Reject, Test Changes, Activate, and Rollback. Holdout cases never generate
+still owns Accept, Reject, Check saved text, Activate, and Rollback. Holdout cases never generate
 proposals.
 
 Proposal generation:
@@ -1262,7 +1262,7 @@ read-only run evidence.
 Deleting a case:
 
 - removes dataset-scoped run history for that case;
-- removes pending Dream corrections sourced from the case;
+- removes pending Knowledge corrections sourced from the case;
 - preserves decided corrections but clears their source-case link;
 - names these consequences before confirmation;
 - changes nothing when canceled.
@@ -1307,7 +1307,7 @@ The detail drawer shows:
 - full actual output;
 - criteria;
 - full grade rationale;
-- linked Dream corrections;
+- linked Knowledge corrections;
 - last five case runs.
 
 Drawer anatomy:
@@ -1326,7 +1326,7 @@ Drawer anatomy:
 | full candidate output                        |
 |                                              |
 | Criteria and grade rationale                 |
-| linked Dream corrections | last five runs    |
+| linked Knowledge corrections | last five runs    |
 +----------------------------------------------+
 | 52px actions: Run Case | Edit | More         |
 +----------------------------------------------+
@@ -1340,7 +1340,7 @@ Analyze failures opens a non-modal evidence drawer because failed-run diagnosis 
 workflow:
 
 - approximately 520px wide at desktop and the one visible content pane on mobile;
-- failed train cases and judge evidence appear above proposed Dream corrections;
+- failed train cases and judge evidence appear above proposed Knowledge corrections;
 - starting analysis replaces the action with a bounded progress state;
 - a failed request creates no corrections;
 - the case table or case cards remain the route's underlying artifact.
@@ -1349,9 +1349,9 @@ workflow:
 
 ```text
 +--------------------------------------------------------------------------------+
-| 46px: Evaluation Lab | dataset | Add | Run Suite | Analyze failures | Import | More|
+| 46px: Evaluation Lab | dataset | Add | Run all cases | Analyze failures | Import | More|
 +----------------------------------------------------------+---------------------+
-| raw case workspace, minmax(0, 1fr)                       | support rail 300px  |
+| raw case workspace, minmax(0, 1fr)                       | support rail 280px  |
 | 44px search | split | language | result                  | score summary 132px |
 +----------------------------------------------------------+---------------------+
 | grouped sticky header, 56px                              | suite history 120px |
@@ -1372,7 +1372,7 @@ never replace them.
 At 1200px and wider:
 
 - the main case work uses the remaining width;
-- the score-summary rail is 300px;
+- the score-summary rail is 280px;
 - filters and the grouped table header stay above the case rows;
 - the score summary and 120px history chart stay in the supporting rail;
 - the table owns vertical scroll;
@@ -1415,7 +1415,7 @@ workbench. Raw case rows own vertical scroll.
 | 54px: K | C | D | E | Demo | Reset      |
 +------------------------------------------+
 | 44px: Evaluation Lab | dataset           |
-| 44px: + Test | Run Suite | Analyze | More|
+| 44px: + Test | Run all cases | Analyze | More|
 +------------------------------------------+
 | 72px score summary, 2 rows | History     |
 +--------------------+---------------------+
@@ -1468,10 +1468,9 @@ text actions into one row.
 The mobile case list is one column. It is not a two-column card grid and it is not the desktop
 table squeezed into the viewport.
 
-At 320px, `+ Test`, `Run Suite`, `Analyze`, and `More` each occupy one quarter of the toolbar row.
-Their accessible names remain `New manual test`, `Run Suite`, `Analyze failures`, and `More`. The
-compact summary shows Overall, Train, and Holdout only. Mean, prior-run delta, and the chart
-live in History.
+At 320px, `+ Test`, `Run all cases`, `Analyze`, and `More` share the toolbar row.
+Their accessible names remain `New manual test`, `Run all cases`, `Analyze failures`, and `More`. The
+compact summary shows regression guard and open failures. The chart lives in History.
 Filters opens split, language, and result choices without removing the search field.
 
 Mobile reading order is route context, direct actions, compact score context, filters, then raw
@@ -1495,11 +1494,11 @@ comparison bars, baseline markers, standard deviation, improved/regressed case c
 oversized KPI typography. Those reference-workbench elements require data KaunterAI does not
 store.
 
-At 1200px and wider, the summary is a 132px rail region. From 900px to 1199px, it is one 56px
-strip with five internal columns. At 390px it is 72px in two rows. At 320px it is one 44px strip
-for overall, train, and holdout; History carries mean and prior-run delta with the chart. Labels
-use 11px muted text; values use 13px tabular figures. Hairlines separate metrics. Metrics never
-become floating cards.
+At 1200px and wider, the summary sits in the 280px support rail. From 900px to 1199px, the
+two-metric summary is one 56px row above the 96px history chart. At 390px and 320px, the
+same regression-guard and open-failure metrics sit above the case cards. Labels use 11px muted
+text; values use 13px tabular figures. Hairlines separate metrics. Metrics never become floating
+cards.
 
 #### Table anatomy
 
@@ -1550,17 +1549,17 @@ Sorting is intentionally limited:
 
 Desktop:
 
-1. With no selected case, Run Suite is the primary action.
-2. With a selected case, the row or drawer's Run Case is primary and Run Suite becomes secondary.
+1. With no selected case, Run all cases is the primary action.
+2. With a selected case, the row or drawer's Run Case is primary and Run all cases becomes secondary.
 3. New manual test, Analyze failures, and Import conversations remain direct secondary actions.
 4. New Dataset, Rename Dataset, Delete Dataset, and Scoring rules live in a named maintenance
    menu.
 
 Below 900px:
 
-1. New manual test, Run Suite, and Analyze failures remain direct.
+1. New manual test, Run all cases, and Analyze failures remain direct.
 2. Import conversations, dataset maintenance, and Scoring rules move to More.
-3. Cancel replaces the owning Run Case or active Run Suite case request.
+3. Cancel replaces the owning Run Case or active Run all cases case request.
 4. `Analyze` is the compact visible label; its accessible name remains `Analyze failures`.
 
 There is no desktop hamburger for task actions and no toolbar button without a working flow.
@@ -1580,7 +1579,7 @@ There is no desktop hamburger for task actions and no toolbar button without a w
 | State | Required presentation |
 |---|---|
 | Route loading | Shell and case workspace show a labeled inline status; no full-page skeleton |
-| No suite snapshots | Chart region says "Run the suite to create history."; axes and fake points are absent |
+| No suite snapshots | Chart region says "Run all cases to create history."; axes and fake points are absent |
 | No cases | Case region names the empty dataset and keeps New manual test and Import conversations reachable |
 | Filters have no matches | Case region says no cases match; dataset metrics remain unchanged |
 | One case running | Only that case shows the active semantic judge request and Cancel; live or simulated mode appears only after result metadata validates |
@@ -1607,7 +1606,7 @@ There is no desktop hamburger for task actions and no toolbar button without a w
   does not rerun or improve the agent."
 - Case drawer when a correction exists: "This case produced review evidence, not an active
   playbook change."
-- Dream Test Changes dock: "Test Changes checks saved text. It does not change this Eval
+- Knowledge saved-text dock: "Check saved text verifies the exact replacement. It does not change this Eval
   score."
 
 These statements are persistent in their owning surfaces and are not replaced by a temporary
@@ -1647,10 +1646,9 @@ closed. With no snapshots it shows the declared empty copy and no fake axes or p
 
 A conforming implementation below 900px:
 
-- New manual test, Run Suite, and Analyze remain direct actions;
+- New manual test, Run all cases, and Analyze remain direct actions;
 - secondary actions move into More;
-- 390px shows all five metrics in one two-row summary;
-- 320px shows overall, train, and holdout while History carries mean and prior-run delta;
+- 390px and 320px show regression guard and open failures;
 - History opens a supporting drawer with the suite chart and run labels;
 - 390px filters use a two-column grid;
 - 320px keeps Search direct and opens split, language, and result in Filters;
@@ -1670,24 +1668,24 @@ A conforming implementation below 900px:
 - Supported parameters are consumed and removed from the URL.
 - A new supported query on an already-open Eval route must run again.
 
-## 9. Dream contract
+## 9. Knowledge contract
 
-This section owns observable Dream UI, spatial frames, and staff behavior. Inactive candidate,
+This section owns observable Knowledge UI, spatial frames, and staff behavior. Inactive candidate,
 replay, Activate, and one-step Rollback contracts live in section 16.
 
 ### Build-state boundary
 
-| State | Correction decision | Test Changes | Active playbook |
+| State | Correction decision | Check saved text | Active playbook |
 |---|---|---|---|
 | `BUILT` local fallback | Approve replaces saved text when no release server is configured | Checks saved-text presence | No version pointer |
-| `BUILT` release workflow | Accept, save, or import creates an inactive immutable candidate | Replays affected cases, then full suite | Separate Activate after Ready; Rollback restores a prior immutable SOP |
+| `BUILT` release workflow | Accept, save, or import creates an inactive immutable candidate | Replays affected train cases, then all train and holdout cases | Separate Activate after Ready; Rollback restores a prior immutable SOP |
 
 Sections 9.2 through 9.9 describe the spatial contract used by both paths. Accept never changes
 the active playbook directly.
 
 ### 9.1 Purpose
 
-Dream is the human review surface for playbook files and pending corrections.
+Knowledge is the human review surface for playbook files and pending corrections.
 
 It provides:
 
@@ -1695,7 +1693,7 @@ It provides:
 - correction evidence;
 - correction review and decision;
 - focused line review;
-- saved-text verification through Test Changes;
+- saved-text verification through Check saved text;
 - candidate activation and one-step Rollback in the approved POC;
 - links back to source evaluation cases.
 
@@ -1708,7 +1706,7 @@ Wide layout shows:
 - changes rail;
 - test dock when open.
 
-Below 1000px, Dream shows one pane at a time:
+Below 1000px, Knowledge shows one pane at a time:
 
 - Files;
 - Editor;
@@ -1721,7 +1719,7 @@ the accessibility tree.
 
 ```text
 +--------------------------------------------------------------------------------+
-| 46px toolbar: Dream | path | pending | saved state | Save | Test Changes | More|
+| 46px toolbar: Knowledge | path | pending | saved state | Save | Check saved text | More|
 +--------------+--------------------------------------------+--------------------+
 | files 230px  | editable playbook, minmax(0, 1fr)          | changes 320px      |
 | 38px head    | 38px file status                           | 56px counters      |
@@ -1731,7 +1729,7 @@ the accessibility tree.
 | list scrolls | focused-line and diff decoration           | proposed new text  |
 |              |                                            | cards scroll       |
 |              +--------------------------------------------+                    |
-|              | Test Changes dock, max 40% editor height   |                    |
+|              | Check saved text dock, max 40% editor height   |                    |
 +--------------+--------------------------------------------+--------------------+
 | workbench height = calc(100dvh - 100px)                                        |
 +--------------------------------------------------------------------------------+
@@ -1757,7 +1755,7 @@ dock results own separate scroll.
 +------------+------------------------------------------+---------------+
 ```
 
-The rails do not shrink below these widths. If the 480px editor floor cannot fit, Dream switches
+The rails do not shrink below these widths. If the 480px editor floor cannot fit, Knowledge switches
 to the one-pane Files, Editor, and Changes choreography.
 
 #### 390px reference frame
@@ -1766,8 +1764,8 @@ to the one-pane Files, Editor, and Changes choreography.
 +------------------------------------------+ 390px
 | 54px: K | C | D | E | Demo | Reset      |
 +------------------------------------------+
-| 44px: Dream | pending | saved state      |
-| 44px: Save | Test Changes | More         |
+| 44px: Knowledge | pending | saved state      |
+| 44px: Save | Check saved text | More         |
 +------------------------------------------+
 | 44px: Files      | Editor      | Changes |
 +------------------------------------------+
@@ -1787,9 +1785,11 @@ to the one-pane Files, Editor, and Changes choreography.
 +----------------------------------+ 320px
 | 54px: K|C|D|E|Demo|Reset         |
 +----------------------------------+
-| 44px: Dream | pending | state    |
-| 44px: Save        | Test Changes |
+| 44px: Knowledge | pending | state    |
+| 44px: Save        | Check saved text |
 | 44px: More                     |
++----------------------------------+
+| 56px: Active SOP | Candidate     |
 +----------------------------------+
 | 44px: Files | Editor | Changes   |
 +----------------------------------+
@@ -1804,13 +1804,14 @@ to the one-pane Files, Editor, and Changes choreography.
 +----------------------------------+
 ```
 
-At 320px, New File, Rename, Delete, and Discard stay in More. When a candidate exists, Full replay,
-Activate, and Discard candidate also move to More so Save, Test Changes, and Replay affected leave
+At 320px, New File, Rename, Delete, and Discard stay in More. When a candidate exists, Replay all eval cases,
+Activate, and Discard candidate also move to More so Save, Check saved text, and Replay affected train cases leave
 the Files pane reachable. Pending correction decisions stay in Changes and never move to More.
+The compact release gate shows the active SOP and candidate state; the descriptive release-path row is omitted.
 
 Mobile reading order is selected file, saved-state text, current pane tabs, pane content, then the
 owning actions. In Changes, each card reads evidence, exact old text, exact new text, Reject, then
-Approve. Clicking the correction body returns to its editor line. In Editor, the Test Changes dock
+Approve. Clicking the correction body returns to its editor line. In Editor, the Check saved text dock
 follows the visible saved text.
 
 The pane selector is a real tablist at 390px and 320px:
@@ -1840,7 +1841,7 @@ full-page overlay, or separate route.
 Desktop:
 
 1. Save is enabled only for a dirty selected file.
-2. Test Changes remains a direct action.
+2. Check saved text remains a direct action.
 3. New File, New Folder, Rename, Delete, and Discard are secondary file actions.
 4. Current path, pending count, and Saved or Unsaved state remain readable but do not look like
    buttons.
@@ -1848,10 +1849,10 @@ Desktop:
 
 Below 1000px:
 
-1. Save, Test Changes, and Replay affected remain direct while a candidate exists.
-2. Rename, Delete, Discard, Full replay, Activate, and Discard candidate move to More. New File
+1. Save, Check saved text, and Replay affected train cases remain direct while a candidate exists.
+2. Rename, Delete, Discard, Replay all eval cases, Activate, and Discard candidate move to More. New File
    and New Folder remain in the Files pane.
-3. No autonomous Dream Cycle control appears; corrections, Test Changes, activation, and rollback
+3. No autonomous Knowledge Cycle control appears; corrections, Check saved text, activation, and rollback
    remain explicit visitor actions.
 
 #### File-explorer anatomy
@@ -1937,7 +1938,7 @@ The dock opens below the editor and shows:
 4. one row per correction with Before, After, current line, result, and Why;
 5. Run Again;
 6. a link to the relevant Eval dataset;
-7. the Test Changes versus Eval-score boundary.
+7. the Check saved text versus Eval-score boundary.
 
 At wide sizes the dock uses at most 40% of the editor-column height. Below 1000px it uses at most
 50% of the viewport height. The editor remains visible above it.
@@ -1966,7 +1967,7 @@ At wide sizes the dock uses at most 40% of the editor-column height. Below 1000p
 
 #### Forbidden substitutions
 
-Global anti-generic rules live in `SOUL.md` section 13. Dream-specific bans:
+Global anti-generic rules live in `SOUL.md` section 13. Knowledge-specific bans:
 
 - No document-card gallery.
 - No preview-first editor.
@@ -1974,7 +1975,7 @@ Global anti-generic rules live in `SOUL.md` section 13. Dream-specific bans:
 - No terminal, source control, extensions, or generic IDE activity rail.
 - No whole-file Approve All.
 - No correction wizard that hides the file.
-- No dead Dream Cycle button.
+- No dead Knowledge Cycle button.
 - No test-result toast replacing the dock.
 
 ### 9.3 File model and paths
@@ -2088,9 +2089,9 @@ Failure feedback must distinguish:
 - correction not found;
 - correction already decided.
 
-### 9.8 Test Changes dock
+### 9.8 Check saved text dock
 
-Test Changes is a saved-text verification.
+Check saved text is a saved-text verification.
 
 For each correction:
 
@@ -2114,15 +2115,15 @@ Every run request starts a fresh run even while the dock remains open.
 Starting a new run, closing the dock, or unmounting the page cancels all timers from the old run.
 Only the latest run may commit results.
 
-The dock states clearly that Test Changes and Evaluation Lab scores are separate evidence. A
+The dock states clearly that Check saved text and Evaluation Lab scores are separate evidence. A
 saved-text pass does not claim that an Eval passed before or after the correction.
 
-### 9.9 Dream deep links
+### 9.9 Knowledge deep links
 
 - `file` selects a valid file and opens Editor on narrow layouts.
 - `correction` selects the correction's file and opens Changes on narrow layouts.
 - Query parameters are consumed and removed from the URL.
-- A new query on an already-open Dream route must run again.
+- A new query on an already-open Knowledge route must run again.
 
 ## 10. Cross-route workflows
 
@@ -2140,18 +2141,18 @@ staff sends or already has a reply
 If the conversation is unresolved or has no staff reply, the action remains unavailable and
 explains why. The import dialog keeps already imported conversations visible but disabled.
 
-### 10.2 Evaluation failure to Dream review
+### 10.2 Evaluation failure to Knowledge review
 
 ```text
 run case or suite
   -> structured semantic judge evidence
   -> committed failed train case
   -> Analyze failures creates or finds pending correction
-  -> open linked Dream correction
+  -> open linked Knowledge correction
   -> human accepts or rejects
   -> acceptance creates an inactive candidate
-  -> Test Changes replays affected train cases
-  -> full train and holdout suite reaches Ready
+  -> Replay affected train cases validates the candidate against linked failures
+  -> Replay all eval cases reruns affected train cases first, then reaches Ready after every train and holdout case passes
   -> visitor activates the candidate
 ```
 
@@ -2175,9 +2176,9 @@ Selecting a patient from Schedule returns to Inbox and selects that conversation
 
 - Chat -> Eval import preserves the selected conversation and thread pane. Back returns to that
   thread unless a new supported deep link overrides it.
-- Eval -> Dream correction preserves the selected dataset and case drawer. Back returns to that
+- Eval -> Knowledge correction preserves the selected dataset and case drawer. Back returns to that
   case evidence.
-- Dream -> Eval source case preserves the selected file and Changes pane. Back returns to that
+- Knowledge -> Eval source case preserves the selected file and Changes pane. Back returns to that
   correction.
 - Schedule -> conversation switches Chat to Inbox and opens thread.
 - Each route stores only its latest valid local selection. Deleted or filtered entities reconcile
@@ -2202,7 +2203,7 @@ mandatory for a conforming rebuild, not optional polish.
 | Legacy persistence is wiped during migration | Valid version 1 through 3 product data migrates to version 4; incompatible exact-text grades are cleared |
 | Selection points to a deleted entity | Reconcile every persisted selection after load and migration |
 | Failure analysis looks like model improvement | Analyze failures changes no case, score, attempt, suite, or candidate version |
-| Partial analysis leaks into Dream | Pending corrections commit atomically after all selected failures validate |
+| Partial analysis leaks into Knowledge | Pending corrections commit atomically after all selected failures validate |
 | Uncommitted evidence generates proposals | Analyze failures reads committed failed train attempts only |
 | Holdout drives proposals | Holdout gates release readiness but never generates corrections |
 | Duplicate HITL examples accumulate | Persist the source conversation ID and fingerprint input message identifiers plus expected staff text |
@@ -2238,7 +2239,7 @@ mandatory for a conforming rebuild, not optional polish.
 | 320px grid track expands to min-content width | Mobile tracks use shrinkable columns and children allow shrinking |
 | Patient names consume timestamp space | Names ellipsize; timestamps do not shrink |
 | Mobile toolbar collisions | Use explicit layout areas, not accidental wrapping |
-| Hidden Dream pane remains keyboard-focusable | Hide inactive pane from rendering and accessibility tree |
+| Hidden Knowledge pane remains keyboard-focusable | Hide inactive pane from rendering and accessibility tree |
 | Eval drawer blocks global navigation | Keep non-modal drawer below shell on mobile |
 | Touch controls are visually small | Every mobile interactive target is at least 44 by 44 CSS pixels |
 | Scrollable metrics cannot receive keyboard focus | Name and focus the region |
@@ -2260,7 +2261,7 @@ mandatory for a conforming rebuild, not optional polish.
 | Simulated judge reads like a live model | Persist and display simulated versus live LLM metadata |
 | Numeric judge score reads as the decision | Lead with Pass, Fail, or Needs review and keep score secondary |
 | Synthetic transcript reads like live audio | Label the fixture as transcript-only; distinguish live Telegram voice controls |
-| Dream Test Changes reads like eval success | State that the two checks are separate |
+| Knowledge Check saved text reads like eval success | State that the two checks are separate |
 | Empty chart looks broken | Show an honest no-runs state |
 | Fake fixed timestamps read like audit time | Keep fixture mode labeled; do not claim wall-clock audit history |
 | Mobile looks like a live clinic product | Keep the compact Demo label visible at every width |
@@ -2277,8 +2278,8 @@ mandatory for a conforming rebuild, not optional polish.
 | **Edit Criteria** does not explain scoring | Use **Scoring rules** and ask what a good reply should do; keep examples under Advanced |
 | HITL and split terminology requires domain knowledge | Define each term at first use and provide a hover or focus glossary without adding permanent panels |
 | Tooltip is obscured by a dense workbench boundary | Portal it outside clipping containers and keep it keyboard reachable |
-| Test Changes reports pass or fail without evidence | Show Before, After, current line, and Why per correction |
-| Saved-text verification is mistaken for agent quality | Keep Dream saved-text verification separate from Eval behavioral runs |
+| Check saved text reports pass or fail without evidence | Show Before, After, current line, and Why per correction |
+| Saved-text verification is mistaken for agent quality | Keep Knowledge saved-text verification separate from Eval behavioral runs |
 | Manual tests cannot represent long conversations | State the single-message limitation; use imported frozen replay bundles for message history |
 | Imported replay does not model tool calls or injected context | Treat tool calls, tool results, and injected context as a future typed trace; do not imply the current message-only fixture captures them |
 | Booking changes create only an internal audit row | Preview the exact patient message, then commit the booking, patient-visible reply, and internal audit as one action |
@@ -2353,7 +2354,7 @@ For every route and width:
 - Runtime domain types derive from transport schemas instead of repeating object shapes.
 - Backend-bound domain-state serialization validates and excludes client-only selections.
 - Route orchestration remains thin.
-- Conversation, Dream, and Eval mutations remain grouped by domain.
+- Conversation, Knowledge, and Eval mutations remain grouped by domain.
 - Large page files split when orchestration obscures behavior.
 - No business rule exists only in a click handler.
 - Every review-derived invariant has a focused regression test.
@@ -2374,7 +2375,7 @@ For every route and width:
 3. Open Details.
 4. Choose Escalate emergency.
 5. Confirm the agent switches off and a system audit appears.
-6. Open the triage playbook in Dream.
+6. Open the triage playbook in Knowledge.
 
 Do not claim that an external nurse or emergency service was contacted.
 
@@ -2409,26 +2410,26 @@ Do not claim that an external nurse or emergency service was contacted.
 1. Open the seed dataset.
 2. Run one case.
 3. Inspect actual output, pass or fail, score, and full rationale.
-4. Run the suite.
-5. Inspect overall, train, holdout, mean score, and chart history.
+4. Select Run all cases.
+5. Inspect regression-guard coverage, open failures, and all-case pass-rate history.
 6. Choose Analyze failures.
 7. Explain that it creates review proposals without rerunning or improving the agent.
 
 ### Beat 6: Human-activated playbook change
 
-1. Open the linked Dream correction.
+1. Open the linked Knowledge correction.
 2. Review removed text, added text, evidence, and source case.
 3. Accept the correction and show that it created an inactive candidate.
-4. Run Test Changes against affected train cases.
-5. Inspect before and after verdict evidence.
-6. Run the full train and holdout suite.
+4. Run Check saved text to verify the exact saved replacement.
+5. Replay affected train cases and inspect the behavioral evidence.
+6. Run Replay all eval cases; it reruns affected train cases first, then all train and holdout cases.
 7. Activate only after the candidate is Ready.
 8. Show that the prior active version is archived.
 
 ### Beat 7: Responsive and reset proof
 
 1. Open the three routes at mobile width.
-2. Show single-pane Dream navigation and Eval cards.
+2. Show single-pane Knowledge navigation and Eval cards.
 3. Return to Chat Control.
 4. Reset Demo and confirm the canonical seed returns without a persistent success highlight.
 
@@ -2510,7 +2511,7 @@ Proof lanes are separate:
 - [ ] Metrics use the declared denominators.
 - [ ] Run Case appends one run.
 - [ ] Cancel Run Case preserves prior output, grade, and history.
-- [ ] Run Suite appends one snapshot and one run per case.
+- [ ] Run all cases appends one snapshot and one run per case.
 - [ ] Cancel leaves persistent state unchanged.
 - [ ] Duplicate run controls permit one commit.
 - [ ] Analyze failures accepts committed failed train attempts only.
@@ -2518,7 +2519,7 @@ Proof lanes are separate:
 - [ ] Failed train cases drive one structured LLM exact-anchor proposal with rationale and evidence.
 - [ ] Invalid or unsafe model output uses the deterministic fallback or manual edit path.
 - [ ] No model proposal auto-accepts, activates, or changes the active playbook.
-- [ ] Failed analysis exposes no new Dream correction.
+- [ ] Failed analysis exposes no new Knowledge correction.
 - [ ] Completed analysis publishes pending corrections atomically.
 - [ ] Holdout cases never drive proposals.
 - [ ] Proposals deduplicate.
@@ -2547,12 +2548,12 @@ Proof lanes are separate:
 - [ ] Chart first and last points remain visible.
 - [ ] Mobile metrics, filters, cards, drawer, and toolbar fit.
 
-### 14.4 Dream
+### 14.4 Knowledge
 
 - [ ] Three seed playbooks render.
 - [ ] Per-file drafts survive file switches.
 - [ ] Save and discard affect only the selected file.
-- [ ] Save error retains the draft and stale Test Changes results require rerun.
+- [ ] Save error retains the draft and stale Check saved text results require rerun.
 - [ ] Editor save shortcut is editor-scoped.
 - [ ] File path validation rejects invalid paths and extensions.
 - [ ] Seed files cannot be deleted.
@@ -2567,9 +2568,9 @@ Proof lanes are separate:
 - [ ] Repeated correction-focus requests fire.
 - [ ] Highlights update when state changes.
 - [ ] Source case links to Evals.
-- [ ] Test Changes replays affected train cases through the shared sandbox runner.
-- [ ] Test Changes cancel and error commit no partial result and keep Run Again reachable.
-- [ ] Each Test Changes result shows before and after verdict evidence.
+- [ ] Check saved text verifies the exact replacement without running Eval.
+- [ ] Check saved text cancel and error commit no partial result and keep Run Again reachable.
+- [ ] Each Check saved text result shows before and after saved text.
 - [ ] A targeted pass keeps the version inactive.
 - [ ] A full train and holdout suite is required for Ready.
 - [ ] Activate is available only for Ready and stores the prior active version as the one rollback
@@ -2581,8 +2582,8 @@ Proof lanes are separate:
 - [ ] An in-flight agent run keeps its pinned version; the next run loads the rolled-back version.
 - [ ] Rollback after a file rename or deletion restores the complete target file tree.
 - [ ] Successful Rollback clears the target and stays unavailable until another activation.
-- [ ] Dream exposes no history picker, arbitrary restore target, redo, or per-file rollback.
-- [ ] Dream states clearly that acceptance and activation are separate actions.
+- [ ] Knowledge exposes no history picker, arbitrary restore target, redo, or per-file rollback.
+- [ ] Knowledge states clearly that acceptance and activation are separate actions.
 - [ ] Mobile tablist supports arrows, Home, and End.
 - [ ] Inactive mobile panes are hidden from accessibility.
 - [ ] Mobile controls meet the touch-target minimum.
@@ -2591,9 +2592,9 @@ Proof lanes are separate:
 
 - [ ] Control links the latest staff reply into Eval import.
 - [ ] Control links each conversation to the correct playbook.
-- [ ] Eval case links to its Dream correction.
-- [ ] Dream correction links to its Eval source case.
-- [ ] Accepted correction creates an inactive candidate before Test Changes runs.
+- [ ] Eval case links to its Knowledge correction.
+- [ ] Knowledge correction links to its Eval source case.
+- [ ] Accepted correction creates an inactive candidate before Check saved text runs.
 - [ ] Full-suite Ready evidence is required before activation changes the active playbook.
 - [ ] One Rollback action restores the immediately previous active bundle as a new version, clears
       its target, and makes the next Chat run pin the new active version.
@@ -2603,11 +2604,11 @@ Proof lanes are separate:
 - [ ] Consumed query parameters are removed.
 - [ ] Eval drawer does not block shell navigation on mobile.
 - [ ] Route loading status is accessible.
-- [ ] Dream-only and Eval-only delivery assets are absent from the initial Chat Control payload.
+- [ ] Knowledge-only and Eval-only delivery assets are absent from the initial Chat Control payload.
 
 ### 14.6 Browser release matrix
 
-Run Chat Control, Dream, and Evals at 1440 by 900, 390 by 844, and 320 by 568 CSS pixels.
+Run Chat Control, Knowledge, and Evals at 1440 by 900, 390 by 844, and 320 by 568 CSS pixels.
 
 All nine route-width combinations must report:
 
@@ -2633,10 +2634,10 @@ principles in `SOUL.md`.
 - [ ] Chat Control uses distinct 390px and 320px toolbar and More rules.
 - [ ] Chat transcript rows, role labels, selection edge, fixed composer, and timestamp priority match section 7.2.
 - [ ] A no-match Chat filter shows explicit copy and no stale patient.
-- [ ] Dream uses 230px files, flexible editor, and 320px changes at 1440px.
-- [ ] Dream test results open below the editor and do not cover the changes rail.
-- [ ] Dream uses distinct 390px and 320px frames and renders only the selected Files, Editor, or Changes pane.
-- [ ] Evals uses a 300px score-summary rail at 1200px and wider.
+- [ ] Knowledge uses 230px files, flexible editor, and 320px changes at 1440px.
+- [ ] Knowledge test results open below the editor and do not cover the changes rail.
+- [ ] Knowledge uses distinct 390px and 320px frames and renders only the selected Files, Editor, or Changes pane.
+- [ ] Evals uses a 280px score-summary rail at 1200px and wider.
 - [ ] Evals places the raw case table before supporting summary and chart content at 1440px.
 - [ ] Evals uses one 56px compact summary and 96px chart above the table from 900px to 1199px.
 - [ ] Eval uses distinct 390px and 320px case-card and action layouts.
@@ -2649,7 +2650,7 @@ principles in `SOUL.md`.
 - [ ] Primary workflows stay in panes, rails, drawers, or docks instead of modal dialogs.
 - [ ] Every visible control completes one defined flow.
 - [ ] No route uses a generic sidebar, hero, equal-card grid, decorative chart, or dead control.
-- [ ] Synthetic, sandbox, transcript-only, and Test Changes boundaries appear in the owning surface.
+- [ ] Synthetic, sandbox, transcript-only, and Check saved text boundaries appear in the owning surface.
 
 ## 15. Verification status
 
@@ -2666,7 +2667,7 @@ note reached a ready `whisper-1` artifact. On 2026-07-16, a controlled smoke tes
 owner's existing Telegram chat proved direct-OpenAI drafting, five configured Eval cases, an exact
 pending SOP proposal, outbound translation, and Telegram text, TTS voice, and recorded-voice
 provider acceptance. The production build currently omits accepted outbound voices from the
-reloadable thread and cannot project a live Telegram record into Dream/Eval; the repository fixes
+reloadable thread and cannot project a live Telegram record into Knowledge/Eval; the repository fixes
 have passed the full local gate and still need deployment:
 
 - The complete automated contract, domain, server, store, component, route, and regression suite
@@ -2676,17 +2677,17 @@ have passed the full local gate and still need deployment:
   uncompressed budget.
 - 20 browser tests pass. Seven entries are intentionally skipped because one cross-route causal
   flow runs only on desktop and some checks apply only to their owning viewport.
-- Chat Control, Dream, and Evaluation Lab pass at 1440 by 900, 390 by 844, and 320 by 568 CSS
+- Chat Control, Knowledge, and Evaluation Lab pass at 1440 by 900, 390 by 844, and 320 by 568 CSS
   pixels.
 - Automated Axe scans report no serious or critical violations.
 - Browser checks report no document horizontal overflow, undersized mobile target, console error,
   or page error.
 - Browser import checks cover unresolved, ready, selected, imported, and duplicate-disabled
   conversation states at 1440px, 390px, and 320px.
-- Completed async Eval actions preserve newer Chat and Dream changes. A concurrent change to the
+- Completed async Eval actions preserve newer Chat and Knowledge changes. A concurrent change to the
   same top-level Eval field returns a retry error instead of replacing newer state.
 - Analyze failures reads latest failed active-bundle train evidence and, with an LLM configured,
-  persists one exact pending Dream correction without activating it. The no-provider path remains
+  persists one exact pending Knowledge correction without activating it. The no-provider path remains
   deterministic.
 - Shared schemas validate the approved API error body, backend-owned state without client route
   selections, workspace compare-and-swap success and conflict results, positive revisions, inbound
@@ -2705,7 +2706,7 @@ have passed the full local gate and still need deployment:
   send for a replayed update, automatic handoff acknowledgement, and booking/calendar delivery
   revision handoff.
 - Agent contracts reject judge-only fields, invalid pins, invalid or excessive tool traces, and inconsistent
-  handoff output. One server-owned prompt builder delimits pinned Dream content, bounded context,
+  handoff output. One server-owned prompt builder delimits pinned Knowledge content, bounded context,
   ordered messages, and the strict output schema for both live and sandbox modes.
 - Eval artifact contracts separate agent-visible generation inputs from judge-only evidence, pin
   all suite dependencies, require complete agent and judge artifacts per committed attempt, and
@@ -2717,8 +2718,8 @@ have passed the full local gate and still need deployment:
   validates both evidence sets, and appends one complete attempt only after the workspace revision
   check succeeds.
 - Manual visual inspection covers the Eval import dialog at desktop and mobile widths and the
-  Dream Before, After, line, and Why result at desktop width.
-- Chat Control does not request Dream editor or Evaluation Lab delivery assets.
+  Knowledge Before, After, line, and Why result at desktop width.
+- Chat Control does not request Knowledge editor or Evaluation Lab delivery assets.
 - Domain and service tests cover correction to inactive candidate, affected replay, full Ready gate,
   activation changing the Chat pin, rollback, dataset synchronization, and redacted LLM proposal
   input.
@@ -2733,9 +2734,9 @@ separates runtime configuration and post-POC work from the completed release wor
 
 ### Built supervision release loop
 
-- Markdown-only SOP import into Dream; PDF and other source formats remain deferred.
-- Server-backed LLM proposal of one exact, pending Dream diff from failed active-bundle train evidence.
-- Inactive whole-playbook candidates from an accepted correction, a Dream draft, or imported Markdown.
+- Markdown-only SOP import into Knowledge; PDF and other source formats remain deferred.
+- Server-backed LLM proposal of one exact, pending Knowledge diff from failed active-bundle train evidence.
+- Inactive whole-playbook candidates from an accepted correction, a Knowledge draft, or imported Markdown.
 - Affected train replay, then full train-plus-holdout replay, Ready gating, human activation, and
   immutable one-click rollback to the immediately prior SOP.
 - Server dataset synchronization before frozen runs, allowing imported and manual cases in an existing
@@ -2744,7 +2745,7 @@ separates runtime configuration and post-POC work from the completed release wor
 ### Still unproven or deferred
 
 - Deploy and recheck the automatic Telegram text-reply path, outbound-voice transcript/playback,
-  and live-Telegram Dream/Eval projection fixes. The local automated proof does not replace a
+  and live-Telegram Knowledge/Eval projection fixes. The local automated proof does not replace a
   provider-backed deployment smoke.
 - A live Telegram-provider partial failure for Text + Voice. Deterministic fault injection proves
   that retry sends only the failed voice part; deliberately breaking a live delivery would be
@@ -2755,7 +2756,8 @@ separates runtime configuration and post-POC work from the completed release wor
 - Dashboard authentication, authorization, clinic tenancy, and multi-user coordination before the
   public URL is shared beyond controlled demo use.
 - DigitalOcean alert-recipient confirmation and a deliberate production-provider smoke-test record.
-- Autonomous Telegram create/reschedule sends an `.ics` attachment when calendar delivery is
+- Autonomous Telegram create/reschedule sends a publish `.ics`, and cancel sends a cancellation
+  `.ics`, when calendar delivery is
   configured. Voice-originated agent replies now send concise text plus TTS voice after a saved
   transcription; live provider smoke and durable retry remain unproven.
 
@@ -2790,7 +2792,7 @@ candidate's immutable full-suite evidence is Ready.
 
 | Area | Current state | Required demo state |
 |---|---|---|
-| Chat, Dream, Eval routes | `BUILT` synthetic workbenches | Preserve layouts; connect real data and states |
+| Chat, Knowledge, Eval routes | `BUILT` synthetic workbenches | Preserve layouts; connect real data and states |
 | Booking changes and in-thread patient copy | `BUILT` synthetic controls plus autonomous Telegram create/reschedule/cancel tools and server-persisted Telegram Schedule edit/cancel | Deterministic fallback is always available; one admin may enable Google FreeBusy and event CRUD |
 | Natural-language rubric editor and judge boundary | `BUILT` | Live judge needs API key; automated tests use simulated judge |
 | Shared platform contracts | `BUILT` | API error body, aggregate CAS, Telegram voice/speech contracts, playbook pins |
@@ -2800,12 +2802,12 @@ candidate's immutable full-suite evidence is Ready.
 | Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text or transcribed voice when both live switches are enabled | Deploy and smoke the automatic path; partial provider failure remains deterministic-test-only |
 | Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text and transcribed-voice replies with autonomous booking tools under mocked proof | Broader live-provider quality validation remains unproven |
 | Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus durable automatic text/voice reply and function-call orchestration | Broader live-provider quality validation remains |
-| Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
+| Knowledge playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` workspace CAS, delivery records, narrow outbox, and optional Google sync ledger | Live Supabase migration and owner credentials still require deployment smoke |
 | Shared server data | `BUILT` fixed-workspace APIs with live Supabase persistence | Authentication, tenancy, and broader aggregate design remain deferred |
-| Test Changes | `PARTIAL` local saved-text check | Candidate behavioral replay is available through the release controls |
-| Dream changes | `BUILT` server-authoritative candidates, replay, activation, rollback | Live provider and shared-user authorization proof remain |
+| Check saved text | `PARTIAL` local saved-text check | Candidate behavioral replay is available through the release controls |
+| Knowledge changes | `BUILT` server-authoritative candidates, replay, activation, rollback | Live provider and shared-user authorization proof remain |
 | Eval runs / production-path Eval | `BUILT` frozen server path with mocked-provider proof | Imported/manual cases synchronize into an existing dataset before server replay; live-provider proof remains |
 | DigitalOcean App Platform runtime | `BUILT` deployed Docker service with healthy public readiness endpoints | Alert-recipient confirmation and ongoing monitoring are operational follow-up |
 
@@ -2859,7 +2861,7 @@ full-suite snapshot, and Ready release status. Activation performs
 one atomic write: the current active version becomes `rollbackTargetVersionId`, the ready candidate
 becomes active, and the candidate pointer clears.
 
-Rollback has no target picker. It can only use the current `rollbackTargetVersionId`; the Dream UI
+Rollback has no target picker. It can only use the current `rollbackTargetVersionId`; the Knowledge UI
 disables it while a draft is dirty or a release request is in flight, and the server rejects a
 current candidate or missing target.
 
@@ -2881,12 +2883,12 @@ the next request loads the new active version.
 | Situation | Required behavior |
 |---|---|
 | No rollback target exists | Hide or disable Rollback |
-| Dirty draft exists | Dream UI disables rollback until Save or Discard |
+| Dirty draft exists | Knowledge UI disables rollback until Save or Discard |
 | Candidate exists | Block until Activate or Discard |
 | Eval replay is running | Block until completion or cancellation |
 | Server write fails | Commit nothing |
 
-Dream retrieval for live runs:
+Knowledge retrieval for live runs:
 
 | Playbook count | Retrieval |
 |---|---|
@@ -2941,7 +2943,7 @@ before the MVP. Do not start WhatsApp until the Telegram path in this table pass
 |---|---|---|---|
 | P0 | Telegram text vertical slice | A message from any chat appears in Chat; a live-agent text conversation can receive one automatic reply | Duplicate webhook delivery creates one message; duplicate update creates no second agent run or delivery |
 | P0 | Inbound voice transcription | A patient voice note becomes an original-language transcript plus English staff gloss | Audio failure keeps the message and supports retry or a manual transcript |
-| P0 | Real agent draft with Dream grounding | Visitor requests a draft produced from the approved playbook version and conversation | Every draft records model, prompt, playbook version, input messages, latency, and stop reason |
+| P0 | Real agent draft with Knowledge grounding | Visitor requests a draft produced from the approved playbook version and conversation | Every draft records model, prompt, playbook version, input messages, latency, and stop reason |
 | P0 | Visitor-approved multilingual send | Visitor writes English, edits the patient-language preview, then sends Text, Voice, or Both | Staff-triggered delivery requires a final visitor action; automatic reply is a separate inbound-text path |
 | P0 | Production-path Eval | Eval runs the same agent runner with side effects disabled | The case stores the full run artifact and separate judge artifact |
 | P1b | Booking calendar attachment | A confirmed or rescheduled Telegram booking includes an add-to-calendar file | Reschedule uses the same event identity and a higher revision |
@@ -2985,8 +2987,8 @@ when OpenAI is selected.
 
 ### Booking calendar
 
-A booking stores stable `calendar_uid`, integer `calendar_sequence`, timestamp, timezone, start,
-end, provider, location, and status. Reschedule keeps the same `UID` and raises `SEQUENCE`.
+A calendar projection stores stable `calendar_uid`, integer `calendar_sequence`, timestamp,
+timezone, start, end, location, and status. Reschedule keeps the same `UID` and raises `SEQUENCE`.
 Cancellation uses `METHOD:CANCEL` and another sequence increment. Telegram can carry `.ics` as a
 document. WhatsApp does not guarantee `.ics`; send a secure expiring Add-to-calendar link instead.
 This is calendar convenience, not clinic calendar integration.
@@ -3054,7 +3056,7 @@ the earlier contract:
      tests.
    - Keep train and holdout governance explicit.
 
-7. **Production Dream**
+7. **Production Knowledge**
    - Generate proposed deltas against versioned playbooks.
    - Require human evidence review.
    - Use semantic or line-addressed patches rather than first-match replacement.
@@ -3137,29 +3139,29 @@ Commit is one product action:
 5. Update Schedule.
 
 If the booking did not change, Save and notify remains disabled. The notification cannot be
-silently turned off. The core date, time, provider, and event wording come from the saved booking;
+silently turned off. The core date, time, reason, and event wording come from the saved booking;
 staff cannot edit those facts into disagreement with the booking.
 
 The patient message:
 
 - uses the patient's preferred language, defaulting to English when missing or unknown;
 - retains an English gloss for staff when the patient language is not English;
-- includes provider, local date, and local time;
+- includes local date and local time;
 - excludes the booking reason by default;
 - ends with one reply path for corrections or help;
 - remains a local conversation message and never claims external delivery.
 
 Examples:
 
-- confirmed: "Your appointment is confirmed for Thu, 9 Jul at 9:00 AM with Dr. Siti Rahman.
+- confirmed: "Your appointment is confirmed for Thu, 9 Jul at 9:00 AM.
   Reply here if anything is incorrect.";
-- rescheduled: "Your appointment has been rescheduled to Fri, 10 Jul at 2:30 PM with Dr. Siti
-  Rahman. Reply here if this does not work for you.";
-- details updated: "Your appointment details were updated. You are now booked with Dr. Amir Lee
-  on Fri, 10 Jul at 2:30 PM. Reply here if anything is incorrect.";
-- rejected request: "We could not confirm your requested appointment for Thu, 9 Jul at 9:00 AM
-  with Dr. Siti Rahman. Reply here and we will help find another slot.";
-- cancelled: "Your appointment on Thu, 9 Jul at 9:00 AM with Dr. Siti Rahman has been cancelled.
+- rescheduled: "Your appointment has been rescheduled to Fri, 10 Jul at 2:30 PM.
+  Reply here if this does not work for you.";
+- details updated: "Your appointment details were updated for Fri, 10 Jul at 2:30 PM.
+  Reply here if anything is incorrect.";
+- rejected request: "We could not confirm your requested appointment for Thu, 9 Jul at 9:00 AM.
+  Reply here and we will help find another slot.";
+- cancelled: "Your appointment on Thu, 9 Jul at 9:00 AM has been cancelled.
   Reply here if you need help booking another time."
 
 ### 19.3 Natural-language rubric

@@ -63,6 +63,17 @@ async function configuredService(fetcher: typeof fetch) {
       if (index >= 0) events[index] = structuredClone(record);
       else events.push(structuredClone(record));
     },
+    async listByWorkspace(workspaceId) {
+      return events.filter((event) => event.workspaceId === workspaceId);
+    },
+    async deleteMapping(workspaceId, conversationId) {
+      const index = events.findIndex(
+        (event) =>
+          event.workspaceId === workspaceId &&
+          event.conversationId === conversationId,
+      );
+      if (index >= 0) events.splice(index, 1);
+    },
   });
   const outbox: OutboxDataSource = {
     async claim() { return []; },
@@ -88,6 +99,7 @@ async function configuredService(fetcher: typeof fetch) {
         clientId: "client-id",
         clientSecret: "client-secret",
         defaultDurationMinutes: 30,
+        location: "KaunterAI Clinic",
         redirectUri: "https://example.com/callback",
         timeZone: "Asia/Kuala_Lumpur",
         tokenEncryptionKey: key,
@@ -149,6 +161,25 @@ describe("Google Calendar service", () => {
       conversationId: "telegram-conversation:-10042",
     });
     expect(events[0]).toMatchObject({ bookingRevision: 1, status: "active", eventId: "kau12345" });
+    const createCall = fetcher.mock.calls.find(
+      ([input, init]) =>
+        String(input).includes("/events") && init?.method === "POST",
+    );
+    const event = JSON.parse(String(createCall?.[1]?.body)) as {
+      end: { dateTime: string; timeZone: string };
+      location: string;
+      start: { dateTime: string; timeZone: string };
+      summary: string;
+    };
+    expect(event).toMatchObject({
+      location: "KaunterAI Clinic",
+      summary: "Appointment",
+      start: { timeZone: "Asia/Kuala_Lumpur" },
+      end: { timeZone: "Asia/Kuala_Lumpur" },
+    });
+    expect(
+      new Date(event.end.dateTime).valueOf() - new Date(event.start.dateTime).valueOf(),
+    ).toBe(30 * 60_000);
 
     const workspace = await workspaceRepository.load("demo");
     if (!workspace) throw new Error("Workspace missing");

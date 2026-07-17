@@ -6,7 +6,7 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. A durable Postgres outbox resumes autonomous replies after a process restart. When configured and connected by one admin, Google Calendar supplies availability and receives create, update, and cancel synchronization; without that connection, the deterministic demo schedule remains the truthful fallback. Dashboard authentication, EHR integration, and live provider-quality validation remain."
+status: "The Knowledge-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. A durable Postgres outbox resumes autonomous replies after a process restart. When configured and connected by one admin, Google Calendar supplies availability and receives create, update, and cancel synchronization. The deterministic schedule is limited to non-live demo mode; live booking requires the Google connection. Dashboard authentication, EHR integration, and live provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
@@ -88,8 +88,8 @@ git history only.
 
 Current code: a live Supabase workspace with protected Telegram text plus automatic inbound
 voice download, OGG/Opus-to-WebM conversion, direct-OpenAI transcription and English gloss, shared
-Chat and Eval runner, immutable server Eval evidence, and a server-authoritative Dream release loop.
-Markdown import, an accepted correction, or a Dream draft creates an inactive whole-playbook
+Chat and Eval runner, immutable server Eval evidence, and a server-authoritative Knowledge release loop.
+Markdown import, an accepted correction, or a Knowledge draft creates an inactive whole-playbook
 version. A configured LLM proposes one exact, reviewable diff; affected train cases must pass
 before a full train-plus-holdout replay can mark the version Ready. Human activation updates the
 bundle used by Chat, and one click restores the prior SOP as a new immutable version. Verification
@@ -99,8 +99,9 @@ agent drafting and Eval judging, exact SOP proposal generation, outbound transla
 text, AI TTS voice, and staff-recorded voice provider acceptance. For live Telegram text, a new
 persisted update can run the active agent and deliver its reply automatically when both live
 switches are on. The agent can call server-owned availability, create, reschedule, and cancellation
-tools without staff approval. A duplicate update does not rerun the model or resend; a clinical
-handoff acknowledgement is also delivered automatically. A successfully transcribed voice note
+tools without staff approval. A duplicate update does not rerun the model or resend. A clinical
+handoff automatically sends the patient acknowledgement, records the reason, and switches the
+conversation to staff-only mode. A successfully transcribed voice note
 runs the same agent and receives concise text plus AI TTS voice; a TTS failure falls back to text.
 Authentication, EHR integration, and broader provider-quality validation remain pending.
 
@@ -112,7 +113,7 @@ Authentication, EHR integration, and broader provider-quality validation remain 
 The deterministic Analyze failures path remains a no-provider fallback. With `LLM_API_KEY`
 configured, Analyze failures uses the server-side structured-output proposer instead.
 
-Routes: `/` Chat Control, `/eval` Evaluation Lab, `/dream` Dream playbook review.
+Routes: `/` Chat Control, `/eval` Evaluation Lab, `/knowledge` Knowledge playbook review.
 
 ## Operational value
 
@@ -129,9 +130,10 @@ KaunterAI is designed to reduce:
 1. A patient messages the clinic in Telegram; the agent answers in the patient's language.
 2. The patient asks to book; the agent checks Google Calendar availability when the single admin has connected it, otherwise it checks the deterministic demo schedule, then confirms the booking itself.
 3. The patient changes or cancels; the agent and admin Schedule controls update the confirmed booking, record the action, and synchronize Google Calendar when connected.
-4. A successful create or reschedule can send an `.ics` calendar attachment through Telegram.
+4. A successful create or reschedule sends a publish `.ics` when configured; cancellation sends
+   the matching cancel `.ics`.
 5. If a patient says the autonomous agent got something wrong, the model can flag that conversation
-   as an Eval candidate. A human adds the correction before it can enter the Eval-to-Dream release
+   as an Eval candidate. A human adds the correction before it can enter the Eval-to-Knowledge release
    workflow for a governed playbook change.
 6. Clinical or urgent requests receive an immediate safe acknowledgement and routing message; the
    agent does not diagnose or prescribe.
@@ -180,7 +182,7 @@ provider request succeeds. Full variable list: `.env.example`.
 Voice can be selected independently with `SPEECH_PROVIDER` and `TTS_PROVIDER`. The default uses
 direct OpenAI (`whisper-1` for transcription and `gpt-4o-mini-tts` for delivery). Setting either
 provider to `elevenlabs` uses ElevenLabs' direct API: Scribe v2 returns the transcript and detected
-language, while text-to-speech streams the configured voice. `ELEVENLABS_TTS_*` keeps the optional
+language, while Eleven v3 text-to-speech streams the configured voice. `ELEVENLABS_TTS_*` keeps the optional
 voice controls in deployment configuration rather than requiring dashboard edits. The host must
 provide `ffmpeg` with the Opus encoder; the adapter stores no inbound audio file after processing.
 
@@ -189,7 +191,7 @@ provide `ffmpeg` with the Opus encoder; the adapter stores no inbound audio file
 The checked-in default is `gpt-5.6-luna` for text generation and judging, with `whisper-1` for inbound
 Telegram speech transcription, and `gpt-4o-mini-tts` with the `coral` voice for autonomous outbound
 speech. `TTS_MODEL` and `TTS_VOICE` override the OpenAI fallback; selecting ElevenLabs instead uses
-`ELEVENLABS_STT_MODEL=scribe_v2`, `ELEVENLABS_TTS_MODEL`, `ELEVENLABS_VOICE_ID`, and optional
+`ELEVENLABS_STT_MODEL=scribe_v2`, `ELEVENLABS_TTS_MODEL=eleven_v3`, `ELEVENLABS_VOICE_ID`, and optional
 `ELEVENLABS_TTS_*` controls. Production environment values are not stored in the repository, so the
 deployed text-model and voice selection must be checked in the deployment settings rather than
 inferred from this file. See [the voice MVP plan](docs/elevenlabs-autonomy-mvp.md).
@@ -200,8 +202,8 @@ live-agent conversation, the webhook starts the same agent in the background. Wi
 `LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` true, it can autonomously call
 `list_available_slots`, `create_booking`, `reschedule_booking`, and `cancel_booking`, then deliver
 its reply. Voice-originated replies are limited to two short sentences and send both text and AI
-TTS voice; if TTS preparation fails, the text remains deliverable. A `staff_handoff` is an
-autonomous patient-facing acknowledgement for clinical work, not a gate on administrative booking.
+TTS voice; if TTS preparation fails, the text remains deliverable. A `staff_handoff` sends the
+patient-facing acknowledgement, records a staff-visible reason, and stops further live-agent replies.
 See [`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md).
 
 ### Optional Google Calendar
@@ -219,11 +221,10 @@ separate patient convenience feature. Exact setup, schema, and DigitalOcean secr
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; durable automatic replies; autonomous booking CRUD; `.ics` invitation; optional single-admin Google Calendar availability plus event create/update/delete; action trace; Eval-to-Dream candidate workflow | EHR/PMS authority; phone/voice-call dispatch; user authentication; real-time UI push; live provider-quality validation |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; durable automatic replies; autonomous booking CRUD; `.ics` publish/cancel; optional single-admin Google Calendar availability plus event create/update/delete; action trace; Eval-to-Knowledge candidate workflow | EHR/PMS authority; phone/voice-call dispatch; user authentication; real-time UI push; live provider-quality validation |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
-17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
-session.
+17.
 
 ### Telegram
 
@@ -362,10 +363,11 @@ Authentication and normalized domain tables remain complete-target work (`PROJEC
 1. In Chat Control, open a conversation, generate and approve a staff draft, then create an Eval case.
 2. In Evaluation Lab, run the case and select Analyze failures. With an LLM configured, it creates
    one pending exact SOP diff from the latest failed train evidence.
-3. Open the linked Dream correction and accept it. This creates an inactive candidate; it does not
+3. Open the linked Knowledge correction and accept it. This creates an inactive candidate; it does not
    change Chat or prior Eval evidence.
-4. Replay affected cases, then the full train and holdout suite. A complete pass makes the candidate
-   Ready.
+4. Replay affected train cases for a narrow check. Replay all eval cases always reruns those affected
+   train cases first, then continues through every train and holdout case. A complete pass makes the
+   candidate Ready.
 5. Activate it, generate the next Chat draft against the new SOP, then use Roll back to restore the
    prior SOP as another immutable version.
 
@@ -396,7 +398,7 @@ route, and regression suite, TypeScript, the production build, and 20 passing br
 Playwright browser binaries are installed.
 The browser matrix exercises all three routes at 1440px, 390px, and 320px, including Axe scans,
 overflow checks, 44px mobile targets, route handoffs, reset behavior, the Telegram text refresh
-and exact-send flow, and the full Chat to Eval to Dream flow with browser API fixtures.
+and exact-send flow, and the full Chat to Eval to Knowledge flow with browser API fixtures.
 
 ## What this repository proves
 

@@ -20,7 +20,7 @@ import {
   type EvalFilters,
   type EvalSort,
 } from "./eval-model";
-import { ScoreSummary } from "./eval-support";
+import { ScoreSummary, SuiteHistory } from "./eval-support";
 import { EvalToolbar } from "./eval-toolbar";
 import { ImportHitlDialog } from "./import-hitl-dialog";
 import "./eval.css";
@@ -37,6 +37,11 @@ type ActiveOperation =
   | { kind: "suite"; completed: number; runningCaseId: EvalCaseId | null; total: number }
   | null;
 
+type RetryOperation =
+  | { kind: "case"; caseId: EvalCaseId }
+  | { kind: "suite" }
+  | null;
+
 type Drawer = "analyze" | "evidence" | "filters" | "history" | null;
 
 export default function EvalRoute() {
@@ -44,6 +49,7 @@ export default function EvalRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mobile = useMediaQuery("(max-width: 899px)");
+  const middle = useMediaQuery("(min-width: 900px) and (max-width: 1199px)");
   const narrowMobile = useMediaQuery("(max-width: 339px)");
   const [filters, setFilters] = useState<EvalFilters>(CLEAR_FILTERS);
   const [sort, setSort] = useState<EvalSort>({ column: "item", direction: "asc" });
@@ -60,7 +66,9 @@ export default function EvalRoute() {
   const [importOpen, setImportOpen] = useState(false);
   const [preferredImportId, setPreferredImportId] = useState<string | null>(null);
   const [operation, setOperation] = useState<ActiveOperation>(null);
+  const [retryOperation, setRetryOperation] = useState<RetryOperation>(null);
   const [feedback, setFeedback] = useState("");
+  const [proposalCorrectionId, setProposalCorrectionId] = useState<string | null>(null);
   const [executionCapability, setExecutionCapability] = useState({
     enabled: true,
     reason: null as string | null,
@@ -164,7 +172,9 @@ export default function EvalRoute() {
     setCriteriaOpen(false);
     setImportOpen(false);
     setPreferredImportId(null);
+    setRetryOperation(null);
     setFeedback("");
+    setProposalCorrectionId(null);
   }, [store.resetVersion]);
 
   useEffect(
@@ -211,6 +221,11 @@ export default function EvalRoute() {
     operationController.current = controller;
     activeOperation.current = active;
     setOperation(active);
+    setRetryOperation(
+      active.kind === "case"
+        ? { kind: "case", caseId: active.caseId }
+        : { kind: "suite" },
+    );
     setFeedback("");
 
     const updateProgress = (completed: number, total: number) => {
@@ -284,6 +299,35 @@ export default function EvalRoute() {
     }
   };
 
+  const runCase = (caseId: EvalCaseId) => {
+    schedule(
+      { caseId, completed: 0, kind: "case", total: 1 },
+      async (signal, _onCaseStart, onProgress) => {
+        const result = await store.runEvalCase(caseId, { signal });
+        if (result.ok) {
+          onProgress(1, 1);
+        }
+        return result;
+      },
+    );
+  };
+
+  const runSuite = () => {
+    schedule(
+      { completed: 0, kind: "suite", runningCaseId: null, total: dataset.cases.length },
+      (signal, onCaseStart, onProgress) =>
+        store.runEvalSuite(dataset.id, { onCaseStart, onProgress, signal }),
+    );
+  };
+
+  const retryLastOperation = () => {
+    if (retryOperation?.kind === "case") {
+      runCase(retryOperation.caseId);
+    } else if (retryOperation?.kind === "suite") {
+      runSuite();
+    }
+  };
+
   const runningCaseId = operation?.kind === "case"
     ? operation.caseId
     : operation?.kind === "suite"
@@ -305,13 +349,30 @@ export default function EvalRoute() {
         action: "cancel",
         actionLabel: "Cancel",
       }
+    : proposalCorrectionId
+      ? {
+          scope: "eval",
+          state: "succeeded",
+          message:
+            "SOP correction proposed. Nothing is active yet. Review the exact diff in Knowledge.",
+          action: null,
+          actionLabel: null,
+          knowledgeCorrectionId: proposalCorrectionId,
+          linkActionLabel: "Open Knowledge correction",
+        }
     : feedback
       ? {
           scope: "eval",
           state: feedback === "Evaluation canceled." ? "canceled" : "failed",
           message: feedback,
-          action: null,
-          actionLabel: null,
+          action:
+            feedback !== "Evaluation canceled." && retryOperation !== null
+              ? "retry"
+              : null,
+          actionLabel:
+            feedback !== "Evaluation canceled." && retryOperation !== null
+              ? "Retry"
+              : null,
         }
       : null;
 
@@ -336,13 +397,7 @@ export default function EvalRoute() {
         onAnalyze={() => setDrawer("analyze")}
         onNewDataset={() => setDatasetDialog("create")}
         onRenameDataset={() => setDatasetDialog("rename")}
-        onRunSuite={() =>
-          schedule(
-            { completed: 0, kind: "suite", runningCaseId: null, total: dataset.cases.length },
-            (signal, onCaseStart, onProgress) =>
-              store.runEvalSuite(dataset.id, { onCaseStart, onProgress, signal }),
-          )
-        }
+        onRunSuite={runSuite}
         onSelectDataset={(datasetId) => {
           cancelOperation();
           store.selectEvalDataset(datasetId);
@@ -351,6 +406,7 @@ export default function EvalRoute() {
           setFilters(CLEAR_FILTERS);
         }}
         selectedId={dataset.id}
+        showHistory={mobile}
         suiteBlocked={
           dataset.cases.length === 0 || operation !== null || !executionCapability.enabled
         }
@@ -362,9 +418,11 @@ export default function EvalRoute() {
         suiteRunning={operation?.kind === "suite"}
       />
 
-      <section aria-label="Eval overview" className="eval-overview">
-        <ScoreSummary dataset={dataset} />
-      </section>
+      {mobile ? (
+        <section aria-label="Eval overview" className="eval-overview">
+          <ScoreSummary dataset={dataset} />
+        </section>
+      ) : null}
 
       <EvalFiltersBar
         filters={filters}
@@ -375,13 +433,23 @@ export default function EvalRoute() {
 
       <OperationStatusBanner
         actionAriaLabel={
-          operation ? `Cancel active ${operation.kind} operation` : undefined
+          operation
+            ? `Cancel active ${operation.kind} operation`
+            : retryOperation
+              ? "Retry last evaluation run"
+              : undefined
         }
-        onAction={operation ? cancelOperation : undefined}
+        onAction={operation ? cancelOperation : retryOperation ? retryLastOperation : undefined}
         status={operationStatus}
       />
 
-      <div className="eval-workbench">
+      <div className={`eval-workbench${middle ? " eval-workbench--middle" : ""}`}>
+        {middle ? (
+          <section aria-label="Evaluation support" className="eval-middle-support">
+            <ScoreSummary dataset={dataset} />
+            <SuiteHistory dataset={dataset} />
+          </section>
+        ) : null}
         <section aria-label="Raw evaluation cases" className="eval-case-surface">
           <div className="eval-case-surface__heading">
             <div>
@@ -390,7 +458,7 @@ export default function EvalRoute() {
                 {cases.length} of {dataset.cases.length} visible
               </span>
             </div>
-            <span>Open a case for the full replay and evidence.</span>
+            <span>Open a case for its latest run and evidence.</span>
           </div>
           <EvalCases
             cases={cases}
@@ -404,18 +472,7 @@ export default function EvalRoute() {
               setCaseDialogOpen(true);
             }}
             onOpen={openCase}
-            onRun={(caseId) =>
-              schedule(
-                { caseId, completed: 0, kind: "case", total: 1 },
-                async (signal, _onCaseStart, onProgress) => {
-                  const result = await store.runEvalCase(caseId, { signal });
-                  if (result.ok) {
-                    onProgress(1, 1);
-                  }
-                  return result;
-                },
-              )
-            }
+            onRun={runCase}
             onSort={(column) => setSort((current) => nextSort(current, column))}
             runningCaseId={runningCaseId}
             runBlocked={operation !== null || !executionCapability.enabled}
@@ -423,6 +480,12 @@ export default function EvalRoute() {
             sort={sort}
           />
         </section>
+        {!mobile && !middle ? (
+          <aside aria-label="Evaluation support" className="eval-support-rail">
+            <ScoreSummary dataset={dataset} />
+            <SuiteHistory dataset={dataset} />
+          </aside>
+        ) : null}
       </div>
 
       {drawer === "filters" && narrowMobile ? (
@@ -442,9 +505,15 @@ export default function EvalRoute() {
           corrections={store.state.corrections}
           dataset={dataset}
           key={dataset.id}
-          onAnalyze={() => store.proposeCorrections(dataset.id)}
+          onAnalyze={async () => {
+            const result = await store.proposeCorrections(dataset.id);
+            if (result.ok && typeof result.correctionId === "string") {
+              setProposalCorrectionId(result.correctionId);
+            }
+            return result;
+          }}
           onClose={() => setDrawer(null)}
-          onOpenDream={(correction) => navigate(`/dream?correction=${correction.id}`)}
+          onOpenKnowledge={(correction) => navigate(`/knowledge?correction=${correction.id}`)}
           operationBlocked={operation !== null}
         />
       ) : null}
@@ -462,7 +531,7 @@ export default function EvalRoute() {
             setEditingCase(evalCase);
             setCaseDialogOpen(true);
           }}
-          onOpenDream={(correction) => navigate(`/dream?correction=${correction.id}`)}
+          onOpenKnowledge={(correction) => navigate(`/knowledge?correction=${correction.id}`)}
           onRun={(caseId) =>
             schedule(
               { caseId, completed: 0, kind: "case", total: 1 },

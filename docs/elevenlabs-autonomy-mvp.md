@@ -3,7 +3,7 @@
 ## Decision
 
 This hackathon app remains the authority for Telegram, the agent loop, booking state, `.ics`
-delivery, Eval, and Dream. Direct OpenAI supplies text generation and judging. ElevenLabs supplies
+delivery, Eval, and Knowledge. Direct OpenAI supplies text generation and judging. ElevenLabs supplies
 only speech-to-text (STT) and text-to-speech (TTS) through its direct HTTP APIs; it does not become
 a second agent implementation.
 
@@ -21,12 +21,12 @@ Telegram voice note
   -> existing CAS booking + audit messages
   -> existing Telegram text + selected TTS provider
   -> existing Ogg conversion + `.ics` delivery
-  -> existing patient timeline and Eval/Dream routes
+  -> existing patient timeline and Eval/Knowledge routes
 ```
 
 The model never receives Telegram credentials or a database client. It only chooses a declared
 tool; server code validates its arguments and applies the effect. ElevenLabs has no booking,
-calendar, Eval, Dream, or Telegram authority.
+calendar, Eval, Knowledge, or Telegram authority.
 
 ## Exact provider contract
 
@@ -40,9 +40,8 @@ No SDK is added. Node 22 already provides `fetch`, `FormData`, and `Blob`.
 | TTS result | audio bytes, model, voice | Preserve existing Ogg conversion, storage, and Telegram `sendVoice` flow |
 | Provider errors | timeout versus provider failure | Keep the current generic retry/error handling and never send an empty voice artifact |
 
-`eleven_flash_v2_5` is the default TTS model for fast short confirmations. `ELEVENLABS_TTS_MODEL`
-can instead choose a quality-focused model, and all voice shaping is configuration, not dashboard
-code.
+`eleven_v3` is the default TTS model. `ELEVENLABS_TTS_MODEL` can override it, and all voice shaping
+is deployment configuration rather than dashboard-only state.
 
 ## Configuration
 
@@ -60,7 +59,7 @@ TTS_PROVIDER=elevenlabs
 ELEVENLABS_API_KEY=replace-in-deployment-only
 ELEVENLABS_BASE_URL=https://api.elevenlabs.io/v1
 ELEVENLABS_STT_MODEL=scribe_v2
-ELEVENLABS_TTS_MODEL=eleven_flash_v2_5
+ELEVENLABS_TTS_MODEL=eleven_v3
 ELEVENLABS_VOICE_ID=replace-with-an-authorized-voice-id
 
 # Optional voice controls. Leave blank to preserve the voice's saved defaults.
@@ -171,7 +170,7 @@ prove a real Telegram receipt without the owner-controlled bot chat.
 | 0-20 sec | Malay voice note becomes transcript plus English gloss; speech model is identifiable in delivery metadata. |
 | 20-40 sec | Agent checks a slot, creates booking, and timeline advances. |
 | 40-60 sec | Telegram confirmation plus voice and `.ics` invitation receipt. |
-| 60-80 sec | Complaint causes agent tool trace -> exact Eval candidate -> human correction requirement -> Dream route. |
+| 60-80 sec | Complaint causes agent tool trace -> exact Eval candidate -> human correction requirement -> Knowledge route. |
 | Backup | Fully booked date yields a visible `No slots` action trace and alternative slots, without falsely booking. |
 
 ## Explicitly not in scope
@@ -187,3 +186,5 @@ prove a real Telegram receipt without the owner-controlled bot chat.
   for the multipart Scribe v2 request, detected `language_code`, and optional timestamps.
 - ElevenLabs, [Create speech](https://elevenlabs.io/docs/api-reference/text-to-speech/convert)
   for the direct voice endpoint, request-scoped voice settings, language code, and audio response.
+- ElevenLabs, [Models](https://elevenlabs.io/docs/overview/models)
+  for the `eleven_v3` and `scribe_v2` model identifiers.

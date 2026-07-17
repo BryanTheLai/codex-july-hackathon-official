@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 
 import {
   committedFailedTrainCases,
@@ -14,18 +15,19 @@ export function AnalyzeFailuresDrawer({
   dataset,
   onAnalyze,
   onClose,
-  onOpenDream,
+  onOpenKnowledge,
   operationBlocked,
 }: {
   corrections: Correction[];
   dataset: EvalDataset;
-  onAnalyze: () => MutationResult | Promise<MutationResult>;
+  onAnalyze: () => MutationResult & { correctionId?: string | null } | Promise<MutationResult & { correctionId?: string | null }>;
   onClose: () => void;
-  onOpenDream: (correction: Correction) => void;
+  onOpenKnowledge: (correction: Correction) => void;
   operationBlocked: boolean;
 }) {
   const [status, setStatus] = useState<"idle" | "running" | "complete" | "error">("idle");
   const [error, setError] = useState("");
+  const [proposalCorrectionId, setProposalCorrectionId] = useState<string | null>(null);
   const failedCases = committedFailedTrainCases(dataset);
   const failedCaseIds = new Set(failedCases.map((evalCase) => evalCase.id));
   const failedCaseById = new Map(failedCases.map((evalCase) => [evalCase.id, evalCase]));
@@ -43,7 +45,7 @@ export function AnalyzeFailuresDrawer({
         <div>
           <strong>Analyze failures</strong>
           <span>
-            A configured LLM proposes one reviewable SOP diff from committed train failures. It
+            The configured correction proposer creates one reviewable SOP diff from committed train failures. It
             never reruns, activates, or improves the agent on its own.
           </span>
         </div>
@@ -59,10 +61,19 @@ export function AnalyzeFailuresDrawer({
       {status !== "idle" ? (
         <p aria-live="polite" className={`analyze-drawer__status analyze-drawer__status--${status}`} role="status">
           {status === "running"
-            ? "Analysis is running: asking the SOP proposer for one reviewable diff. It will not apply any change automatically."
+            ? "Analysis is running: asking the correction proposer for one reviewable diff. It will not apply any change automatically."
             : status === "complete"
-              ? "Analysis complete. Review the proposed diff before approving it in Dream."
+              ? proposalCorrectionId
+                ? "SOP correction proposed. Nothing is active yet. Review the exact diff in Knowledge."
+                : "Analysis complete. Review the proposed diff before approving it in Knowledge."
               : error}
+        </p>
+      ) : null}
+      {status === "complete" && proposalCorrectionId ? (
+        <p>
+          <Link to={`/knowledge?correction=${encodeURIComponent(proposalCorrectionId)}`}>
+            Open Knowledge correction
+          </Link>
         </p>
       ) : null}
       <div className="eval-drawer__scroll analyze-drawer__content" tabIndex={0}>
@@ -102,19 +113,19 @@ export function AnalyzeFailuresDrawer({
           )}
         </section>
         <section>
-          <h2>Proposed Dream corrections</h2>
+          <h2>Proposed Knowledge corrections</h2>
           {proposedCorrections.length === 0 ? (
-            <p>No proposed Dream corrections.</p>
+            <p>No proposed Knowledge corrections.</p>
           ) : (
             proposedCorrections.map((correction) => {
               const sourceTitle =
                 failedCaseById.get(correction.sourceCaseId ?? "")?.title ?? "failed case";
               return (
                 <button
-                  aria-label={`Open ${correction.status} correction for ${sourceTitle} in Dream`}
+                  aria-label={`Open ${correction.status} correction for ${sourceTitle} in Knowledge`}
                   className="eval-linked-correction"
                   key={correction.id}
-                  onClick={() => onOpenDream(correction)}
+                  onClick={() => onOpenKnowledge(correction)}
                   type="button"
                 >
                   <strong>{correction.status}</strong>
@@ -141,10 +152,14 @@ export function AnalyzeFailuresDrawer({
           onClick={() => {
             void (async () => {
               setStatus("running");
+              setProposalCorrectionId(null);
               const result = await onAnalyze();
               if (result.ok) {
                 setError("");
                 setStatus("complete");
+                if (typeof result.correctionId === "string") {
+                  setProposalCorrectionId(result.correctionId);
+                }
                 return;
               }
               setError(result.error);

@@ -78,7 +78,19 @@ function judgeResult(request: JudgeRequest): JudgeResponse {
 
 async function setup(options: { proposer?: Parameters<typeof createWorkspaceCommandService>[0]["proposer"] } = {}) {
   const repository = createWorkspaceRepository(new InMemoryWorkspaceDataSource());
-  await repository.bootstrap("demo", await createCanonicalServerState());
+  const seed = await createCanonicalServerState();
+  seed.corrections.push({
+    id: "corr-aircon-selection",
+    fileId: "file-aircon-service-selection",
+    oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+    newText:
+      "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.",
+    evidence: "Combined symptoms train case failed package selection criterion.",
+    status: "pending",
+    sourceCaseId: "case-aircon-selection-train",
+    lineHint: 4,
+  });
+  await repository.bootstrap("demo", seed);
   let suiteSequence = 0;
   let runSequence = 0;
   let commandSequence = 1;
@@ -105,7 +117,7 @@ async function setup(options: { proposer?: Parameters<typeof createWorkspaceComm
 }
 
 describe("workspace command service", () => {
-  it("keeps a correction candidate inactive through affected and full replay, then activates and restores it", async () => {
+  it("keeps a correction candidate inactive through affected train and all-case replay, then activates and restores it", async () => {
     const { agent, repository, service } = await setup();
     const seed = await repository.load("demo");
     const correction = seed!.state.corrections.find((candidate) => candidate.status === "pending")!;
@@ -122,7 +134,7 @@ describe("workspace command service", () => {
       service.execute({
         kind: "replay_candidate",
         candidateVersionId: candidateId,
-        datasetId: "dataset-seed",
+        datasetId: "dataset-aircon-ops",
         scope: "full",
         expectedWorkspaceRevision: candidate.workspace.revision,
       }),
@@ -137,7 +149,7 @@ describe("workspace command service", () => {
     const affected = await service.execute({
       kind: "replay_candidate",
       candidateVersionId: candidateId,
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       scope: "affected",
       expectedWorkspaceRevision: candidate.workspace.revision,
     });
@@ -147,7 +159,7 @@ describe("workspace command service", () => {
     const full = await service.execute({
       kind: "replay_candidate",
       candidateVersionId: candidateId,
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       scope: "full",
       expectedWorkspaceRevision: affected.workspace.revision,
     });
@@ -163,7 +175,7 @@ describe("workspace command service", () => {
     });
     const request = buildLiveAgentRunRequest(
       activated.workspace.state,
-      { kind: "manual", conversationId: "convo-emergency", expectedConversationRevision: 1 },
+      { kind: "manual", conversationId: "convo-aircon-complaint", expectedConversationRevision: 1 },
       agentConfig.agentConfigVersion,
     );
     expect(activated.workspace.state.playbookHistory.activeVersionId).toBe(candidateId);
@@ -198,7 +210,7 @@ describe("workspace command service", () => {
     expect((await repository.load("demo"))?.state.evalDatasets[0]?.name).toBe(dataset.name);
   });
 
-  it("stages Dream file creation as an inactive whole-playbook candidate", async () => {
+  it("stages Knowledge file creation as an inactive whole-playbook candidate", async () => {
     const { repository, service } = await setup();
     const workspace = await repository.load("demo");
 
@@ -238,8 +250,8 @@ describe("workspace command service", () => {
     });
     const initial = await repository.load("demo");
     const suite = await evalService.createSuite({
-      datasetId: "dataset-seed",
-      caseIds: ["case-emergency-train"],
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
       playbookVersionId: "playbook-version-1",
       expectedWorkspaceRevision: initial!.revision,
     });
@@ -249,26 +261,26 @@ describe("workspace command service", () => {
       criterionResults: request.rubrics.map((rubric) => ({
         criterionId: rubric.id,
         verdict: "fail" as const,
-        reason: "Emergency direction was missing.",
+        reason: "Package selection was missing.",
         evidence: "Staff review is required.",
       })),
     }));
     const failed = await evalService.runCase({
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: suite.workspaceRevision,
     });
 
     const proposed = await service.execute({
       kind: "propose_correction",
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       expectedWorkspaceRevision: failed.workspaceRevision,
     });
 
     expect(proposal).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(proposal.mock.calls[0]?.[0])).not.toContain("expectedStaffResponse");
     expect(proposed.workspace.state.corrections.at(-1)).toEqual(
-      expect.objectContaining({ status: "pending", sourceCaseId: "case-emergency-train" }),
+      expect.objectContaining({ status: "pending", sourceCaseId: "case-aircon-selection-train" }),
     );
   });
 });

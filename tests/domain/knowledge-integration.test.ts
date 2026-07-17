@@ -1,29 +1,45 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  analyzeFailures,
   approveCorrection,
   createCanonicalSeed,
   createPlaybookFile,
   createPlaybookFolder,
   deletePlaybookFile,
   discardPlaybookDraft,
-  importHitlFromConversation,
   playbookIdForConversation,
   rejectCorrection,
   renamePlaybookFile,
-  resolveConversation,
   runEvalCase,
-  runTestChanges,
+  runSavedTextCheck,
   savePlaybookDraft,
-  sendStaffReply,
   setPlaybookDraft,
   type AppState,
 } from "../../src/domain";
 import { createFixtureJudgeClient } from "../fixtures/judge-client";
 
-const SEED_DATASET_ID = "dataset-seed";
-const TRIAGE_FILE_ID = "file-triage";
+
+const RATE_CARD_FILE_ID = "file-aircon-rate-card";
+const SERVICE_SELECTION_FILE_ID = "file-aircon-service-selection";
+
+function withPendingCorrection(state: AppState, fileId: string): AppState {
+  return {
+    ...structuredClone(state),
+    corrections: [
+      {
+        id: "corr-test-selection",
+        fileId,
+        oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+        newText:
+          "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.",
+        evidence: "Package selection train case failed.",
+        status: "pending" as const,
+        sourceCaseId: "case-aircon-selection-train",
+        lineHint: 4,
+      },
+    ],
+  };
+}
 
 function fileById(state: AppState, fileId: string) {
   return state.playbookFiles.find((f) => f.id === fileId)!;
@@ -35,63 +51,61 @@ function pendingForFile(state: AppState, fileId: string) {
 
 describe("per-file drafts", () => {
   it("preserves drafts per file and save copies draft into saved content", () => {
-    const seed = createCanonicalSeed();
-    const otherFile = seed.playbookFiles.find((f) => f.id !== TRIAGE_FILE_ID)!;
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const otherFile = seed.playbookFiles.find((f) => f.id !== SERVICE_SELECTION_FILE_ID)!;
 
-    const dirty = setPlaybookDraft(seed, TRIAGE_FILE_ID, "# triage draft\n");
+    const dirty = setPlaybookDraft(seed, SERVICE_SELECTION_FILE_ID, "# selection draft\n");
     expect(dirty.ok).toBe(true);
     if (!dirty.ok) return;
-    expect(fileById(dirty.state, TRIAGE_FILE_ID).draft).toBe("# triage draft\n");
+    expect(fileById(dirty.state, SERVICE_SELECTION_FILE_ID).draft).toBe("# selection draft\n");
     expect(fileById(dirty.state, otherFile.id).draft).toBeUndefined();
 
-    const saved = savePlaybookDraft(dirty.state, TRIAGE_FILE_ID);
+    const saved = savePlaybookDraft(dirty.state, SERVICE_SELECTION_FILE_ID);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
-    const file = fileById(saved.state, TRIAGE_FILE_ID);
-    expect(file.savedContent).toBe("# triage draft\n");
+    const file = fileById(saved.state, SERVICE_SELECTION_FILE_ID);
+    expect(file.savedContent).toBe("# selection draft\n");
     expect(file.draft).toBeUndefined();
   });
 
   it("discardPlaybookDraft restores saved content and clears draft", () => {
-    const seed = createCanonicalSeed();
-    const savedBefore = fileById(seed, TRIAGE_FILE_ID).savedContent;
-    const dirty = setPlaybookDraft(seed, TRIAGE_FILE_ID, "# unsaved discard test\n");
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const savedBefore = fileById(seed, SERVICE_SELECTION_FILE_ID).savedContent;
+    const dirty = setPlaybookDraft(seed, SERVICE_SELECTION_FILE_ID, "# unsaved discard test\n");
     expect(dirty.ok).toBe(true);
     if (!dirty.ok) return;
 
-    const discarded = discardPlaybookDraft(dirty.state, TRIAGE_FILE_ID);
+    const discarded = discardPlaybookDraft(dirty.state, SERVICE_SELECTION_FILE_ID);
     expect(discarded.ok).toBe(true);
     if (!discarded.ok) return;
 
-    const file = fileById(discarded.state, TRIAGE_FILE_ID);
+    const file = fileById(discarded.state, SERVICE_SELECTION_FILE_ID);
     expect(file.draft).toBeUndefined();
     expect(file.savedContent).toBe(savedBefore);
   });
 });
 
 describe("playbookIdForConversation", () => {
-  it("routes booking, prescription, emergency or triage labels, and default to triage", () => {
+  it("routes booking, package-selection, and default to aircon playbook ids", () => {
     const seed = createCanonicalSeed();
 
-    const booking = seed.conversations.find((c) => c.id === "convo-booking")!;
-    const prescription = seed.conversations.find((c) => c.id === "convo-prescription")!;
-    const emergency = seed.conversations.find((c) => c.id === "convo-emergency")!;
-    const resolved = seed.conversations.find((c) => c.id === "convo-resolved")!;
+    const booking = seed.conversations.find((c) => c.id === "convo-aircon-booking")!;
+    const complaint = seed.conversations.find((c) => c.id === "convo-aircon-complaint")!;
+    const resolved = seed.conversations.find((c) => c.id === "convo-aircon-resolved")!;
 
-    expect(playbookIdForConversation(booking)).toBe("file-malay-booking");
-    expect(playbookIdForConversation(prescription)).toBe("file-mandarin-prescription");
-    expect(playbookIdForConversation(emergency)).toBe("file-triage");
-    expect(playbookIdForConversation(resolved)).toBe("file-triage");
+    expect(playbookIdForConversation(booking)).toBe("file-aircon-booking");
+    expect(playbookIdForConversation(complaint)).toBe("file-aircon-service-selection");
+    expect(playbookIdForConversation(resolved)).toBe("file-aircon-rate-card");
   });
 });
 
 describe("dirty draft blocks review", () => {
   it("blocks approve and reject while draft is dirty", () => {
-    const seed = createCanonicalSeed();
-    const correction = pendingForFile(seed, TRIAGE_FILE_ID)[0]!;
-    const savedContent = fileById(seed, TRIAGE_FILE_ID).savedContent;
-    const dirty = setPlaybookDraft(seed, TRIAGE_FILE_ID, `${savedContent}\n# unsaved edit\n`);
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const correction = pendingForFile(seed, SERVICE_SELECTION_FILE_ID)[0]!;
+    const savedContent = fileById(seed, SERVICE_SELECTION_FILE_ID).savedContent;
+    const dirty = setPlaybookDraft(seed, SERVICE_SELECTION_FILE_ID, `${savedContent}\n# unsaved edit\n`);
 
     const approveBlocked = approveCorrection(dirty.state, correction.id);
     expect(approveBlocked.ok).toBe(false);
@@ -107,14 +121,14 @@ describe("dirty draft blocks review", () => {
 
 describe("correction approve and reject", () => {
   it("approve replaces exact old text, marks approved, and stale old text blocks", () => {
-    const seed = createCanonicalSeed();
-    const correction = pendingForFile(seed, TRIAGE_FILE_ID)[0]!;
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const correction = pendingForFile(seed, SERVICE_SELECTION_FILE_ID)[0]!;
 
     const approved = approveCorrection(seed, correction.id);
     expect(approved.ok).toBe(true);
     if (!approved.ok) return;
 
-    const file = fileById(approved.state, TRIAGE_FILE_ID);
+    const file = fileById(approved.state, SERVICE_SELECTION_FILE_ID);
     expect(file.savedContent).toContain(correction.newText);
     expect(file.savedContent).not.toContain(correction.oldText);
     expect(
@@ -128,25 +142,25 @@ describe("correction approve and reject", () => {
   });
 
   it("reject leaves saved content unchanged", () => {
-    const seed = createCanonicalSeed();
-    const correction = pendingForFile(seed, TRIAGE_FILE_ID)[0]!;
-    const beforeContent = fileById(seed, TRIAGE_FILE_ID).savedContent;
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const correction = pendingForFile(seed, SERVICE_SELECTION_FILE_ID)[0]!;
+    const beforeContent = fileById(seed, SERVICE_SELECTION_FILE_ID).savedContent;
 
     const rejected = rejectCorrection(seed, correction.id);
     expect(rejected.ok).toBe(true);
     if (!rejected.ok) return;
 
-    expect(fileById(rejected.state, TRIAGE_FILE_ID).savedContent).toBe(beforeContent);
+    expect(fileById(rejected.state, SERVICE_SELECTION_FILE_ID).savedContent).toBe(beforeContent);
     expect(
       rejected.state.corrections.find((c) => c.id === correction.id)?.status,
     ).toBe("rejected");
   });
 });
 
-describe("test changes boundary", () => {
+describe("saved text check boundary", () => {
   it("verifies saved text only and never mutates eval grades", () => {
-    const seed = createCanonicalSeed();
-    const correction = pendingForFile(seed, TRIAGE_FILE_ID)[0]!;
+    const seed = withPendingCorrection(createCanonicalSeed(), SERVICE_SELECTION_FILE_ID);
+    const correction = pendingForFile(seed, SERVICE_SELECTION_FILE_ID)[0]!;
     const approved = approveCorrection(seed, correction.id);
     expect(approved.ok).toBe(true);
     if (!approved.ok) return;
@@ -155,7 +169,7 @@ describe("test changes boundary", () => {
       .flatMap((d) => d.cases)
       .map((c) => c.grade);
 
-    const test = runTestChanges(approved.state, TRIAGE_FILE_ID);
+    const test = runSavedTextCheck(approved.state, SERVICE_SELECTION_FILE_ID);
     expect(test.ok).toBe(true);
     if (!test.ok) return;
 
@@ -232,7 +246,7 @@ describe("playbook file CRUD", () => {
     expect(badExt.error).toMatch(/\.md/i);
 
     const dup = createPlaybookFile(seed, {
-      path: "playbooks/triage.md",
+      path: "playbooks/aircon-rate-card.md",
       title: "Duplicate",
     });
     expect(dup.ok).toBe(false);
@@ -268,7 +282,7 @@ describe("playbook file CRUD", () => {
     const seed = createCanonicalSeed();
 
     const protectedDelete = deletePlaybookFile(seed, {
-      fileId: "file-triage",
+      fileId: RATE_CARD_FILE_ID,
       confirmed: true,
     });
     expect(protectedDelete.ok).toBe(false);
@@ -329,47 +343,38 @@ describe("playbook file CRUD", () => {
 });
 
 describe("cross-route flow", () => {
-  it("staff reply -> HITL import -> run -> failed train correction -> approve -> test changes pass", async () => {
+  it("failed train eval -> correction approve -> saved text check passes", async () => {
+    const trainCaseId = "case-aircon-confirm-train";
     let state = createCanonicalSeed();
 
-    const active = state.conversations.find((c) => c.workflowStatus !== "resolved")!;
-    const sent = sendStaffReply(state, {
-      conversationId: active.id,
-      text: "Please bring your insurance card to counter three.",
-      kind: "reply",
-    });
-    expect(sent.ok).toBe(true);
-    if (!sent.ok) return;
-    state = sent.state;
-
-    const resolved = resolveConversation(state, active.id);
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) return;
-    state = resolved.state;
-
-    const imported = importHitlFromConversation(state, active.id);
-    expect(imported.ok).toBe(true);
-    if (!imported.ok) return;
-    state = imported.state;
-
-    const newCase = state.evalDatasets
-      .flatMap((d) => d.cases)
-      .find((c) => c.expectedHumanOutput.includes("insurance card"));
-    expect(newCase).toBeDefined();
-    if (!newCase) return;
-
-    const run = await runEvalCase(state, newCase.id, createFixtureJudgeClient());
+    const run = await runEvalCase(
+      state,
+      trainCaseId,
+      createFixtureJudgeClient({ verdictByCase: { [trainCaseId]: "fail" } }),
+    );
     expect(run.ok).toBe(true);
     if (!run.ok) return;
     state = run.state;
 
-    const analyzed = analyzeFailures(state, SEED_DATASET_ID);
-    expect(analyzed.ok).toBe(true);
-    if (!analyzed.ok) return;
-    state = analyzed.state;
+    state = {
+      ...state,
+      corrections: [
+        {
+          id: "corr-cross-route-booking",
+          fileId: "file-aircon-booking",
+          oldText: "Collect symptoms, unit type, horsepower, unit count, area, preferred slot, and",
+          newText:
+            "Collect symptoms, unit type, horsepower, unit count, area, preferred slot, and address. Require explicit slot and address confirmation before booking.",
+          evidence: "Booking confirmation train case failed.",
+          status: "pending" as const,
+          sourceCaseId: trainCaseId,
+          lineHint: 3,
+        },
+      ],
+    };
 
     const pending = state.corrections.find(
-      (c) => c.sourceCaseId === newCase.id && c.status === "pending",
+      (c) => c.sourceCaseId === trainCaseId && c.status === "pending",
     );
     expect(pending).toBeDefined();
     if (!pending) return;
@@ -379,7 +384,7 @@ describe("cross-route flow", () => {
     if (!approved.ok) return;
     state = approved.state;
 
-    const test = runTestChanges(state, pending.fileId);
+    const test = runSavedTextCheck(state, pending.fileId);
     expect(test.ok).toBe(true);
     if (!test.ok) return;
     expect(test.result.passed).toBeGreaterThan(0);

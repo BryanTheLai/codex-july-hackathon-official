@@ -32,33 +32,60 @@ function otherConversations(state: AppState, id: ConversationId) {
   return state.conversations.filter((c) => c.id !== id);
 }
 
+function withPendingBooking(state: AppState, conversationId: ConversationId): AppState {
+  return {
+    ...structuredClone(state),
+    conversations: state.conversations.map((conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            booking: {
+              slotIso: "2026-07-19T10:00:00+08:00",
+              reason: "General service",
+              status: "pending" as const,
+              revision: 1,
+            },
+          }
+        : conversation,
+    ),
+  };
+}
+
+function withEmergencyConversation(state: AppState): AppState {
+  const emergency = {
+    ...structuredClone(state.conversations[0]!),
+    id: "convo-test-emergency",
+    urgency: "emergency" as const,
+    labels: ["emergency", "simulated"],
+  };
+  return {
+    ...structuredClone(state),
+    conversations: [emergency, ...state.conversations],
+  };
+}
+
 describe("canonical seed", () => {
-  it("has the current schema version, four conversations, and stable fixture time", () => {
+  it("has the current schema version, three conversations, and stable fixture time", () => {
     const seed = createCanonicalSeed();
 
     expect(seed.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(seed.conversations).toHaveLength(4);
+    expect(seed.conversations).toHaveLength(3);
     expect(seed.fixtureTime).toBe(FIXTURE_TIME_ISO);
     expect(seed.conversations.every((c) => c.messages.length > 0)).toBe(true);
   });
 
-  it("links every pending seed correction to a train evaluation case", () => {
+  it("starts with no seed corrections", () => {
     const seed = createCanonicalSeed();
-    const dataset = seed.evalDatasets.find((d) => d.id === "dataset-seed")!;
-    const trainIds = new Set(dataset.cases.filter((c) => c.split === "train").map((c) => c.id));
-    const pending = seed.corrections.filter((c) => c.status === "pending");
 
-    expect(pending).toHaveLength(3);
-    expect(pending.every((c) => c.sourceCaseId !== undefined)).toBe(true);
-    expect(pending.every((c) => trainIds.has(c.sourceCaseId!))).toBe(true);
+    expect(seed.corrections).toHaveLength(0);
   });
 
   it("matches fixture inventory counts and ungraded seed eval state", () => {
     const seed = createCanonicalSeed();
-    const dataset = seed.evalDatasets.find((d) => d.id === "dataset-seed")!;
+    const dataset = seed.evalDatasets.find((d) => d.id === "dataset-aircon-ops")!;
 
     expect(seed.playbookFiles).toHaveLength(3);
-    expect(seed.corrections.filter((c) => c.status === "pending")).toHaveLength(3);
+    expect(seed.corrections.filter((c) => c.status === "pending")).toHaveLength(0);
     expect(dataset.cases).toHaveLength(5);
     expect(dataset.cases.filter((c) => c.split === "train")).toHaveLength(3);
     expect(dataset.cases.filter((c) => c.split === "holdout")).toHaveLength(2);
@@ -72,13 +99,13 @@ describe("canonical seed", () => {
     expect(
       dataset.cases.map(({ language, split, type }) => ({ language, split, type })),
     ).toEqual([
-      { language: "English", split: "train", type: "emergency_triage" },
-      { language: "Malay", split: "train", type: "booking" },
-      { language: "Mandarin Chinese", split: "train", type: "prescription" },
+      { language: "Malay", split: "train", type: "general" },
+      { language: "English", split: "train", type: "general" },
+      { language: "English", split: "train", type: "booking" },
       { language: "English", split: "holdout", type: "general" },
-      { language: "Tamil", split: "holdout", type: "lab_follow_up" },
+      { language: "Malay", split: "holdout", type: "general" },
     ]);
-    expect(dataset.criteria).toHaveLength(4);
+    expect(dataset.criteria).toHaveLength(3);
     expect(dataset.candidateVersion).toBe(1);
     expect(dataset.suiteSnapshots).toHaveLength(0);
     expect(dataset.runHistory).toHaveLength(0);
@@ -86,20 +113,15 @@ describe("canonical seed", () => {
     expect(dataset.cases.every((c) => c.grade === undefined)).toBe(true);
   });
 
-  it("uses Chinese characters instead of pinyin for Mandarin fixtures", () => {
+  it("uses aircon demo selections and empty MRN strings", () => {
     const seed = createCanonicalSeed();
-    const prescription = seed.conversations.find((c) => c.id === "convo-prescription")!;
-    const patientText = prescription.messages.find((message) => message.role === "patient")!.text;
-    const mandarinCases = seed.evalDatasets[0]!.cases.filter(
-      (evalCase) => evalCase.language === "Mandarin Chinese",
-    );
 
-    expect(patientText).toBe("我想续开降压药。");
-    expect(patientText).toMatch(/[\u4e00-\u9fff]/);
-    expect(mandarinCases).toHaveLength(1);
-    expect(mandarinCases.every((evalCase) => /[\u4e00-\u9fff]/.test(evalCase.inputConversation.messages[0]!.text))).toBe(
-      true,
-    );
+    expect(seed.selections).toEqual({
+      conversationId: "convo-aircon-booking",
+      playbookFileId: "file-aircon-rate-card",
+      evalDatasetId: "dataset-aircon-ops",
+    });
+    expect(seed.conversations.every((c) => c.patient.medicalRecordNumber === "")).toBe(true);
   });
 });
 
@@ -131,7 +153,7 @@ describe("sendStaffReply", () => {
 
   it("stores patient-facing translated text with its English translation", () => {
     const seed = createCanonicalSeed();
-    const targetId = "convo-booking";
+    const targetId = "convo-aircon-booking";
 
     const result = sendStaffReply(seed, {
       conversationId: targetId,
@@ -271,7 +293,7 @@ describe("updatePatient", () => {
 
 describe("booking decisions", () => {
   it("approves a pending request with a patient confirmation and separate audit", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending");
     expect(withBooking).toBeDefined();
     if (!withBooking?.booking) return;
@@ -292,7 +314,7 @@ describe("booking decisions", () => {
   });
 
   it("rejects a pending request with a patient update and separate audit", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending");
     expect(withBooking).toBeDefined();
     if (!withBooking?.booking) return;
@@ -312,7 +334,7 @@ describe("booking decisions", () => {
   });
 
   it("updates a pending request without calling it a reschedule", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending")!;
 
     const result = updateBooking(seed, withBooking.id, {
@@ -335,7 +357,7 @@ describe("booking decisions", () => {
   });
 
   it("reschedules an approved appointment and notifies the patient", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending")!;
     const approved = approveBooking(seed, withBooking.id);
     expect(approved.ok).toBe(true);
@@ -356,7 +378,7 @@ describe("booking decisions", () => {
   });
 
   it("rejects an invalid booking edit without changing the booking", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending")!;
     const before = structuredClone(withBooking.booking);
 
@@ -371,7 +393,7 @@ describe("booking decisions", () => {
   });
 
   it("rejects unchanged and stale booking edits without appending messages", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending")!;
     const beforeMessageCount = withBooking.messages.length;
 
@@ -399,7 +421,7 @@ describe("booking decisions", () => {
   });
 
   it("cancels an approved appointment without treating it as a rejected request", () => {
-    const seed = createCanonicalSeed();
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
     const withBooking = seed.conversations.find((c) => c.booking?.status === "pending")!;
     const approved = approveBooking(seed, withBooking.id);
     expect(approved.ok).toBe(true);
@@ -427,7 +449,7 @@ describe("booking decisions", () => {
 
 describe("emergency escalation", () => {
   it("forces staff-only agent mode and never records external contact", () => {
-    const seed = createCanonicalSeed();
+    const seed = withEmergencyConversation(createCanonicalSeed());
     const emergency = seed.conversations.find((c) => c.urgency === "emergency");
     expect(emergency).toBeDefined();
     if (!emergency) return;
@@ -507,7 +529,7 @@ describe("setAgentMode", () => {
 describe("simulatePatient", () => {
   it("is deterministic and idempotent per reset for each scenario", () => {
     const seed = createCanonicalSeed();
-    const scenario = "malay_booking" as const;
+    const scenario = "aircon_malay_booking" as const;
 
     const first = simulatePatient(seed, scenario);
     const second = simulatePatient(seed, scenario);
@@ -534,19 +556,19 @@ describe("simulatePatient", () => {
 
   it("re-selects an already-present scenario without duplicating the conversation", () => {
     const seed = createCanonicalSeed();
-    const scenario = "malay_booking" as const;
+    const scenario = "aircon_malay_booking" as const;
 
     const first = simulatePatient(seed, scenario);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     const countAfterFirst = first.state.conversations.length;
-    expect(first.state.selections.conversationId).toBe("sim-malay-booking");
+    expect(first.state.selections.conversationId).toBe("sim-aircon-malay-booking");
 
     const second = simulatePatient(first.state, scenario);
     expect(second.ok).toBe(true);
     if (!second.ok) return;
     expect(second.state.conversations).toHaveLength(countAfterFirst);
-    expect(second.state.selections.conversationId).toBe("sim-malay-booking");
+    expect(second.state.selections.conversationId).toBe("sim-aircon-malay-booking");
   });
 
   it("uses the active state fixture time for simulated messages", () => {
@@ -555,12 +577,12 @@ describe("simulatePatient", () => {
       fixtureTime: "2026-07-12T16:30:00+08:00",
     };
 
-    const result = simulatePatient(state, "mandarin_voice");
+    const result = simulatePatient(state, "aircon_package_complaint");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const simulated = result.state.conversations.find(
-      (conversation) => conversation.id === "sim-mandarin-voice",
+      (conversation) => conversation.id === "sim-aircon-package-complaint",
     );
     expect(simulated?.messages.every((message) => message.sentAt === state.fixtureTime)).toBe(true);
   });
@@ -568,9 +590,9 @@ describe("simulatePatient", () => {
 
 describe("resetSyntheticConversation", () => {
   it("restores one canonical fixture without changing another conversation", () => {
-    const seed = createCanonicalSeed();
-    const target = seed.conversations.find((conversation) => conversation.id === "convo-booking")!;
-    const untouched = seed.conversations.find((conversation) => conversation.id === "convo-emergency")!;
+    const seed = withPendingBooking(createCanonicalSeed(), "convo-aircon-booking");
+    const target = seed.conversations.find((conversation) => conversation.id === "convo-aircon-booking")!;
+    const untouched = seed.conversations.find((conversation) => conversation.id === "convo-aircon-complaint")!;
     const changed = updateBooking(seed, target.id, {
       expectedRevision: target.booking!.revision,
       reason: "Medication review",
@@ -592,18 +614,18 @@ describe("resetSyntheticConversation", () => {
   });
 
   it("removes one simulated fixture and selects a remaining conversation", () => {
-    const simulated = simulatePatient(createCanonicalSeed(), "malay_booking");
+    const simulated = simulatePatient(createCanonicalSeed(), "aircon_malay_booking");
     expect(simulated.ok).toBe(true);
     if (!simulated.ok) return;
 
-    const reset = resetSyntheticConversation(simulated.state, "sim-malay-booking");
+    const reset = resetSyntheticConversation(simulated.state, "sim-aircon-malay-booking");
 
     expect(reset.ok).toBe(true);
     if (!reset.ok) return;
-    expect(reset.state.conversations.some((conversation) => conversation.id === "sim-malay-booking")).toBe(
+    expect(reset.state.conversations.some((conversation) => conversation.id === "sim-aircon-malay-booking")).toBe(
       false,
     );
-    expect(reset.state.selections.conversationId).not.toBe("sim-malay-booking");
+    expect(reset.state.selections.conversationId).not.toBe("sim-aircon-malay-booking");
   });
 
   it("refuses to reset a non-synthetic conversation", () => {

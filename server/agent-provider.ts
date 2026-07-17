@@ -12,6 +12,10 @@ import type {
   AgentProviderToolCall,
   CreateAgentProviderResponse,
 } from "./agent-service";
+import {
+  createResponsesWithStability,
+  extractResponsesOutputText,
+} from "./responses-stability";
 
 const agentProviderEnvironmentSchema = z
   .object({
@@ -66,12 +70,13 @@ export function createAgentConfigVersion(
 type ResponsesOutput = {
   id?: string;
   model?: string;
-  output_text: string;
+  output_text?: string | null;
   output?: Array<{
     type: string;
     call_id?: string;
     name?: string;
     arguments?: string;
+    content?: Array<{ type: string; text?: string }>;
   }>;
   usage?: {
     input_tokens: number;
@@ -116,6 +121,8 @@ type ResponsesInput = {
   text: AgentProviderCreateInput["text"];
   tools: AgentProviderFunctionTool[];
   tool_choice: AgentProviderCreateInput["toolChoice"];
+  max_output_tokens?: number;
+  reasoning?: { effort: "none" | "low" | "medium" | "high" };
 };
 
 type ChatMessage =
@@ -260,9 +267,16 @@ function responsesOutput(
   response: ResponsesOutput,
 ): AgentProviderCreateOutput {
   const toolCalls = responseToolCalls(response);
+  const outputText = extractResponsesOutputText(response);
+  if (toolCalls.length === 0 && !outputText.trim()) {
+    throw new AgentProviderError(
+      "provider_failed",
+      "Agent provider returned empty Responses output (reasoning-only).",
+    );
+  }
   return {
     model: response.model,
-    outputText: response.output_text,
+    outputText,
     ...(response.id ? { responseId: response.id } : {}),
     ...(toolCalls.length > 0 ? { toolCalls } : {}),
     usage: response.usage
@@ -332,26 +346,29 @@ export function createAgentProviderAdapter(
   return async (input, signal) => {
     try {
       if (config.apiMode === "responses") {
+        const payload = {
+          model: input.model,
+          instructions: input.instructions,
+          input: input.previousResponseId
+            ? (input.toolOutputs ?? []).map((output) => ({
+                type: "function_call_output" as const,
+                call_id: output.callId,
+                output: output.output,
+              }))
+            : input.input,
+          ...(input.previousResponseId
+            ? { previous_response_id: input.previousResponseId }
+            : {}),
+          text: input.text,
+          tools: input.tools,
+          tool_choice: input.toolChoice,
+        };
         return responsesOutput(
-          await client.responses.create(
-            {
-              model: input.model,
-              instructions: input.instructions,
-              input: input.previousResponseId
-                ? (input.toolOutputs ?? []).map((output) => ({
-                    type: "function_call_output" as const,
-                    call_id: output.callId,
-                    output: output.output,
-                  }))
-                : input.input,
-              ...(input.previousResponseId
-                ? { previous_response_id: input.previousResponseId }
-                : {}),
-              text: input.text,
-              tools: input.tools,
-              tool_choice: input.toolChoice,
-            },
-            { signal },
+          await createResponsesWithStability(
+            (stablePayload, options) =>
+              client.responses.create(stablePayload as ResponsesInput, options),
+            payload,
+            signal,
           ),
         );
       }
@@ -388,6 +405,9 @@ export function createAgentProviderAdapter(
         ),
       );
     } catch (error) {
+      if (error instanceof AgentProviderError) {
+        throw error;
+      }
       if (isAbortError(error)) {
         throw new AgentProviderError(
           "provider_timeout",

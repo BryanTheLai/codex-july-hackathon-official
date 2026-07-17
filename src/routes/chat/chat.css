@@ -303,6 +303,22 @@
   line-height: 1.4;
 }
 
+.chat-learning-banner {
+  display: grid;
+  gap: 4px;
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: 8px;
+  background: var(--kaunter-quiet);
+  font-size: 13px;
+}
+
+.chat-learning-banner p {
+  margin: 0;
+  color: var(--kaunter-muted);
+}
+
 .chat-route--single .chat-workbench {
   display: block;
 }

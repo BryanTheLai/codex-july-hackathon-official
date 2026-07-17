@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createCanonicalServerState,
@@ -6,12 +6,16 @@ import {
 } from "../../src/domain";
 import { createAutonomousBookingToolExecutor } from "../../server/autonomous-booking-tools";
 import { buildLiveAgentRunRequest } from "../../server/agent-workspace";
+import type { OutboxRepository } from "../../server/outbox-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
 const now = () => new Date("2026-07-17T01:00:00.000Z");
 
-async function configuredWorkspace() {
+async function configuredWorkspace(options: {
+  outboxRepository?: OutboxRepository;
+  requireConnectedCalendar?: boolean;
+} = {}) {
   const inbound = mergeTelegramInboundText(await createCanonicalServerState(), {
     channel: "telegram",
     externalEventId: "1001",
@@ -35,6 +39,8 @@ async function configuredWorkspace() {
   return {
     executor: createAutonomousBookingToolExecutor({
       now,
+      outboxRepository: options.outboxRepository,
+      requireConnectedCalendar: options.requireConnectedCalendar,
       workspaceId: "demo",
       workspaceRepository: repository,
     }),
@@ -51,8 +57,61 @@ async function configuredWorkspace() {
 }
 
 describe("autonomous booking tools", () => {
-  it("lists, creates, and idempotently replays a confirmed booking without staff approval", async () => {
-    const { executor, repository, request } = await configuredWorkspace();
+  it("never presents or confirms synthetic slots as live availability", async () => {
+    const { executor, request } = await configuredWorkspace({
+      requireConnectedCalendar: true,
+    });
+
+    await expect(
+      executor({
+        request,
+        call: {
+          callId: "call-live-list-1",
+          name: "list_available_slots",
+          argumentsJson: '{"date":null}',
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "failed",
+      output: {
+        error_type: "provider_failed",
+        success: false,
+      },
+    });
+    await expect(
+      executor({
+        request,
+        call: {
+          callId: "call-live-create-1",
+          name: "create_booking",
+          argumentsJson: JSON.stringify({
+            slotIso: "2026-07-17T02:00:00.000Z",
+            reason: "Routine consultation",
+          }),
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "failed",
+      output: {
+        error_type: "provider_failed",
+        success: false,
+      },
+    });
+  });
+
+  it("lists, creates, enqueues calendar sync, and idempotently replays a confirmed booking", async () => {
+    const enqueue = vi.fn(
+      async (_job: Parameters<OutboxRepository["enqueue"]>[0]) => undefined,
+    );
+    const outboxRepository: OutboxRepository = {
+      claim: vi.fn(async () => []),
+      complete: vi.fn(async () => undefined),
+      enqueue,
+      retry: vi.fn(async () => "retrying" as const),
+    };
+    const { executor, repository, request } = await configuredWorkspace({
+      outboxRepository,
+    });
     const availability = await executor({
       request,
       call: {
@@ -110,6 +169,19 @@ describe("autonomous booking tools", () => {
       conversationRevision: 2,
       summary: "This autonomous action was already completed.",
     });
+    expect(enqueue).toHaveBeenCalledTimes(2);
+    expect(
+      new Set(enqueue.mock.calls.map(([job]) => job.dedupeKey)),
+    ).toEqual(new Set([`google:${request.conversation.id}:1`]));
+    expect(enqueue).toHaveBeenCalledWith({
+      workspaceId: "demo",
+      kind: "google_calendar_sync",
+      dedupeKey: `google:${request.conversation.id}:1`,
+      payload: {
+        conversationId: request.conversation.id,
+        bookingRevision: 1,
+      },
+    });
 
     const saved = await repository.load("demo");
     const conversation = saved?.state.conversations.find(
@@ -119,7 +191,7 @@ describe("autonomous booking tools", () => {
     expect(conversation?.booking?.slotIso).toBe(slotIso);
   });
 
-  it("supports the seeded Malay booking provider", async () => {
+  it("lists synthetic availability for the seeded Malay booking conversation", async () => {
     const { executor, request } = await configuredWorkspace();
     const availability = await executor({
       request,

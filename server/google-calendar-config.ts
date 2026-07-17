@@ -6,6 +6,11 @@ const disabledSchema = z.object({
   GOOGLE_CALENDAR_ENABLED: z.enum(["true", "false"]).default("false"),
 });
 
+const optionalLocationSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().trim().min(1).max(256).optional(),
+);
+
 const enabledSchema = z.object({
   GOOGLE_CALENDAR_ADMIN_TOKEN: z.string().trim().min(24).max(512),
   GOOGLE_CALENDAR_CLIENT_ID: z.string().trim().min(1).max(512),
@@ -15,6 +20,7 @@ const enabledSchema = z.object({
   GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: z.string().trim().min(1).max(512),
   GOOGLE_CALENDAR_TIME_ZONE: z.string().trim().min(1).max(128).default("Asia/Kuala_Lumpur"),
   CALENDAR_DEFAULT_DURATION_MINUTES: z.coerce.number().int().min(5).max(480).default(30),
+  CALENDAR_LOCATION: optionalLocationSchema,
 });
 
 export type GoogleCalendarConfig =
@@ -26,6 +32,7 @@ export type GoogleCalendarConfig =
       clientId: string;
       clientSecret: string;
       defaultDurationMinutes: number;
+      location: string | null;
       redirectUri: string;
       timeZone: string;
       tokenEncryptionKey: Buffer;
@@ -57,6 +64,7 @@ export function readGoogleCalendarConfig(
     clientId: parsed.GOOGLE_CALENDAR_CLIENT_ID,
     clientSecret: parsed.GOOGLE_CALENDAR_CLIENT_SECRET,
     defaultDurationMinutes: parsed.CALENDAR_DEFAULT_DURATION_MINUTES,
+    location: parsed.CALENDAR_LOCATION ?? null,
     redirectUri: parsed.GOOGLE_CALENDAR_REDIRECT_URI,
     timeZone: parsed.GOOGLE_CALENDAR_TIME_ZONE,
     tokenEncryptionKey: tokenKey(parsed.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY),

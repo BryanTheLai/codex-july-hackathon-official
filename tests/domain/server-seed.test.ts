@@ -8,7 +8,7 @@ describe("canonical server state", () => {
     const first = await createCanonicalServerState();
     const second = await createCanonicalServerState();
     const seedDataset = first.evalDatasets.find(
-      (dataset) => dataset.id === "dataset-seed",
+      (dataset) => dataset.id === "dataset-aircon-ops",
     )!;
 
     expect(serverDomainStateSchema.parse(first)).toEqual(first);

@@ -87,7 +87,7 @@ describe("workspace repository", () => {
     const suite = await freezeEvalSuiteSnapshot({
       state,
       suiteId: "suite-persisted",
-      datasetId: "dataset-seed",
+      datasetId: "dataset-aircon-ops",
       caseIds: [state.evalDatasets[0]!.cases[0]!.id],
       playbookVersionId: state.playbookHistory.activeVersionId,
       agentConfig: {

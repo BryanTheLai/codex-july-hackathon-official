@@ -2,10 +2,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ServerDomainStatePayload } from "../src/contracts/app-state";
+import { loadCompiledServerSeed } from "../src/domain/server-seed";
 import {
-  createCanonicalServerState,
-} from "../src/domain";
-import {
+  createSupabaseDemoSeedDataSource,
   createSupabaseServerClient,
   createSupabaseWorkspaceDataSource,
   readSupabaseConfig,
@@ -15,13 +14,26 @@ import {
   type WorkspaceRepository,
 } from "./workspace-repository";
 
+export const DEFAULT_DEMO_SEED_KEY = "msme-aircon-v1";
+
 export async function bootstrapDemo(
   repository: WorkspaceRepository,
   workspaceId: string,
-  createState: () => Promise<ServerDomainStatePayload> =
-    createCanonicalServerState,
+  createState: () => Promise<ServerDomainStatePayload> = loadBootstrapSeedState,
 ) {
   return repository.bootstrap(workspaceId, await createState());
+}
+
+export async function loadBootstrapSeedState(
+  seedKey: string = DEFAULT_DEMO_SEED_KEY,
+): Promise<ServerDomainStatePayload> {
+  const config = readSupabaseConfig();
+  const client = createSupabaseServerClient(config);
+  const seedDataSource = createSupabaseDemoSeedDataSource(client);
+  return loadCompiledServerSeed(
+    (key) => seedDataSource.readCompiled(key),
+    seedKey,
+  );
 }
 
 async function run(): Promise<void> {

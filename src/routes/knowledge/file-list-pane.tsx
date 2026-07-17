@@ -12,12 +12,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { GlossaryTerm } from "../../components/glossary-term";
 import type { Correction, PlaybookFile, PlaybookFileId } from "../../domain";
-import { pendingCount } from "./dream-model";
+import { pendingCount } from "./knowledge-model";
 
 const FILE_DEFINITIONS: Record<string, string> = {
-  "Malay booking": "Malay booking handles appointment requests in Malay.",
-  "Mandarin prescription": "Mandarin prescription verifies renewal requests in Mandarin.",
-  Triage: "Triage prioritizes urgent symptoms before routine requests.",
+  "Aircon rate card": "Fixed RM99 general service and RM160 chemical wash prices for supported units.",
+  "Aircon booking": "Collects symptoms, slots, and address before creating a confirmed booking.",
+  "Aircon service selection": "Chooses general service vs chemical wash from customer symptoms.",
 };
 
 function parentPath(path: string): string {
@@ -109,12 +109,12 @@ export function FileListPane({
     const open = expanded.has(path);
 
     return (
-      <div className="dream-tree__branch" key={path} role="none">
+      <div className="knowledge-tree__branch" key={path} role="none">
         <button
           aria-expanded={open}
           aria-level={level}
           aria-selected={selectedNodePath === path}
-          className="dream-tree__row dream-tree__row--folder"
+          className="knowledge-tree__row knowledge-tree__row--folder"
           onClick={() => toggleFolder(path)}
           role="treeitem"
           style={{ paddingInlineStart: `${8 + (level - 1) * 14}px` }}
@@ -144,7 +144,7 @@ export function FileListPane({
                   aria-description={definition}
                   aria-label={`${file.title}, ${basename(file.path)}`}
                   aria-selected={selectedNodePath === file.path}
-                  className="dream-tree__row dream-tree__row--file"
+                  className="knowledge-tree__row knowledge-tree__row--file"
                   key={file.id}
                   onClick={() => {
                     onSelectFolder(path);
@@ -156,7 +156,7 @@ export function FileListPane({
                   type="button"
                 >
                   <FileText aria-hidden="true" size={15} />
-                  <span className="dream-tree__file-copy">
+                  <span className="knowledge-tree__file-copy">
                     {definition ? (
                       <GlossaryTerm definition={definition} focusable={false}>
                         {file.title}
@@ -180,10 +180,10 @@ export function FileListPane({
   };
 
   return (
-    <nav aria-label="Playbook files" className="dream-files">
-      <header className="dream-pane-heading">
+    <nav aria-label="Playbook files" className="knowledge-files">
+      <header className="knowledge-pane-heading">
         <strong>Playbooks</strong>
-        <div aria-label="Explorer actions" className="dream-explorer-actions" role="group">
+        <div aria-label="Explorer actions" className="knowledge-explorer-actions" role="group">
           <button aria-label="New playbook file" onClick={onCreateFile} title="New file" type="button">
             <FilePlus2 aria-hidden="true" size={15} />
           </button>
@@ -205,7 +205,7 @@ export function FileListPane({
           </button>
         </div>
       </header>
-      <div aria-label="Playbook explorer" className="dream-files__tree" role="tree">
+      <div aria-label="Playbook explorer" className="knowledge-files__tree" role="tree">
         {renderFolder("playbooks", 1)}
       </div>
     </nav>

@@ -60,7 +60,7 @@ describe("v3 migration", () => {
             ...dataset,
             criteria: [
               {
-                id: "crit-emergency",
+                id: "crit-aircon-selection",
                 label: "Emergency services",
                 value: "999",
                 kind: "required_substring",
@@ -120,7 +120,10 @@ describe("v3 migration", () => {
 
     const migratedDataset = migrated.state.evalDatasets[0]!;
     expect(migrated.state.schemaVersion).toBe(4);
-    expect(migrated.state.conversations.find((item) => item.booking)?.booking?.revision).toBe(1);
+    const bookingConversation = migrated.state.conversations.find((item) => item.booking);
+    if (bookingConversation?.booking) {
+      expect(bookingConversation.booking.revision).toBe(1);
+    }
     expect(migratedDataset.criteria[0]).toMatchObject({
       required: true,
       version: 1,
@@ -157,7 +160,7 @@ describe("unknown or corrupt payload", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.conversations).toHaveLength(4);
+    expect(result.state.conversations).toHaveLength(3);
     expect(result.fallback).toBe("reseed");
   });
 });
@@ -216,13 +219,29 @@ describe("v1 migration", () => {
     const seed = createCanonicalSeed();
     const dataset = seed.evalDatasets[0]!;
 
-    const legacyCriteria = dataset.criteria.map((criterion) => ({
-      id: criterion.id,
-      label: criterion.label,
-      value: criterion.instruction,
-      kind: "required_substring" as const,
-      blocking: criterion.required,
-    }));
+    const legacyCriteria = [
+      {
+        id: "crit-emergency",
+        label: "Package selection",
+        value: "chemical wash",
+        kind: "required_substring" as const,
+        blocking: true,
+      },
+      {
+        id: "crit-booking",
+        label: "Explicit booking confirmation",
+        value: "confirm the slot",
+        kind: "required_substring" as const,
+        blocking: true,
+      },
+      {
+        id: "crit-prescription",
+        label: "Fixed rate card",
+        value: "RM99",
+        kind: "required_substring" as const,
+        blocking: true,
+      },
+    ];
     legacyCriteria.push({
       id: "crit-custom-legacy",
       label: "Custom legacy rule",
@@ -237,6 +256,23 @@ describe("v1 migration", () => {
       "case-prescription-train",
     ] as const;
 
+    const legacyCases = legacyCaseIds.map((caseId, index) => {
+      const titles = [
+        "Emergency triage train",
+        "Explicit booking confirmation",
+        "Malay general-service price",
+      ] as const;
+      const template = dataset.cases[index]!;
+      return {
+        id: caseId,
+        title: titles[index] ?? template.title,
+        split: template.split,
+        language: template.language,
+        inputConversation: template.inputConversation,
+        expectedHumanOutput: template.expectedHumanOutput,
+      };
+    });
+
     const v1 = {
       schemaVersion: 1 as const,
       serializedAt: "2026-07-08T08:00:00+08:00",
@@ -250,9 +286,7 @@ describe("v1 migration", () => {
             name: dataset.name,
             protected: dataset.protected,
             criteria: legacyCriteria,
-            cases: dataset.cases
-              .filter((evalCase) => legacyCaseIds.includes(evalCase.id as (typeof legacyCaseIds)[number]))
-              .map(({ type: _type, criterionIds: _criterionIds, ...evalCase }) => evalCase),
+            cases: legacyCases,
             runHistory: [],
           },
         ],

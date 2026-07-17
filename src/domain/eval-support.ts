@@ -86,31 +86,27 @@ export function applicableCriteria(dataset: AppState["evalDatasets"][number], ev
 
 export function playbookIdForConversation(conversation: Conversation): string {
   if (conversation.labels.includes("booking") || conversation.booking) {
-    return "file-malay-booking";
-  }
-  if (conversation.labels.includes("prescription")) {
-    return "file-mandarin-prescription";
+    return "file-aircon-booking";
   }
   if (
-    conversation.urgency === "emergency" ||
-    conversation.labels.includes("emergency") ||
-    conversation.labels.includes("triage")
+    conversation.labels.includes("package-selection") ||
+    (conversation.labels.includes("general") && conversation.labels.includes("aircon"))
   ) {
-    return "file-triage";
+    return "file-aircon-service-selection";
   }
-  return "file-triage";
+  return "file-aircon-rate-card";
 }
 
 export function playbookIdForCaseType(type: EvalCaseType): string {
   switch (type) {
     case "booking":
-      return "file-malay-booking";
-    case "prescription":
-      return "file-mandarin-prescription";
+      return "file-aircon-booking";
+    case "general":
+      return "file-aircon-service-selection";
     case "emergency_triage":
     case "lab_follow_up":
-    case "general":
-      return "file-triage";
+    case "prescription":
+      return "file-aircon-rate-card";
     default:
       return assertNever(type);
   }

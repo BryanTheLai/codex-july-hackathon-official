@@ -3,7 +3,7 @@ import { MoreHorizontal, Save, TestTube2 } from "lucide-react";
 
 import type { PlaybookFile } from "../../domain";
 
-export function DreamToolbar({
+export function KnowledgeToolbar({
   file,
   onDelete,
   onDiscard,
@@ -45,24 +45,36 @@ export function DreamToolbar({
   saving: boolean;
 }) {
   const dirty = file?.draft !== undefined;
+  const rollbackDisabledReason = release?.candidateVersionId
+    ? "Discard or activate the candidate before rollback"
+    : releaseBusy
+      ? "Release action in progress"
+      : dirty
+        ? "Save or discard draft changes before rollback"
+        : !release?.rollbackTargetVersionId
+          ? "Available after the first candidate is activated"
+          : null;
+  const rollbackEnabled = rollbackDisabledReason === null;
+  const rollbackLabel = rollbackEnabled ? "Roll back" : `Roll back: ${rollbackDisabledReason}`;
+
   return (
-    <header className="route-toolbar dream-toolbar">
-      <div className="dream-toolbar__identity">
-        <h1 id="dream-route-title">Knowledge</h1>
-        <span className="dream-toolbar__path">{file?.path ?? "No file selected"}</span>
+    <header className="route-toolbar knowledge-toolbar">
+      <div className="knowledge-toolbar__identity">
+        <h1 id="knowledge-route-title">Knowledge</h1>
+        <span className="knowledge-toolbar__path">{file?.path ?? "No file selected"}</span>
         <span>{pending} pending</span>
-        <span className={dirty ? "dream-state--dirty" : "dream-state--saved"}>
+        <span className={dirty ? "knowledge-state--dirty" : "knowledge-state--saved"}>
           {saving ? "Saving" : dirty ? "Unsaved" : "Saved"}
         </span>
         {release?.candidateVersionId ? (
-          <span className="dream-state--dirty">
+          <span className="knowledge-state--dirty">
             {release.candidateReady ? "Ready candidate" : "Inactive candidate"}
           </span>
         ) : null}
       </div>
-      <div className="dream-toolbar__actions">
+      <div className="knowledge-toolbar__actions">
         <button
-          className="dream-button"
+          className="knowledge-button"
           disabled={!dirty || saving}
           onClick={onSave}
           type="button"
@@ -70,25 +82,26 @@ export function DreamToolbar({
           <Save aria-hidden="true" size={15} />
           {saving ? "Saving" : "Save"}
         </button>
-        <button className="dream-button" disabled={!file} onClick={onTest} type="button">
+        <button className="knowledge-button" disabled={!file} onClick={onTest} type="button">
           <TestTube2 aria-hidden="true" size={15} />
-          Test Changes
+          Check saved text
         </button>
         {release?.candidateVersionId ? (
           <>
-            <button className="dream-button" disabled={releaseBusy} onClick={onReplayAffected} type="button">
-              Replay affected
+            <button className="knowledge-button" disabled={releaseBusy} onClick={onReplayAffected} type="button">
+              Replay affected train cases
             </button>
             <button
-              className="dream-button dream-release-action"
+              className="knowledge-button knowledge-release-action"
               disabled={releaseBusy}
               onClick={onReplayFull}
+              title="Runs affected train cases first, then all train and holdout cases."
               type="button"
             >
-              Full replay
+              Replay all eval cases
             </button>
             <button
-              className="dream-button dream-button--primary dream-release-action"
+              className="knowledge-button knowledge-button--primary knowledge-release-action"
               disabled={!release.candidateReady || releaseBusy}
               onClick={onActivate}
               type="button"
@@ -96,7 +109,7 @@ export function DreamToolbar({
               Activate
             </button>
             <button
-              className="dream-button dream-release-action"
+              className="knowledge-button knowledge-release-action"
               disabled={releaseBusy}
               onClick={onDiscardCandidate}
               type="button"
@@ -105,38 +118,43 @@ export function DreamToolbar({
             </button>
           </>
         ) : null}
-        {release?.rollbackTargetVersionId ? (
-          <button className="dream-button" disabled={dirty || releaseBusy} onClick={onRollback} type="button">
-            Roll back
-          </button>
-        ) : null}
+        <button
+          aria-label={rollbackLabel}
+          className="knowledge-button"
+          disabled={!rollbackEnabled}
+          onClick={onRollback}
+          title={rollbackDisabledReason ?? undefined}
+          type="button"
+        >
+          Roll back
+        </button>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button aria-label="More file actions" className="dream-button dream-toolbar__more" type="button">
+            <button aria-label="More file actions" className="knowledge-button knowledge-toolbar__more" type="button">
               <MoreHorizontal aria-hidden="true" size={16} />
               More
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
-            <DropdownMenu.Content align="end" className="dream-menu" sideOffset={4}>
+            <DropdownMenu.Content align="end" className="knowledge-menu" sideOffset={4}>
               {release?.candidateVersionId ? (
                 <>
                   <DropdownMenu.Item
-                    className="dream-menu__item dream-menu__release"
+                    className="knowledge-menu__item knowledge-menu__release"
                     disabled={releaseBusy}
                     onSelect={onReplayFull}
                   >
-                    Full replay
+                    Replay all eval cases
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
-                    className="dream-menu__item dream-menu__release"
+                    className="knowledge-menu__item knowledge-menu__release"
                     disabled={!release.candidateReady || releaseBusy}
                     onSelect={onActivate}
                   >
                     Activate candidate
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
-                    className="dream-menu__item dream-menu__item--risk dream-menu__release"
+                    className="knowledge-menu__item knowledge-menu__item--risk knowledge-menu__release"
                     disabled={releaseBusy}
                     onSelect={onDiscardCandidate}
                   >
@@ -144,28 +162,28 @@ export function DreamToolbar({
                   </DropdownMenu.Item>
                 </>
               ) : null}
-              <DropdownMenu.Item className="dream-menu__item" onSelect={onNew}>
+              <DropdownMenu.Item className="knowledge-menu__item" onSelect={onNew}>
                 New File
               </DropdownMenu.Item>
-              <DropdownMenu.Item className="dream-menu__item" onSelect={onImport}>
+              <DropdownMenu.Item className="knowledge-menu__item" onSelect={onImport}>
                 Import Markdown
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="dream-menu__item"
+                className="knowledge-menu__item"
                 disabled={!file}
                 onSelect={onRename}
               >
                 Rename
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="dream-menu__item dream-menu__item--risk"
+                className="knowledge-menu__item knowledge-menu__item--risk"
                 disabled={!file}
                 onSelect={onDelete}
               >
                 Delete
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="dream-menu__item"
+                className="knowledge-menu__item"
                 disabled={!dirty}
                 onSelect={onDiscard}
               >

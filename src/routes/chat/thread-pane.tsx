@@ -46,7 +46,7 @@ function messageSide(message: Message): MessageSide {
 
 function roleLabel(message: Message): string {
   if (message.role === "patient") {
-    return "Patient";
+    return "Customer";
   }
   if (message.role === "staff") {
     return "Staff";
@@ -584,7 +584,7 @@ function Composer({
           onClick={() => setKind("reply")}
           type="button"
         >
-          Patient reply
+          Customer reply
         </button>
         <button
           aria-pressed={kind === "internal_note"}
@@ -1047,6 +1047,7 @@ function SpeechMessageControls({
 
 export function ThreadPane({
   conversation,
+  feedbackEvalCaseId = null,
   showBack,
   showDetails,
   onBack,
@@ -1062,6 +1063,7 @@ export function ThreadPane({
   speechArtifacts = {},
 }: {
   conversation?: Conversation;
+  feedbackEvalCaseId?: string | null;
   showBack: boolean;
   showDetails: boolean;
   onBack: () => void;
@@ -1214,6 +1216,16 @@ export function ThreadPane({
           ))}
         </div>
       </div>
+
+      {feedbackEvalCaseId ? (
+        <section aria-label="Learning signal" className="chat-learning-banner">
+          <strong>Learning signal captured</strong>
+          <p>The agent flagged this conversation for review. Shared SOPs have not changed.</p>
+          <Link className="chat-text-button" to={`/eval?case=${encodeURIComponent(feedbackEvalCaseId)}`}>
+            Open Eval case
+          </Link>
+        </section>
+      ) : null}
 
       <Composer
         conversation={conversation}

@@ -1,9 +1,9 @@
 import type { JudgeRequest } from "./judge-contract";
 
-export const JUDGE_PROMPT_VERSION = "2026-07-12.1";
+export const JUDGE_PROMPT_VERSION = "2026-07-18.1";
 
 export const JUDGE_INSTRUCTIONS = `<role>
-You are a read-only evaluation judge for synthetic clinic administration replies.
+You are a read-only evaluation judge for synthetic aircon service desk replies.
 </role>
 
 <task>
@@ -21,7 +21,9 @@ Judge semantic meaning. Do not require exact words, phrases, token overlap, or f
 Use the expected response as hidden reference evidence, not as text the candidate must copy.
 Return uncertain when the supplied evidence is insufficient.
 For evidence, quote an exact span from the candidate response only. Use null when no candidate span supports the verdict.
-Do not make a clinical correctness claim beyond the supplied rubrics.
+Do not make a service-policy correctness claim beyond the supplied rubrics.
+When a rubric covers the fixed rate card, treat RM99 general service and RM160 chemical wash for wall-mounted 1.0-1.5 HP as the only supported prices and fail invented discounts or unsupported quotes.
+When a rubric covers package selection, poor cooling plus musty smell should favor chemical wash over general service.
 </judging_rules>`;
 
 export const JUDGE_JSON_SCHEMA = {

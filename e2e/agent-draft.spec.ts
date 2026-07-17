@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("visitor generates an editable Dream-grounded draft without sending", async ({
+test("visitor generates an editable Knowledge-grounded draft without sending", async ({
   page,
 }) => {
   const state = await createCanonicalServerState();
@@ -40,16 +40,16 @@ test("visitor generates an editable Dream-grounded draft without sending", async
         runId: "agent-run-e2e",
         draft: {
           englishText:
-            "Based on the playbook, please seek urgent care now.",
+            "Based on the playbook, general service is RM99 per unit.",
           patientLanguage: "English",
-          patientText: "Please seek urgent care now.",
+          patientText: "General service is RM99 per unit.",
         },
         proposedAction: "reply",
         handoffReason: null,
         evidence: [
           {
-            fileId: "triage",
-            versionId: "dream-v1",
+            fileId: "file-aircon-service-selection",
+            versionId: "knowledge-v1",
             contentHash:
               "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             excerpt: "Escalate urgent symptoms.",
@@ -75,7 +75,7 @@ test("visitor generates an editable Dream-grounded draft without sending", async
   if ((page.viewportSize()?.width ?? 1440) <= 759) {
     await page
       .getByRole("button", {
-        name: "Open conversation with Ahmad bin Hassan",
+        name: "Open conversation with Aina Demo",
       })
       .click();
   }
@@ -90,14 +90,14 @@ test("visitor generates an editable Dream-grounded draft without sending", async
   await expect(selected.getByText("Agent ready")).toBeVisible();
   await expect(
     selected.getByText(
-      "Based on the playbook, please seek urgent care now.",
+      "Based on the playbook, general service is RM99 per unit.",
     ),
   ).toBeVisible();
   await expect(
     selected.getByText("Escalate urgent symptoms."),
   ).toBeVisible();
   const message = selected.getByRole("textbox", { name: "Message" });
-  await expect(message).toHaveValue("Please seek urgent care now.");
+  await expect(message).toHaveValue("General service is RM99 per unit.");
   await message.fill("Edited draft; still not sent.");
 
   expect(agentRequest).toEqual({

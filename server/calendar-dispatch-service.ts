@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type ApiErrorCode } from "../src/contracts/api";
 import { CALENDAR_INVITATION_SENT_AUDIT_PREFIX } from "../src/contracts/calendar";
 import { type ChannelAdapter, type DeliveryReceipt } from "../src/contracts/channel";
+import { createAppointmentCalendarEvent } from "./calendar-event";
 import { createCalendarInvitation } from "./calendar-ics";
 import type {
   CalendarDeliveryRecord,
@@ -220,14 +221,22 @@ export function createCalendarDispatchService({
         );
       }
       const booking = conversation.booking;
-      if (!booking || booking.status !== "approved") {
+      if (
+        !booking ||
+        (booking.status !== "approved" && booking.status !== "cancelled")
+      ) {
         throw new CalendarDispatchError(
           "invalid_request",
-          "Calendar delivery requires an approved booking.",
+          "Calendar delivery requires an approved or cancelled booking.",
           false,
         );
       }
-      const start = new Date(booking.slotIso);
+      const event = createAppointmentCalendarEvent({
+        durationMinutes: config.defaultDurationMinutes,
+        location: config.location,
+        slotIso: booking.slotIso,
+      });
+      const start = new Date(event.startIso);
       if (Number.isNaN(start.valueOf()) || start <= now()) {
         throw new CalendarDispatchError(
           "invalid_request",
@@ -235,16 +244,13 @@ export function createCalendarDispatchService({
           false,
         );
       }
-      const end = new Date(start.valueOf() + config.defaultDurationMinutes * 60_000);
       const uid = calendarUid(workspaceId, conversation.id, config.uidDomain);
       const sequence = booking.revision - 1;
-      const kind = "publish" as const;
+      const kind = booking.status === "cancelled" ? "cancel" as const : "publish" as const;
       const content = createCalendarInvitation({
-        endIso: end.toISOString(),
+        ...event,
         kind,
-        location: config.location,
         sequence,
-        startIso: start.toISOString(),
         uid,
       });
       const id = requestId(uid, sequence, kind);

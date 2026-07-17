@@ -1,7 +1,7 @@
 import { Check, ExternalLink, X } from "lucide-react";
 
 import type { Correction, PlaybookFile } from "../../domain";
-import { correctionLine } from "./dream-model";
+import { correctionLine } from "./knowledge-model";
 
 export function ChangesPane({
   corrections,
@@ -23,8 +23,8 @@ export function ChangesPane({
   const pending = corrections.filter((correction) => correction.status === "pending").length;
 
   return (
-    <aside aria-label="Proposed changes" className="dream-changes">
-      <header className="dream-changes__heading">
+    <aside aria-label="Proposed changes" className="knowledge-changes">
+      <header className="knowledge-changes__heading">
         <div>
           <strong>Proposed changes</strong>
           <span>{file?.path ?? "No file selected"}</span>
@@ -35,14 +35,14 @@ export function ChangesPane({
         </div>
       </header>
       {file?.draft !== undefined ? (
-        <p className="dream-review-blocked" role="status">
+        <p className="knowledge-review-blocked" role="status">
           Save or discard the draft before reviewing corrections.
         </p>
       ) : null}
-      <div className="dream-changes__list">
-        {!file ? <div className="dream-empty">Select a file to review its changes.</div> : null}
+      <div className="knowledge-changes__list">
+        {!file ? <div className="knowledge-empty">Select a file to review its changes.</div> : null}
         {file && corrections.length === 0 ? (
-          <div className="dream-empty">No corrections for this file.</div>
+          <div className="knowledge-empty">No corrections for this file.</div>
         ) : null}
         {file
           ? corrections.map((correction) => {
@@ -52,8 +52,8 @@ export function ChangesPane({
               const pendingCorrection = correction.status === "pending";
               return (
                 <article
-                  className={`dream-correction dream-correction--${correction.status}${
-                    focusedCorrectionId === correction.id ? " dream-correction--focused" : ""
+                  className={`knowledge-correction knowledge-correction--${correction.status}${
+                    focusedCorrectionId === correction.id ? " knowledge-correction--focused" : ""
                   }`}
                   key={correction.id}
                 >
@@ -61,30 +61,30 @@ export function ChangesPane({
                     <>
                       <button
                         aria-label={`Focus correction at line ${line ?? correction.lineHint ?? "unknown"}`}
-                        className="dream-correction__focus-surface"
+                        className="knowledge-correction__focus-surface"
                         disabled={blocked || stale}
                         onClick={() => line && onFocus(correction, line)}
                         type="button"
                       >
                         <header>
                           <div>
-                            <span className={`dream-status dream-status--${correction.status}`}>
+                            <span className={`knowledge-status knowledge-status--${correction.status}`}>
                               {correction.status}
                             </span>
                             <strong>Line {line ?? correction.lineHint ?? "?"}</strong>
                           </div>
                         </header>
-                        <p className="dream-correction__evidence">{correction.evidence}</p>
-                        <div className="dream-diff dream-diff--old">
+                        <p className="knowledge-correction__evidence">{correction.evidence}</p>
+                        <div className="knowledge-diff knowledge-diff--old">
                           <code>- {correction.oldText}</code>
                         </div>
-                        <div className="dream-diff dream-diff--new">
+                        <div className="knowledge-diff knowledge-diff--new">
                           <code>+ {correction.newText}</code>
                         </div>
                       </button>
                       {correction.sourceCaseId ? (
                         <button
-                          className="dream-source-link"
+                          className="knowledge-source-link"
                           onClick={() => onOpenEval(correction.sourceCaseId!)}
                           type="button"
                         >
@@ -92,18 +92,18 @@ export function ChangesPane({
                           <ExternalLink aria-hidden="true" size={13} />
                         </button>
                       ) : (
-                        <span className="dream-correction__manual">Manual correction</span>
+                        <span className="knowledge-correction__manual">Manual correction</span>
                       )}
                       {stale ? (
-                        <p className="dream-stale" role="status">
+                        <p className="knowledge-stale" role="status">
                           Saved text no longer contains the proposed line. Re-run analysis to create a
                           fresh proposal; approval is intentionally disabled.
                         </p>
                       ) : null}
-                      <div className="dream-correction__actions">
+                      <div className="knowledge-correction__actions">
                         <button
                           aria-label={stale ? "Dismiss stale proposal" : "Reject correction"}
-                          className="dream-button"
+                          className="knowledge-button"
                           disabled={blocked}
                           onClick={() => onReject(correction)}
                           type="button"
@@ -113,7 +113,7 @@ export function ChangesPane({
                         </button>
                         <button
                           aria-label="Approve correction"
-                          className="dream-button dream-button--primary"
+                          className="knowledge-button knowledge-button--primary"
                           disabled={blocked || stale}
                           onClick={() => onApprove(correction)}
                           type="button"
@@ -126,20 +126,20 @@ export function ChangesPane({
                   ) : (
                     <button
                       aria-label={`Focus correction at line ${line ?? correction.lineHint ?? "unknown"}`}
-                      className="dream-correction__focus-surface"
+                      className="knowledge-correction__focus-surface"
                       disabled={line === null}
                       onClick={() => line && onFocus(correction, line)}
                       type="button"
                     >
                       <header>
                         <div>
-                          <span className={`dream-status dream-status--${correction.status}`}>
+                          <span className={`knowledge-status knowledge-status--${correction.status}`}>
                             {correction.status}
                           </span>
                           <strong>Line {line ?? correction.lineHint ?? "?"}</strong>
                         </div>
                       </header>
-                      <p className="dream-correction__decision">
+                      <p className="knowledge-correction__decision">
                         <span>- {correction.oldText}</span>
                         <span>+ {correction.newText}</span>
                       </p>

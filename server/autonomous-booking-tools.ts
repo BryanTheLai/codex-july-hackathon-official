@@ -13,9 +13,9 @@ import type {
   AgentToolExecutor,
 } from "./agent-service";
 import type { CalendarAvailability } from "./google-calendar-service";
+import type { OutboxRepository } from "./outbox-repository";
 import type { WorkspaceRepository } from "./workspace-repository";
 
-const PROVIDERS = ["Dr. Farah", "Dr. Lim", "Dr. Siti Rahman"] as const;
 const SLOT_TIMES = ["09:00", "10:30", "14:00", "15:30"] as const;
 const MAX_CAS_ATTEMPTS = 3;
 const KUALA_LUMPUR_TIME_ZONE = "Asia/Kuala_Lumpur";
@@ -46,7 +46,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     type: "function",
     name: "list_available_slots",
     description:
-      "Read current clinic appointment availability. Use this before creating or rescheduling a booking when you need a valid slot.",
+      "Read current service visit availability for wall-mounted 1.0-1.5 HP units. Use this before creating or rescheduling a booking when you need a valid slot.",
     strict: true,
     parameters: {
       type: "object",
@@ -56,7 +56,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
             { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
             { type: "null" },
           ],
-          description: "Requested local clinic date in YYYY-MM-DD, or null for the next available slots.",
+          description: "Requested local service date in YYYY-MM-DD, or null for the next available slots.",
         },
       },
       required: ["date"],
@@ -67,7 +67,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     type: "function",
     name: "create_booking",
     description:
-      "Create and confirm a new appointment immediately. Only use a slot returned by list_available_slots. This is an autonomous patient-facing action.",
+      "Create and confirm a new service visit immediately after the customer confirms slot and address. Only use a slot returned by list_available_slots. Quote only the fixed rate card (RM99 general service, RM160 chemical wash). This is an autonomous customer-facing action.",
     strict: true,
     parameters: {
       type: "object",
@@ -83,7 +83,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     type: "function",
     name: "reschedule_booking",
     description:
-      "Move the patient's already confirmed appointment to a returned available slot. This action is immediate and does not wait for staff approval.",
+      "Move the customer's already confirmed service visit to a returned available slot. This action is immediate and does not wait for operator approval.",
     strict: true,
     parameters: {
       type: "object",
@@ -99,7 +99,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     type: "function",
     name: "cancel_booking",
     description:
-      "Cancel the patient's already confirmed appointment immediately. Use only when the patient asks to cancel.",
+      "Cancel the customer's already confirmed service visit immediately. Use only when the customer asks to cancel.",
     strict: true,
     parameters: {
       type: "object",
@@ -112,7 +112,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
     type: "function",
     name: "flag_autonomous_action_wrong",
     description:
-      "Create a pending Eval candidate when the patient says an autonomous action or reply was wrong, unwanted, or needs correction. Decide from the conversation itself; do not use keyword matching or flag ordinary new requests.",
+      "Create a pending Eval candidate when the customer says an autonomous action or reply was wrong, unwanted, or needs correction. Decide from the conversation itself; do not use keyword matching or flag ordinary new requests.",
     strict: true,
     parameters: {
       type: "object",
@@ -121,7 +121,7 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
           type: "string",
           minLength: 1,
           maxLength: 500,
-          description: "A concise factual summary of why the patient says the autonomous outcome was wrong.",
+          description: "A concise factual summary of why the customer says the autonomous outcome was wrong.",
         },
       },
       required: ["reason"],
@@ -264,6 +264,8 @@ function isBookingToolName(name: string): name is BookingToolName {
 type AutonomousBookingToolOptions = {
   calendarAvailability?: CalendarAvailability;
   now?: () => Date;
+  outboxRepository?: OutboxRepository;
+  requireConnectedCalendar?: boolean;
   workspaceId: string;
   workspaceRepository: WorkspaceRepository;
 };
@@ -271,9 +273,23 @@ type AutonomousBookingToolOptions = {
 export function createAutonomousBookingToolExecutor({
   calendarAvailability,
   now = () => new Date(),
+  outboxRepository,
+  requireConnectedCalendar = false,
   workspaceId,
   workspaceRepository,
 }: AutonomousBookingToolOptions): AgentToolExecutor {
+  const enqueueCalendarSync = async (
+    conversationId: string,
+    bookingRevision: number,
+  ) => {
+    await outboxRepository?.enqueue({
+      workspaceId,
+      kind: "google_calendar_sync",
+      dedupeKey: `google:${conversationId}:${bookingRevision}`,
+      payload: { conversationId, bookingRevision },
+    });
+  };
+
   return async ({ call, request }) => {
     if (!isBookingToolName(call.name)) {
       return failure(
@@ -306,13 +322,18 @@ export function createAutonomousBookingToolExecutor({
         availability = calendarAvailability
           ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
           : { source: "demo", slots: demoSlots };
-      } catch (error) {
+      } catch {
         return failure(
           "provider_failed",
-          error instanceof Error
-            ? "Calendar availability could not be confirmed."
-            : "Calendar availability could not be confirmed.",
+          "Calendar availability could not be confirmed.",
           "Retry the availability lookup before offering a slot.",
+        );
+      }
+      if (requireConnectedCalendar && availability.source !== "google") {
+        return failure(
+          "provider_failed",
+          "Live booking requires a connected Google Calendar.",
+          "Ask staff to connect Google Calendar before offering a slot.",
         );
       }
       const slots = availability.slots;
@@ -370,6 +391,9 @@ export function createAutonomousBookingToolExecutor({
               : call.name === "cancel_booking"
                 ? "booking_cancelled"
                 : "feedback_flagged";
+        if (call.name !== "flag_autonomous_action_wrong" && conversation.booking) {
+          await enqueueCalendarSync(conversation.id, conversation.booking.revision);
+        }
         return success("This autonomous action was already completed.", {
           success: true,
           action,
@@ -532,6 +556,13 @@ export function createAutonomousBookingToolExecutor({
             "Retry the availability lookup before confirming a booking.",
           );
         }
+        if (requireConnectedCalendar && availability.source !== "google") {
+          return failure(
+            "provider_failed",
+            "Live booking requires a connected Google Calendar.",
+            "Ask staff to connect Google Calendar before confirming a booking.",
+          );
+        }
         const slots = availability.slots;
         if (!slots.some((slot) => slot.slotIso === argumentsValue.slotIso)) {
           return failure(
@@ -601,6 +632,7 @@ export function createAutonomousBookingToolExecutor({
       );
       if (saved.ok) {
         const savedConversation = saved.workspace.state.conversations[index]!;
+        await enqueueCalendarSync(savedConversation.id, nextBooking.revision);
         return success(auditText, {
           success: true,
           action,

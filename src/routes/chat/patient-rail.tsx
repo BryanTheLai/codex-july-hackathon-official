@@ -16,13 +16,11 @@ import {
 } from "./chat-model";
 
 const AVAILABLE_LABELS = [
+  "aircon",
   "booking",
-  "chest-pain",
-  "emergency",
-  "follow-up",
-  "lab-results",
-  "needs-review",
-  "prescription",
+  "general-service",
+  "package-selection",
+  "resolved",
 ] as const;
 
 function PatientIdentity({
@@ -82,20 +80,20 @@ function PatientIdentity({
   return (
     <section className="rail-section">
       <header className="rail-section__header">
-        <h3>Patient</h3>
+        <h3>Customer</h3>
         {!editing ? (
           <button className="chat-text-button" onClick={() => setEditing(true)} type="button">
             <Pencil aria-hidden="true" size={14} />
-            Edit patient
+            Edit customer
           </button>
         ) : null}
       </header>
       {editing ? (
         <div className="rail-form">
           <label>
-            Patient name
+            Customer name
             <input
-              aria-label="Patient name"
+              aria-label="Customer name"
               onChange={(event) => setValues({ ...values, name: event.target.value })}
               value={values.name}
             />
@@ -103,7 +101,7 @@ function PatientIdentity({
           <label>
             Phone
             <input
-              aria-label="Patient phone"
+              aria-label="Customer phone"
               onChange={(event) => setValues({ ...values, phone: event.target.value })}
               value={values.phone}
             />
@@ -132,7 +130,7 @@ function PatientIdentity({
               Cancel
             </button>
             <button className="chat-button chat-button--primary" onClick={save} type="button">
-              {saving ? "Saving" : "Save patient"}
+              {saving ? "Saving" : "Save customer"}
             </button>
           </div>
         </div>
@@ -144,14 +142,8 @@ function PatientIdentity({
           </div>
           <div>
             <dt>Phone</dt>
-            <dd>{conversation.patient.phone || "Not provided by patient"}</dd>
+            <dd>{conversation.patient.phone || "Not provided by customer"}</dd>
           </div>
-          {conversation.patient.medicalRecordNumber ? (
-            <div>
-              <dt>MRN</dt>
-              <dd>{conversation.patient.medicalRecordNumber}</dd>
-            </div>
-          ) : null}
           <div>
             <dt>Language</dt>
             <dd>{conversation.patient.preferredLanguage}</dd>
@@ -202,7 +194,7 @@ function BookingTimeline({ conversation }: { conversation: Conversation }) {
       state: confirmed ? "active" : "pending",
     },
     {
-      label: "Calendar invite sent",
+      label: cancelled ? "Calendar cancellation sent" : "Calendar invite sent",
       state: calendarSent ? "active" : "pending",
     },
   ];
@@ -231,7 +223,7 @@ export function PatientRail({
   onAddLabel,
   onCancelBooking,
   onClose,
-  onDream,
+  onKnowledge,
   onEditBooking,
   onEscalate,
   onImportEval,
@@ -244,7 +236,7 @@ export function PatientRail({
   onAddLabel: (label: string) => MutationResult;
   onCancelBooking: () => MutationResult | Promise<MutationResult>;
   onClose: () => void;
-  onDream: () => void;
+  onKnowledge: () => void;
   onEditBooking: () => void;
   onEscalate: () => MutationResult;
   onImportEval: () => MutationResult;
@@ -286,10 +278,10 @@ export function PatientRail({
   };
 
   return (
-    <aside aria-label="Patient context" className="chat-pane patient-rail">
+    <aside aria-label="Customer context" className="chat-pane patient-rail">
       <header className="chat-pane__header">
         <div>
-          <strong>Patient context</strong>
+          <strong>Customer context</strong>
           <span>{conversation.channel === "Telegram" ? "Telegram contact" : "Demo fixture"}</span>
         </div>
         {showClose ? (
@@ -303,7 +295,7 @@ export function PatientRail({
           </button>
         ) : null}
       </header>
-      <div aria-label="Patient details" className="chat-pane__scroll" tabIndex={0}>
+      <div aria-label="Customer details" className="chat-pane__scroll" tabIndex={0}>
         {error ? (
           <p className="chat-inline-error" role="alert">
             {error}
@@ -317,12 +309,12 @@ export function PatientRail({
 
         <section className="rail-section">
           <header className="rail-section__header">
-            <h3>{conversation.channel === "Telegram" ? "Triage guidance" : "Synthetic triage guidance"}</h3>
+            <h3>{conversation.channel === "Telegram" ? "Service notes" : "Synthetic service notes"}</h3>
           </header>
           <p className={conversation.urgency === "emergency" ? "rail-guidance--risk" : ""}>
             {triageGuidance(conversation)}
           </p>
-          <p className="rail-boundary">Guidance only. No patient or emergency service was contacted.</p>
+          <p className="rail-boundary">Guidance only. No customer or external service was contacted.</p>
         </section>
 
         {conversation.booking ? (
@@ -454,7 +446,7 @@ export function PatientRail({
             ) : (
               <ConfirmAction
                 confirmLabel="Confirm staff handoff"
-                description="This turns off the synthetic agent and keeps the thread with staff. This demo does not contact a nurse, ambulance, 999, or any external service."
+                description="Escalate unsupported requests to the owner. This demo does not contact emergency services."
                 onConfirm={() => {
                   run(onEscalate);
                 }}
@@ -512,7 +504,7 @@ export function PatientRail({
           {!importReady ? (
             <span className="rail-boundary">{importBlockedReason}</span>
           ) : null}
-          <button className="chat-button" onClick={onDream} type="button">
+          <button className="chat-button" onClick={onKnowledge} type="button">
             <ExternalLink aria-hidden="true" size={15} />
             Open routed playbook
           </button>

@@ -29,7 +29,7 @@ export function createFixtureJudgeClient(
       }
       const forcedVerdict = verdictByCase[request.caseId];
       const baselineRequiredFailure =
-        request.caseType === "emergency_triage" && request.candidateVersion === 1;
+        request.caseId === "case-aircon-selection-train" && request.candidateVersion === 1;
       const overallVerdict =
         forcedVerdict ?? (baselineRequiredFailure ? "fail" : "pass");
       const requiredVerdict: JudgeResponse["criterionResults"][number]["verdict"] =

@@ -88,7 +88,7 @@ function evalRun(
       rationale: "Pass",
       criterionResults: [
         {
-          criterionId: "crit-emergency",
+          criterionId: "crit-aircon-selection",
           verdict: "pass",
           reason: "Pass",
           evidence: `Server candidate for ${caseId}`,
@@ -99,7 +99,7 @@ function evalRun(
         model: judgeConfig.modelId,
         promptVersion: judgeConfig.promptVersion,
         rubricVersions: {
-          "crit-emergency": 1,
+          "crit-aircon-selection": 1,
         },
         runId: `eval-run-${caseId}-${attempt}`,
         latencyMs: 10,
@@ -196,13 +196,13 @@ describe("server-backed Eval browser orchestration", () => {
 
     const result = await store
       .getState()
-      .runEvalCase("case-emergency-train");
+      .runEvalCase("case-aircon-selection-train");
 
     expect(result.ok).toBe(true);
     expect(evalClient.createSuite).toHaveBeenCalledWith(
       expect.objectContaining({
-        datasetId: "dataset-seed",
-        caseIds: ["case-emergency-train"],
+        datasetId: "dataset-aircon-ops",
+        caseIds: ["case-aircon-selection-train"],
         expectedWorkspaceRevision: 1,
       }),
       undefined,
@@ -210,7 +210,7 @@ describe("server-backed Eval browser orchestration", () => {
     expect(evalClient.runCase).toHaveBeenCalledWith(
       expect.objectContaining({
         suiteId: "suite-browser",
-        caseId: "case-emergency-train",
+        caseId: "case-aircon-selection-train",
         expectedWorkspaceRevision: 2,
       }),
       undefined,
@@ -220,11 +220,11 @@ describe("server-backed Eval browser orchestration", () => {
       store
         .getState()
         .state.evalDatasets[0]!.cases.find(
-          (evalCase) => evalCase.id === "case-emergency-train",
+          (evalCase) => evalCase.id === "case-aircon-selection-train",
         ),
     ).toMatchObject({
       actualSyntheticOutput:
-        "Server candidate for case-emergency-train",
+        "Server candidate for case-aircon-selection-train",
       grade: {
         pass: true,
       },
@@ -233,12 +233,12 @@ describe("server-backed Eval browser orchestration", () => {
 
   it("runs cases sequentially and keeps committed evidence after the first failure", async () => {
     const { evalClient, store } = await setup({
-      failCaseId: "case-hours-holdout",
+      failCaseId: "case-aircon-rate-card-holdout",
     });
 
     const result = await store
       .getState()
-      .runEvalSuite("dataset-seed");
+      .runEvalSuite("dataset-aircon-ops");
 
     expect(result.ok).toBe(false);
     expect(evalClient.runCase).toHaveBeenCalledTimes(4);
@@ -247,26 +247,26 @@ describe("server-backed Eval browser orchestration", () => {
         ([request]) => request.caseId,
       ),
     ).toEqual([
-      "case-emergency-train",
-      "case-booking-train",
-      "case-prescription-train",
-      "case-hours-holdout",
+      "case-aircon-rate-card-train",
+      "case-aircon-selection-train",
+      "case-aircon-confirm-train",
+      "case-aircon-rate-card-holdout",
     ]);
     const dataset = store.getState().state.evalDatasets[0]!;
     expect(dataset.runHistory).toHaveLength(3);
     expect(
       dataset.cases.find(
-        (evalCase) => evalCase.id === "case-emergency-train",
+        (evalCase) => evalCase.id === "case-aircon-selection-train",
       )?.actualSyntheticOutput,
     ).toContain("Server candidate");
     expect(
       dataset.cases.find(
-        (evalCase) => evalCase.id === "case-hours-holdout",
+        (evalCase) => evalCase.id === "case-aircon-rate-card-holdout",
       )?.actualSyntheticOutput,
     ).toBeUndefined();
   });
 
-  it("preserves newer Chat and Dream state when server evidence arrives", async () => {
+  it("preserves newer Chat and Knowledge state when server evidence arrives", async () => {
     let releaseRun: (() => void) | undefined;
     const gate = new Promise<void>((resolve) => {
       releaseRun = resolve;
@@ -276,7 +276,7 @@ describe("server-backed Eval browser orchestration", () => {
     });
     const pending = store
       .getState()
-      .runEvalCase("case-emergency-train");
+      .runEvalCase("case-aircon-selection-train");
     await vi.waitFor(() =>
       expect(evalClient.runCase).toHaveBeenCalled(),
     );
@@ -289,8 +289,8 @@ describe("server-backed Eval browser orchestration", () => {
     store
       .getState()
       .setPlaybookDraft(
-        "file-triage",
-        "# Emergency triage\n\nNewer Dream state",
+        "file-aircon-service-selection",
+        "# Service selection\n\nNewer Knowledge state",
       );
     releaseRun?.();
     await expect(pending).resolves.toMatchObject({ ok: true });
@@ -304,22 +304,22 @@ describe("server-backed Eval browser orchestration", () => {
       store
         .getState()
         .state.playbookFiles.find(
-          (file) => file.id === "file-triage",
+          (file) => file.id === "file-aircon-service-selection",
         )?.draft,
-    ).toContain("Newer Dream state");
+    ).toContain("Newer Knowledge state");
   });
 
   it("rehydrates committed server attempts after a browser reload", async () => {
     const { evalClient, serverState, store } = await setup();
     const suite = await evalClient.createSuite({
-      datasetId: "dataset-seed",
-      caseIds: ["case-emergency-train"],
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
       playbookVersionId: serverState.playbookHistory.activeVersionId,
       expectedWorkspaceRevision: 1,
     });
     await evalClient.runCase({
       suiteId: suite.suiteId,
-      caseId: "case-emergency-train",
+      caseId: "case-aircon-selection-train",
       expectedWorkspaceRevision: suite.workspaceRevision,
     });
 
@@ -341,8 +341,8 @@ describe("server-backed Eval browser orchestration", () => {
     const suite = await freezeEvalSuiteSnapshot({
       state: serverState,
       suiteId: "suite-refresh-race",
-      datasetId: "dataset-seed",
-      caseIds: ["case-emergency-train"],
+      datasetId: "dataset-aircon-ops",
+      caseIds: ["case-aircon-selection-train"],
       playbookVersionId: serverState.playbookHistory.activeVersionId,
       agentConfig,
       judgeConfig,
@@ -352,11 +352,11 @@ describe("server-backed Eval browser orchestration", () => {
     const oldState = structuredClone(serverState);
     oldState.evalArtifacts.suites.push(suite);
     oldState.evalArtifacts.runs.push(
-      evalRun(suite.id, "case-emergency-train", 1),
+      evalRun(suite.id, "case-aircon-selection-train", 1),
     );
     const newState = structuredClone(oldState);
     newState.evalArtifacts.runs.push(
-      evalRun(suite.id, "case-emergency-train", 2),
+      evalRun(suite.id, "case-aircon-selection-train", 2),
     );
     const first = deferred<{
       workspaceId: string;
@@ -401,14 +401,14 @@ describe("server-backed Eval browser orchestration", () => {
       store
         .getState()
         .state.evalDatasets[0]!.cases.find(
-          (evalCase) => evalCase.id === "case-emergency-train",
+          (evalCase) => evalCase.id === "case-aircon-selection-train",
         )?.actualSyntheticOutput,
-    ).toBe("Server candidate for case-emergency-train");
+    ).toBe("Server candidate for case-aircon-selection-train");
     expect(
       store.getState().state.evalDatasets[0]!.runHistory.map((run) => run.id),
     ).toEqual([
-      "eval-run-case-emergency-train-1",
-      "eval-run-case-emergency-train-2",
+      "eval-run-case-aircon-selection-train-1",
+      "eval-run-case-aircon-selection-train-2",
     ]);
   });
 
@@ -433,7 +433,7 @@ describe("server-backed Eval browser orchestration", () => {
     const controller = new AbortController();
     const pending = store
       .getState()
-      .runEvalCase("case-emergency-train", {
+      .runEvalCase("case-aircon-selection-train", {
         signal: controller.signal,
       });
     await vi.waitFor(() =>
@@ -458,11 +458,11 @@ describe("server-backed Eval browser orchestration", () => {
     });
     const pending = store
       .getState()
-      .runEvalCase("case-emergency-train");
+      .runEvalCase("case-aircon-rate-card-train");
     await vi.waitFor(() =>
       expect(evalClient.runCase).toHaveBeenCalled(),
     );
-    store.getState().editCase("case-emergency-train", {
+    store.getState().editCase("case-aircon-rate-card-train", {
       title: "Newer local Eval definition",
     });
 
@@ -493,12 +493,12 @@ describe("server-backed Eval browser orchestration", () => {
 
     const result = await store
       .getState()
-      .runEvalSuite("dataset-seed");
+      .runEvalSuite("dataset-aircon-ops");
 
     expect(result).toMatchObject({
       ok: false,
       error:
-        "Run Suite supports server-synced seed cases only. Run local HITL or manual cases individually.",
+        "Run all cases supports server-synced seed cases only. Run local HITL or manual cases individually.",
     });
     expect(evalClient.createSuite).not.toHaveBeenCalled();
   });

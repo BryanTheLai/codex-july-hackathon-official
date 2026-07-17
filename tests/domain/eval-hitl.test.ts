@@ -11,7 +11,7 @@ import {
   type AppState,
 } from "../../src/domain";
 
-const SEED_DATASET_ID = "dataset-seed";
+const SEED_DATASET_ID = "dataset-aircon-ops";
 
 function seedDataset(state: AppState) {
   return state.evalDatasets.find((d) => d.id === SEED_DATASET_ID)!;
@@ -23,7 +23,7 @@ function selectedDataset(state: AppState) {
 
 function addBookingHumanReview(state: AppState) {
   const result = sendStaffReply(state, {
-    conversationId: "convo-booking",
+    conversationId: "convo-aircon-booking",
     text: "A human reviewer confirmed the requested appointment details.",
     kind: "reply",
   });
@@ -35,7 +35,7 @@ function addBookingHumanReview(state: AppState) {
 describe("HITL import", () => {
   it("rejects an unresolved conversation even when it has a staff reply", () => {
     const seed = addBookingHumanReview(createCanonicalSeed());
-    const source = seed.conversations.find((conversation) => conversation.id === "convo-booking")!;
+    const source = seed.conversations.find((conversation) => conversation.id === "convo-aircon-booking")!;
 
     expect(source.workflowStatus).toBe("in_progress");
     expect(source.messages.some((message) => message.role === "staff")).toBe(true);
@@ -52,16 +52,16 @@ describe("HITL import", () => {
     const seed = createCanonicalSeed();
     const reviewed = addBookingHumanReview(seed);
     const bookingReviewId = reviewed.conversations
-      .find((conversation) => conversation.id === "convo-booking")!
+      .find((conversation) => conversation.id === "convo-aircon-booking")!
       .messages.at(-1)!.id;
-    const resolvedBooking = resolveConversation(reviewed, "convo-booking");
+    const resolvedBooking = resolveConversation(reviewed, "convo-aircon-booking");
     expect(resolvedBooking.ok).toBe(true);
     if (!resolvedBooking.ok) return;
     const beforeCases = seedDataset(resolvedBooking.state).cases.length;
 
     const result = importHitlConversations(resolvedBooking.state, [
-      "convo-resolved",
-      "convo-booking",
+      "convo-aircon-resolved",
+      "convo-aircon-booking",
     ]);
 
     expect(result.ok).toBe(true);
@@ -69,19 +69,19 @@ describe("HITL import", () => {
     const imported = seedDataset(result.state).cases.slice(beforeCases);
     expect(imported).toHaveLength(2);
     expect(imported.map((evalCase) => evalCase.sourceConversationId)).toEqual([
-      "convo-resolved",
-      "convo-booking",
+      "convo-aircon-resolved",
+      "convo-aircon-booking",
     ]);
     expect(imported.map((evalCase) => evalCase.source)).toEqual([
       {
         kind: "hitl",
-        conversationId: "convo-resolved",
-        messageIds: ["rs-1", "rs-2"],
+        conversationId: "convo-aircon-resolved",
+        messageIds: ["resolved-1", "resolved-2"],
       },
       {
         kind: "hitl",
-        conversationId: "convo-booking",
-        messageIds: ["bk-1", "bk-2", bookingReviewId],
+        conversationId: "convo-aircon-booking",
+        messageIds: ["book-1", "book-2", bookingReviewId],
       },
     ]);
   });
@@ -90,7 +90,7 @@ describe("HITL import", () => {
     const seed = createCanonicalSeed();
     const beforeCases = seedDataset(seed).cases;
 
-    const result = importHitlConversations(seed, ["convo-resolved", "convo-booking"]);
+    const result = importHitlConversations(seed, ["convo-aircon-resolved", "convo-aircon-booking"]);
 
     expect(result.ok).toBe(false);
     expect(seedDataset(result.state).cases).toEqual(beforeCases);
@@ -98,7 +98,7 @@ describe("HITL import", () => {
 
   it("imports latest staff reply into one train case with separate expected output", () => {
     const seed = createCanonicalSeed();
-    const source = seed.conversations.find((c) => c.id === "convo-resolved")!;
+    const source = seed.conversations.find((c) => c.id === "convo-aircon-resolved")!;
     const staff = [...source.messages].reverse().find((m) => m.role === "staff")!;
 
     const result = importHitlFromConversation(seed, source.id);
@@ -117,7 +117,7 @@ describe("HITL import", () => {
   it("uses latest staff text as expected output and excludes it from imported input", () => {
     const seed = createCanonicalSeed();
     const reviewed = addBookingHumanReview(seed);
-    const source = reviewed.conversations.find((c) => c.id === "convo-booking")!;
+    const source = reviewed.conversations.find((c) => c.id === "convo-aircon-booking")!;
     const staff = [...source.messages].reverse().find((m) => m.role === "staff")!;
     const preceding = source.messages.filter(
       (message) => message.role !== "system" && message.id !== staff.id,
@@ -140,7 +140,7 @@ describe("HITL import", () => {
 
   it("imports language from the latest staff message not patient preferred language", () => {
     const seed = createCanonicalSeed();
-    const source = seed.conversations.find((c) => c.id === "convo-booking")!;
+    const source = seed.conversations.find((c) => c.id === "convo-aircon-booking")!;
     expect(source.patient.preferredLanguage).toBe("Malay");
 
     const replied = sendStaffReply(seed, {
@@ -172,7 +172,7 @@ describe("HITL import", () => {
 
   it("rejects duplicate fingerprint of input message ids plus expected staff text", () => {
     const seed = createCanonicalSeed();
-    const source = seed.conversations.find((c) => c.id === "convo-resolved")!;
+    const source = seed.conversations.find((c) => c.id === "convo-aircon-resolved")!;
 
     const first = importHitlFromConversation(seed, source.id);
     expect(first.ok).toBe(true);
@@ -187,7 +187,7 @@ describe("HITL import", () => {
 
   it("returns typed error when conversation has no staff reply", () => {
     const seed = createCanonicalSeed();
-    const source = seed.conversations.find((c) => c.id === "convo-emergency")!;
+    const source = seed.conversations.find((c) => c.id === "convo-aircon-complaint")!;
     expect(source.messages.some((message) => message.role === "staff")).toBe(false);
     const resolved = resolveConversation(seed, source.id);
     expect(resolved.ok).toBe(true);
@@ -224,15 +224,15 @@ describe("HITL criterion assignment", () => {
     expect(customCriterion).toBeDefined();
 
     const reviewed = addBookingHumanReview(withBookingCriterion.state);
-    const resolvedBooking = resolveConversation(reviewed, "convo-booking");
+    const resolvedBooking = resolveConversation(reviewed, "convo-aircon-booking");
     expect(resolvedBooking.ok).toBe(true);
     if (!resolvedBooking.ok) return;
-    const bookingImport = importHitlFromConversation(resolvedBooking.state, "convo-booking");
+    const bookingImport = importHitlFromConversation(resolvedBooking.state, "convo-aircon-booking");
     expect(bookingImport.ok).toBe(true);
     if (!bookingImport.ok) return;
 
     const importedBooking = selectedDataset(bookingImport.state).cases.find((evalCase) =>
-      evalCase.title.includes("Nurul Aisyah"),
+      evalCase.title.includes("Aina Demo"),
     );
     expect(importedBooking?.criterionIds).toContain(customCriterion!.id);
 

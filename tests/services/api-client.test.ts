@@ -51,15 +51,15 @@ const agentResult = {
 };
 
 const evalSuiteRequest: EvalSuiteCreateRequest = {
-  datasetId: "dataset-seed",
-  caseIds: ["case-emergency-train"],
+  datasetId: "dataset-aircon-ops",
+  caseIds: ["case-aircon-selection-train"],
   playbookVersionId: "playbook-version-1",
   expectedWorkspaceRevision: 1,
 };
 
 const evalCaseRequest: EvalCaseRunRequest = {
   suiteId: "suite-1",
-  caseId: "case-emergency-train",
+  caseId: "case-aircon-selection-train",
   expectedWorkspaceRevision: 2,
 };
 
@@ -291,7 +291,7 @@ describe("HTTP Eval client", () => {
         new Response(
           JSON.stringify({
             suiteId: "suite-1",
-            caseId: "case-emergency-train",
+            caseId: "case-aircon-selection-train",
             attempt: 1,
             status: "committed",
             evalRunId: "eval-run-1",
@@ -316,7 +316,7 @@ describe("HTTP Eval client", () => {
     });
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
-      "/api/eval/suites/suite-1/cases/case-emergency-train/run",
+      "/api/eval/suites/suite-1/cases/case-aircon-selection-train/run",
       expect.objectContaining({
         body: JSON.stringify(evalCaseRequest),
         method: "POST",

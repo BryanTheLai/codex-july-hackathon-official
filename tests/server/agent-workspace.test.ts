@@ -57,7 +57,7 @@ describe("agent workspace request builder", () => {
     );
   });
 
-  it("rejects a missing active Dream bundle", async () => {
+  it("rejects a missing active Knowledge bundle", async () => {
     const { request, state } = await fixture();
     state.playbookHistory.activeVersionId = "missing-version";
 
@@ -82,7 +82,7 @@ describe("agent workspace request builder", () => {
         version.id === state.playbookHistory.activeVersionId,
     );
     if (!active?.files[0]) {
-      throw new Error("Canonical state is missing an active Dream file");
+      throw new Error("Canonical state is missing an active Knowledge file");
     }
     active.files[0].content = "";
 

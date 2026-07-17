@@ -1,7 +1,7 @@
 import { ExternalLink, Play, RotateCcw, X } from "lucide-react";
 
 import type { Correction, PlaybookFile } from "../../domain";
-import { correctionLine, type TestDockState } from "./dream-model";
+import { correctionLine, type TestDockState } from "./knowledge-model";
 
 export function TestDock({
   corrections,
@@ -25,17 +25,17 @@ export function TestDock({
   const result = state.status === "complete" ? state.result : null;
   const stale = state.status === "complete" ? state.stale : false;
   return (
-    <section aria-label="Test Changes results" className="dream-test-dock">
+    <section aria-label="Saved text check results" className="knowledge-test-dock">
       <header>
         <div>
           <Play aria-hidden="true" size={15} />
-          <strong>Test Changes</strong>
+          <strong>Check saved text</strong>
           <span>Saved-text verification</span>
         </div>
         <div>
           {datasetId ? (
             <button
-              className="dream-source-link"
+              className="knowledge-source-link"
               onClick={() => onOpenDataset(datasetId)}
               type="button"
             >
@@ -44,19 +44,19 @@ export function TestDock({
             </button>
           ) : null}
           {state.status === "complete" || state.status === "error" ? (
-            <button className="dream-button" onClick={onRun} type="button">
+            <button className="knowledge-button" onClick={onRun} type="button">
               <RotateCcw aria-hidden="true" size={14} />
               Run Again
             </button>
           ) : null}
-          <button aria-label="Close Test Changes" className="dream-icon-button" onClick={onClose} type="button">
+          <button aria-label="Close saved text check" className="knowledge-icon-button" onClick={onClose} type="button">
             <X aria-hidden="true" size={16} />
           </button>
         </div>
       </header>
-      <div className="dream-test-dock__body">
+      <div className="knowledge-test-dock__body">
         {state.status === "preparing" || state.status === "running" ? (
-          <div className="dream-test-progress" role="status">
+          <div className="knowledge-test-progress" role="status">
             <strong>
               {state.status === "preparing"
                 ? "Preparing saved-text verification"
@@ -67,18 +67,18 @@ export function TestDock({
           </div>
         ) : null}
         {state.status === "error" ? (
-          <p className="dream-inline-error" role="alert">{state.message}</p>
+          <p className="knowledge-inline-error" role="alert">{state.message}</p>
         ) : null}
         {result ? (
           <>
-            <div className="dream-test-summary">
+            <div className="knowledge-test-summary">
               <strong>{result.passed} passed</strong>
               <span>{result.evaluated} evaluated</span>
               <span>{result.pending} pending</span>
               <span>{result.rejected} rejected</span>
               {stale ? <b>Stale after save. Run again.</b> : null}
             </div>
-            <ul className="dream-test-results">
+            <ul className="knowledge-test-results">
               {result.details.map((detail) => {
                 const correction = corrections.find(
                   (candidate) => candidate.id === detail.correctionId,
@@ -100,13 +100,13 @@ export function TestDock({
                     <header>
                       <strong>{line ? `Line ${line}` : detail.correctionId}</strong>
                       <span>
-                        <b className={`dream-result dream-result--${detail.result}`}>
+                        <b className={`knowledge-result knowledge-result--${detail.result}`}>
                           {detail.result}
                         </b>
                         {correction?.sourceCaseId ? (
                           <button
                             aria-label={`Open Eval case ${correction.sourceCaseId}`}
-                            className="dream-source-link"
+                            className="knowledge-source-link"
                             onClick={() => onOpenEval(correction.sourceCaseId!)}
                             type="button"
                           >
@@ -117,7 +117,7 @@ export function TestDock({
                       </span>
                     </header>
                     {correction ? (
-                      <div className="dream-test-result__comparison">
+                      <div className="knowledge-test-result__comparison">
                         <span>
                           <small>Before</small>
                           <code>{correction.oldText}</code>
@@ -136,7 +136,7 @@ export function TestDock({
                 );
               })}
             </ul>
-            <p className="dream-test-boundary">{result.boundaryNote}</p>
+            <p className="knowledge-test-boundary">{result.boundaryNote}</p>
           </>
         ) : null}
       </div>

@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("Chat HITL evidence reaches human-approved Dream text verification", async ({
+test("Chat HITL evidence reaches human-approved Knowledge text verification", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440", "Cross-route flow runs once on desktop.");
@@ -25,7 +25,7 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Open conversation with Nurul Aisyah" }).click();
+  await page.getByRole("button", { name: "Open conversation with Aina Demo" }).click();
   await page.getByRole("textbox", { name: "Message" }).fill(
     "Bring your identity card fifteen minutes before arrival.",
   );
@@ -41,12 +41,12 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
   await page.getByRole("button", { name: "Add resolved conversation to Evals" }).click();
   const importDialog = page.getByRole("dialog", { name: "Import resolved conversations" });
   await expect(
-    importDialog.getByRole("checkbox", { name: /Nurul Aisyah, Ready/ }),
+    importDialog.getByRole("checkbox", { name: /Aina Demo, Ready/ }),
   ).toBeChecked();
   await importDialog.getByRole("button", { name: "Import 1 conversation" }).click();
 
   let evidence = page.getByRole("dialog", { name: "Case details" });
-  await expect(evidence).toContainText("HITL Nurul Aisyah");
+  await expect(evidence).toContainText("HITL Aina Demo");
   await expect(evidence).toContainText("The agent never sees this reply during replay.");
   await evidence.getByRole("button", { name: "Run case" }).click();
   await expect(evidence).toContainText("Fail");
@@ -54,12 +54,12 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
 
   await page.getByRole("button", { name: "Analyze failures" }).click();
   const analysis = page.getByRole("complementary", { name: "Analyze failures" });
-  await expect(analysis).toContainText("HITL Nurul Aisyah");
+  await expect(analysis).toContainText("HITL Aina Demo");
   await analysis.getByRole("button", { name: "Start analysis" }).click();
   await expect(analysis).toContainText("Analysis complete.");
   await analysis.getByRole("button", { name: "Close analysis" }).click();
 
-  await page.getByRole("row", { name: /HITL Nurul Aisyah/ }).click();
+  await page.getByRole("row", { name: /HITL Aina Demo/ }).click();
   evidence = page.getByRole("dialog", { name: "Case details" });
   const linkedCorrection = evidence.locator(".eval-linked-correction");
   await expect(linkedCorrection).toContainText("pending");
@@ -68,10 +68,10 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
   );
   await linkedCorrection.click();
 
-  await expect(page.getByRole("heading", { name: "Dream" })).toBeVisible();
-  const focusedCorrection = page.locator(".dream-correction--focused");
+  await expect(page.getByRole("heading", { name: "Knowledge" })).toBeVisible();
+  const focusedCorrection = page.locator(".knowledge-correction--focused");
   await expect(focusedCorrection).toContainText("pending");
-  const proposedText = (await focusedCorrection.locator(".dream-diff--new code").textContent())
+  const proposedText = (await focusedCorrection.locator(".knowledge-diff--new code").textContent())
     ?.replace(/^\+\s*/, "") ?? "";
   await focusedCorrection.getByRole("button", { name: "Approve correction" }).click();
   await expect(focusedCorrection).toContainText("approved");
@@ -79,8 +79,8 @@ test("Chat HITL evidence reaches human-approved Dream text verification", async 
     proposedText,
   );
 
-  await page.getByRole("button", { name: "Test Changes" }).click();
-  const dock = page.getByRole("region", { name: "Test Changes results" });
+  await page.getByRole("button", { name: "Check saved text" }).click();
+  const dock = page.getByRole("region", { name: "Saved text check results" });
   await expect(dock).toContainText("1 passed");
   await expect(dock).toContainText("Evaluation Lab scores stay separate");
   await expectNoDocumentOverflow(page);
@@ -93,31 +93,31 @@ test("mobile cross-route workbenches restore their last focused pane", async ({
   test.skip(testInfo.project.name === "desktop-1440", "Mobile pane restoration only.");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Open conversation with Nurul Aisyah" }).click();
+  await page.getByRole("button", { name: "Open conversation with Aina Demo" }).click();
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Open routed playbook" }).click();
 
-  await expect(page.getByRole("heading", { name: "Dream" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Knowledge" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Editor" })).toHaveAttribute("aria-selected", "true");
 
   await page.getByRole("link", { name: "Chat Control" }).click();
-  await expect(page.getByRole("complementary", { name: "Patient context" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Customer context" })).toBeVisible();
 
   await page.getByRole("button", { name: "Reset Demo" }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "Patient context" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Customer context" })).toBeVisible();
   await page.getByRole("button", { name: "Reset Demo" }).click();
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByRole("region", { name: "Conversation queue" })).toBeVisible();
 
-  await page.goto("/dream?correction=corr-triage");
+  await page.goto("/knowledge?correction=corr-aircon-selection");
   await expect(page.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "Eval case case-emergency-train" }).click();
+  await page.getByRole("button", { name: "Eval case case-aircon-selection-train" }).click();
   await expect(page.getByRole("dialog", { name: "Case details" })).toBeVisible();
 
   await page.goBack();
   await expect(page.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".dream-correction--focused")).toContainText(
-    "Call 999 guidance for chest pain with sweating.",
+  await expect(page.locator(".knowledge-correction--focused")).toContainText(
+    "If a wall-mounted 1.0-1.5 HP unit has both poor cooling and a musty smell, recommend the RM160 chemical wash. Do not quote the RM99 general service.",
   );
 });

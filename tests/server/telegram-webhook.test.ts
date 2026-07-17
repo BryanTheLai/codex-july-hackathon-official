@@ -265,16 +265,25 @@ describe("Telegram webhook", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("sends the agent's autonomous handoff acknowledgement", async () => {
+  it("sends the handoff acknowledgement, persists the reason, and pauses autopilot", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    const send = vi.fn(async () => ({
-      deliveryIds: ["agent-auto-handoff-delivery"],
-      status: "sent" as const,
-      text: {
-        acceptedAt: "2026-07-13T12:00:00.000Z",
-        providerMessageId: "124",
-      },
-    }));
+    let workspaceRepository: WorkspaceRepository | null = null;
+    const send = vi.fn(async () => {
+      const workspace = await workspaceRepository?.load("demo");
+      const conversation = workspace?.state.conversations.find(
+        (candidate) => candidate.id === "telegram-conversation:-10042",
+      );
+      expect(conversation?.agentMode).toBe("live_agent");
+      return {
+        conversationRevision: conversation?.revision ?? 1,
+        deliveryIds: ["agent-auto-handoff-delivery"],
+        status: "sent" as const,
+        text: {
+          acceptedAt: "2026-07-13T12:00:00.000Z",
+          providerMessageId: "124",
+        },
+      };
+    });
     const outbound: TelegramOutboundService = {
       attachRecordedVoice: vi.fn(),
       prepareVoice: vi.fn(),
@@ -282,7 +291,7 @@ describe("Telegram webhook", () => {
       reconcile: vi.fn(),
       send,
     };
-    const { baseUrl } = await configuredServer({
+    const configured = await configuredServer({
       agent: {
         agentConfigVersion: "auto-agent-v1",
         liveEnabled: true,
@@ -305,8 +314,9 @@ describe("Telegram webhook", () => {
       autoReplyEnabled: true,
       outbound,
     });
+    workspaceRepository = configured.workspaceRepository;
 
-    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    expect((await postWebhook(configured.baseUrl, update)).status).toBe(200);
     await vi.waitFor(() =>
       expect(info).toHaveBeenCalledWith(
         expect.stringContaining('"event":"telegram_auto_reply_handoff"'),
@@ -317,6 +327,21 @@ describe("Telegram webhook", () => {
       expect.objectContaining({
         approvedPatientText: "Seorang staf akan membantu.",
         conversationId: "telegram-conversation:-10042",
+      }),
+    );
+    const saved = await workspaceRepository.load("demo");
+    const conversation = saved?.state.conversations.find(
+      (candidate) => candidate.id === "telegram-conversation:-10042",
+    );
+    expect(conversation).toMatchObject({
+      agentMode: "staff_only",
+      labels: expect.arrayContaining(["staff-handoff"]),
+      workflowStatus: "in_progress",
+    });
+    expect(conversation?.messages).toContainEqual(
+      expect.objectContaining({
+        role: "system",
+        text: "Staff handoff requested: Needs staff review",
       }),
     );
     info.mockRestore();
@@ -351,9 +376,9 @@ describe("Telegram webhook", () => {
     };
     const run = vi.fn(async (): Promise<AgentRunResult> => ({
       draft: {
-        englishText: "Appointment confirmed with Dr Lim tomorrow at 3:30 PM.",
+        englishText: "Appointment confirmed tomorrow at 3:30 PM.",
         patientLanguage: "Malay",
-        patientText: "Temu janji dengan Dr Lim disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
+        patientText: "Temu janji disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
       },
       evidence: [],
       handoffReason: null,
@@ -408,7 +433,7 @@ describe("Telegram webhook", () => {
     );
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
-        approvedPatientText: "Temu janji dengan Dr Lim disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
+        approvedPatientText: "Temu janji disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
         conversationId: "telegram-conversation:-10042",
         expectedConversationRevision: 2,
         mode: "both",

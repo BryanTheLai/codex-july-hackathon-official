@@ -3,7 +3,6 @@ import {
   Beaker,
   ChevronDown,
   FlaskConical,
-  Import,
   MoreHorizontal,
   Plus,
   Square,
@@ -19,6 +18,7 @@ export function EvalToolbar({
   suiteRunning,
   suiteBlocked,
   suiteBlockedReason,
+  showHistory,
   onAddCase,
   onCancelSuite,
   onDeleteDataset,
@@ -38,6 +38,7 @@ export function EvalToolbar({
   suiteRunning: boolean;
   suiteBlocked: boolean;
   suiteBlockedReason?: string;
+  showHistory: boolean;
   onAddCase: () => void;
   onCancelSuite: () => void;
   onDeleteDataset: () => void;
@@ -83,6 +84,17 @@ export function EvalToolbar({
           <span className="eval-label-full">New manual test</span>
           <span className="eval-label-compact">+ Test</span>
         </button>
+        <button
+          aria-label="Analyze failures"
+          className="eval-button"
+          disabled={operationBlocked}
+          onClick={onAnalyze}
+          type="button"
+        >
+          <Beaker aria-hidden="true" size={15} />
+          <span className="eval-label-full">Analyze failures</span>
+          <span className="eval-label-compact">Analyze</span>
+        </button>
         {suiteRunning ? (
           <button
             className="eval-button eval-button--risk"
@@ -94,7 +106,7 @@ export function EvalToolbar({
           </button>
         ) : (
           <button
-            aria-label="Run Suite"
+            aria-label="Run all cases"
             className={`eval-button${caseSelected ? "" : " eval-button--primary"}`}
             disabled={suiteBlocked}
             onClick={onRunSuite}
@@ -106,8 +118,8 @@ export function EvalToolbar({
             type="button"
           >
             <FlaskConical aria-hidden="true" size={15} />
-            <span className="eval-label-full">Run Suite</span>
-            <span className="eval-label-compact">Suite</span>
+            <span className="eval-label-full">Run all cases</span>
+            <span className="eval-label-compact">Run all</span>
           </button>
         )}
         <DropdownMenu.Root>
@@ -125,9 +137,6 @@ export function EvalToolbar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" className="eval-menu" sideOffset={4}>
-              <DropdownMenu.Item className="eval-menu__item" onSelect={onAnalyze}>
-                Analyze failures
-              </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="eval-menu__item eval-menu__import"
                 onSelect={onImport}
@@ -147,9 +156,11 @@ export function EvalToolbar({
               <DropdownMenu.Item className="eval-menu__item" onSelect={onEditCriteria}>
                 Scoring rules
               </DropdownMenu.Item>
-              <DropdownMenu.Item className="eval-menu__item" onSelect={onHistory}>
-                History
-              </DropdownMenu.Item>
+              {showHistory ? (
+                <DropdownMenu.Item className="eval-menu__item" onSelect={onHistory}>
+                  History
+                </DropdownMenu.Item>
+              ) : null}
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>

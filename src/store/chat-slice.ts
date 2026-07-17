@@ -50,7 +50,7 @@ export function createChatActions({ getState, set, repository }: ChatSliceDeps) 
     },
 
     updatePatient(conversationId: ConversationId, input: PatientUpdateInput) {
-      return run(updatePatient(getState(), conversationId, input), "Patient details updated.");
+      return run(updatePatient(getState(), conversationId, input), "Customer details updated.");
     },
 
     approveBooking(conversationId: ConversationId) {
@@ -112,7 +112,7 @@ export function createChatActions({ getState, set, repository }: ChatSliceDeps) 
     },
 
     simulatePatient(scenario: SimulateScenario) {
-      return run(simulatePatient(getState(), scenario), "Simulated patient conversation added.");
+      return run(simulatePatient(getState(), scenario), "Simulated customer conversation added.");
     },
   };
 }

@@ -22,7 +22,7 @@ import {
 } from "../../src/domain";
 import { createFixtureJudgeClient } from "../fixtures/judge-client";
 
-const SEED_DATASET_ID = "dataset-seed";
+const SEED_DATASET_ID = "dataset-aircon-ops";
 
 function seedDataset(state: AppState) {
   return state.evalDatasets.find((d) => d.id === SEED_DATASET_ID)!;
@@ -159,7 +159,7 @@ describe("run case", () => {
   });
 });
 
-describe("run suite", () => {
+describe("run all cases", () => {
   it("updates every case and appends one suite snapshot", async () => {
     const seed = createCanonicalSeed();
     const dataset = seedDataset(seed);
@@ -349,7 +349,7 @@ describe("addCase", () => {
         ],
       },
       expectedHumanOutput: "  Please visit counter two.  ",
-      criterionIds: ["crit-booking"],
+      criterionIds: ["crit-aircon-confirm"],
     });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
@@ -361,7 +361,7 @@ describe("addCase", () => {
     expect(added?.language).toBe("English");
     expect(added?.expectedHumanOutput).toBe("Please visit counter two.");
     expect(added?.inputConversation.messages).toHaveLength(1);
-    expect(added?.criterionIds).toEqual(["crit-booking"]);
+    expect(added?.criterionIds).toEqual(["crit-aircon-confirm"]);
     expect(added?.source).toEqual({ kind: "manual" });
     expect(added?.actualSyntheticOutput).toBeUndefined();
     expect(added?.grade).toBeUndefined();

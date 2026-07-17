@@ -328,7 +328,7 @@ export function createEvalActions({
         return {
           ok: false as const,
           state: getState(),
-          error: "Add the human correction before running this patient-feedback candidate.",
+          error: "Add the human correction before running this customer-feedback candidate.",
         };
       }
       if (
@@ -376,7 +376,7 @@ export function createEvalActions({
           return {
             ok: false as const,
             state: getState(),
-            error: "Add human corrections to patient-feedback candidates before running the suite.",
+            error: "Add human corrections to customer-feedback candidates before running the suite.",
           };
         }
         if (dataset.cases.some((evalCase) => evalCase.source.kind !== "seed") && !workspaceCommandClient) {
@@ -384,7 +384,7 @@ export function createEvalActions({
             ok: false as const,
             state: getState(),
             error:
-              "Run Suite supports server-synced seed cases only. Run local HITL or manual cases individually.",
+              "Run all cases supports server-synced seed cases only. Run local HITL or manual cases individually.",
           };
         }
         return runServerCases(
@@ -402,7 +402,7 @@ export function createEvalActions({
         return {
           ok: false as const,
           state: getState(),
-          error: "Add human corrections to patient-feedback candidates before running the suite.",
+          error: "Add human corrections to customer-feedback candidates before running the suite.",
         };
       }
       let sourceState = getState();
@@ -444,11 +444,14 @@ export function createEvalActions({
       return run(analyzeDatasetFailures(getState(), datasetId), null);
     },
 
-    async proposeCorrections(datasetId: EvalDatasetId) {
+    async proposeCorrections(
+      datasetId: EvalDatasetId,
+    ): Promise<MutationResult & { correctionId?: string | null }> {
       if (!workspaceClient || !workspaceCommandClient) {
         return run(analyzeDatasetFailures(getState(), datasetId), null);
       }
       const base = getState();
+      const beforeIds = new Set(base.corrections.map((correction) => correction.id));
       try {
         const workspace = await workspaceClient.load();
         const result = await workspaceCommandClient.execute({
@@ -457,11 +460,24 @@ export function createEvalActions({
           expectedWorkspaceRevision: workspace.revision,
         });
         const projected = projectServerWorkspace(base, result.workspace.state);
-        return run(projected, "LLM SOP proposal created for human review.");
+        if (!projected.ok) {
+          return run(projected, null);
+        }
+        const newCorrection = projected.state.corrections.find(
+          (correction) => !beforeIds.has(correction.id),
+        );
+        const feedback = newCorrection
+          ? "SOP correction proposed. Nothing is active yet. Review the exact diff in Knowledge."
+          : "LLM SOP proposal created for human review.";
+        const mutation = run(projected, feedback);
+        return {
+          ...mutation,
+          correctionId: newCorrection?.id ?? null,
+        };
       } catch (failure) {
         const error = failureMessage(failure);
         set({ lastFeedback: error });
-        return { ok: false as const, state: getState(), error };
+        return { ok: false as const, state: getState(), error, correctionId: null };
       }
     },
 

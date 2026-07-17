@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import type { BookingPayload } from "../src/contracts/app-state";
+import { createAppointmentCalendarEvent } from "./calendar-event";
 import type { OutboxRepository } from "./outbox-repository";
 import type {
   GoogleCalendarConnectionRepository,
@@ -53,6 +54,7 @@ export interface GoogleCalendarService extends CalendarAvailability {
     bookingRevision: number;
     conversationId: string;
   }): Promise<void>;
+  deleteMappedEvent(eventId: string): Promise<void>;
 }
 
 export class GoogleCalendarError extends Error {
@@ -218,13 +220,19 @@ export function createGoogleCalendarService({
   ): Promise<{ id: string; etag: string | null }> => {
     if (!config.enabled) throw new GoogleCalendarError("Google Calendar is disabled.", false);
     const id = eventId(conversation.id);
+    const core = createAppointmentCalendarEvent({
+      durationMinutes: config.defaultDurationMinutes,
+      location: config.location,
+      slotIso: conversation.booking.slotIso,
+    });
     const event = {
       id,
-      summary: "KaunterAI appointment",
+      summary: core.summary,
       description: `Patient: ${conversation.patient.name}\nReason: ${conversation.booking.reason}\nKaunter conversation: ${conversation.id}`,
-      start: { dateTime: conversation.booking.slotIso, timeZone: config.timeZone },
+      location: core.location ?? undefined,
+      start: { dateTime: core.startIso, timeZone: config.timeZone },
       end: {
-        dateTime: addMinutes(conversation.booking.slotIso, config.defaultDurationMinutes),
+        dateTime: core.endIso,
         timeZone: config.timeZone,
       },
       extendedProperties: {
@@ -382,6 +390,23 @@ export function createGoogleCalendarService({
         mode: connection.status === "connected" ? "google" : "demo",
         status: connection.status,
       };
+    },
+
+    async deleteMappedEvent(eventIdValue) {
+      const credential = await accessToken();
+      if (!credential.connected || !config.enabled) return;
+      const result = await calendarRequest(
+        credential.token,
+        `/calendars/${encodeURIComponent(config.calendarId)}/events/${encodeURIComponent(eventIdValue)}?sendUpdates=none`,
+        { method: "DELETE" },
+      );
+      if (!result.response.ok && result.response.status !== 404) {
+        throw googleFailure(
+          result.body,
+          "Google Calendar event deletion failed.",
+          result.response.status >= 500 || result.response.status === 429,
+        );
+      }
     },
 
     async syncBooking({ bookingRevision, conversationId }) {

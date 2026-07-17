@@ -5,15 +5,16 @@ package: Node 22 `fetch` and `crypto`, Supabase Postgres, and the existing Expre
 
 ## Behavior
 
-- With no Google configuration or no completed admin connection, booking tools use the existing
-  deterministic demo slots. No Google request is made.
+- In non-live demo mode, no Google configuration or completed admin connection means booking tools
+  use the deterministic demo slots and make no Google request. Live-agent booking fails closed until
+  the admin Google connection is active.
 - With one completed Google connection, `list_available_slots` filters those same candidate slots
   through Google Calendar FreeBusy. Booking create, reschedule, cancellation, and persisted
   Telegram Schedule edits enqueue event synchronization. Synthetic fixture bookings never leave
   the demo workspace.
 - An event ID is deterministic per conversation, so a retry updates the same Google event. The
-  app writes the event on create/reschedule and deletes it on cancel. The existing `.ics` Telegram
-  delivery is independent and still works in demo-fallback mode.
+  app writes the event on create/reschedule and deletes it on cancel. Telegram sends a private
+  publish `.ics` on create/reschedule and a matching cancellation `.ics` on cancel.
 - The Telegram webhook persists an inbound update first, then the database trigger creates an
   outbox job in the same transaction as `telegram_events.status = processed`. The webhook may
   return success immediately; a worker claims that job, retries bounded failures, and recovers a
@@ -21,6 +22,17 @@ package: Node 22 `fetch` and `crypto`, Supabase Postgres, and the existing Expre
   so an expired worker cannot finalize a newer worker's lease.
 - If a Google sync job reached a terminal failure, completing Google consent again reactivates that
   same booking revision rather than silently leaving it stranded.
+
+ICS and Google Calendar use one appointment core contract:
+
+- summary: `Appointment`;
+- start: the saved booking `slotIso`, normalized to UTC;
+- end: start plus `CALENDAR_DEFAULT_DURATION_MINUTES`;
+- location: `CALENDAR_LOCATION`, or absent when it is blank.
+
+The projections differ only where the channels require it. ICS remains private and excludes patient
+identity, reason, and conversation content. Google uses a deterministic event ID and adds those
+admin-only details plus the booking revision in private extended properties.
 
 ```mermaid
 flowchart LR
@@ -30,7 +42,7 @@ flowchart LR
   A --> W[demo_state CAS]
   W --> G[outbox_jobs: Google sync]
   G --> C[Google Calendar event CRUD]
-  A --> I[Telegram .ics invite]
+  A --> I[Telegram .ics publish or cancel]
 ```
 
 ## Schema relationships
@@ -118,8 +130,8 @@ single-admin calendar use case. See Google’s [web-server OAuth guide](https://
 
 ## Verification boundary
 
-Automated tests cover demo fallback, FreeBusy filtering (including Schedule edits), event
-create/delete, stale booking revisions, synthetic-fixture exclusion, migration access rules,
+Automated tests cover demo fallback, FreeBusy filtering (including Schedule edits), Google event
+create/delete, Telegram ICS publish/cancel, stale booking revisions, synthetic-fixture exclusion, migration access rules,
 reconnect requeue contract, and fenced outbox retry state with mocked providers. A real Google
 consent, calendar event, Telegram message, `.ics` document, and DigitalOcean deploy must still be
 smoke tested by the administrator because this repository cannot use their credentials.

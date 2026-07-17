@@ -60,7 +60,7 @@ function artifact(
       rationale: `Attempt ${attempt}`,
       criterionResults: [
         {
-          criterionId: "crit-emergency",
+          criterionId: "crit-aircon-selection",
           verdict: attempt === 1 ? "fail" : "pass",
           reason: `Attempt ${attempt}`,
           evidence: `Candidate ${attempt}`,
@@ -71,7 +71,7 @@ function artifact(
         model: judgeConfig.modelId,
         promptVersion: judgeConfig.promptVersion,
         rubricVersions: {
-          "crit-emergency": 1,
+          "crit-aircon-selection": 1,
         },
         runId: `eval-run-${caseId}-${attempt}`,
         latencyMs: 10,
@@ -86,14 +86,14 @@ function artifact(
 }
 
 async function fixture(
-  caseIds = ["case-emergency-train"],
+  caseIds = ["case-aircon-selection-train"],
 ) {
   const local = createCanonicalSeed();
   const server = await createCanonicalServerState();
   const suite = await freezeEvalSuiteSnapshot({
     state: server,
     suiteId: "suite-1",
-    datasetId: "dataset-seed",
+    datasetId: "dataset-aircon-ops",
     caseIds,
     playbookVersionId: server.playbookHistory.activeVersionId,
     agentConfig,
@@ -111,7 +111,7 @@ describe("Eval workspace projection", () => {
     const conversations = structuredClone(local.conversations);
     const playbooks = structuredClone(local.playbookFiles);
     server.evalArtifacts.runs.push(
-      artifact(suite.id, "case-emergency-train", 1),
+      artifact(suite.id, "case-aircon-selection-train", 1),
     );
 
     const result = projectEvalSuiteArtifacts(
@@ -126,7 +126,7 @@ describe("Eval workspace projection", () => {
     const dataset = result.state.evalDatasets[0]!;
     expect(
       dataset.cases.find(
-        (evalCase) => evalCase.id === "case-emergency-train",
+        (evalCase) => evalCase.id === "case-aircon-selection-train",
       ),
     ).toMatchObject({
       actualSyntheticOutput: "Candidate 1",
@@ -137,7 +137,7 @@ describe("Eval workspace projection", () => {
       },
     });
     expect(dataset.runHistory.map((run) => run.id)).toEqual([
-      "eval-run-case-emergency-train-1",
+      "eval-run-case-aircon-selection-train-1",
     ]);
     expect(result.state.conversations).toEqual(conversations);
     expect(result.state.playbookFiles).toEqual(playbooks);
@@ -145,16 +145,16 @@ describe("Eval workspace projection", () => {
 
   it("uses the latest attempt and appends one complete suite snapshot idempotently", async () => {
     const caseIds = [
-      "case-emergency-train",
-      "case-booking-train",
-      "case-prescription-train",
-      "case-hours-holdout",
-      "case-lab-holdout",
+      "case-aircon-selection-train",
+      "case-aircon-confirm-train",
+      "case-aircon-rate-card-train",
+      "case-aircon-rate-card-holdout",
+      "case-aircon-selection-holdout",
     ];
     const { local, server, suite } = await fixture(caseIds);
     server.evalArtifacts.runs.push(
-      artifact(suite.id, "case-emergency-train", 1),
-      artifact(suite.id, "case-emergency-train", 2),
+      artifact(suite.id, "case-aircon-selection-train", 1),
+      artifact(suite.id, "case-aircon-selection-train", 2),
       ...caseIds
         .slice(1)
         .map((caseId) => artifact(suite.id, caseId, 1)),
@@ -177,7 +177,11 @@ describe("Eval workspace projection", () => {
     expect(second.ok).toBe(true);
     if (!second.ok) return;
 
-    expect(first.state.evalDatasets[0]!.cases[0]).toMatchObject({
+    expect(
+      first.state.evalDatasets[0]!.cases.find(
+        (evalCase) => evalCase.id === "case-aircon-selection-train",
+      ),
+    ).toMatchObject({
       actualSyntheticOutput: "Candidate 2",
       grade: {
         pass: true,
@@ -217,7 +221,7 @@ describe("Eval workspace projection", () => {
   it("rehydrates server attempts and completed suite snapshots", async () => {
     const { local, server, suite } = await fixture();
     server.evalArtifacts.runs.push(
-      artifact(suite.id, "case-emergency-train", 1),
+      artifact(suite.id, "case-aircon-selection-train", 1),
     );
 
     const result = projectEvalWorkspaceArtifacts(local, server);
@@ -230,7 +234,7 @@ describe("Eval workspace projection", () => {
     ).toHaveLength(0);
   });
 
-  it("projects a live Telegram conversation without hiding refreshed Dream corrections", async () => {
+  it("projects a live Telegram conversation without hiding refreshed Knowledge corrections", async () => {
     const local = createCanonicalSeed();
     const inbound = mergeTelegramInboundText(
       await createCanonicalServerState(),
@@ -255,12 +259,12 @@ describe("Eval workspace projection", () => {
     if (!inbound.ok) return;
     inbound.state.corrections.push({
       id: "corr-live-model",
-      fileId: "file-triage",
-      oldText: "Seek urgent care for chest pain.",
-      newText: "For chest pain, call Malaysia's emergency number, 999.",
+      fileId: "file-aircon-service-selection",
+      oldText: "Seek urgent care for aircon service.",
+      newText: "For aircon service, call Malaysia's emergency number, 999.",
       evidence: "Live configured-model smoke",
       status: "pending",
-      sourceCaseId: "case-emergency-train",
+      sourceCaseId: "case-aircon-selection-train",
     });
 
     const result = projectServerWorkspace(local, inbound.state);
@@ -280,7 +284,7 @@ describe("Eval workspace projection", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "corr-live-model",
-          newText: "For chest pain, call Malaysia's emergency number, 999.",
+          newText: "For aircon service, call Malaysia's emergency number, 999.",
         }),
       ]),
     );

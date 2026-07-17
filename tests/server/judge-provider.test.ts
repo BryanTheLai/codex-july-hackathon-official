@@ -53,9 +53,72 @@ describe("judge provider adapter", () => {
         total_tokens: 15,
       },
     });
-    expect(responsesCreate).toHaveBeenCalledWith(input, {
-      signal: controller.signal,
+    expect(responsesCreate).toHaveBeenCalledWith(
+      {
+        ...input,
+        max_output_tokens: 2048,
+        reasoning: { effort: "none" },
+      },
+      {
+        signal: controller.signal,
+      },
+    );
+  });
+
+  it("recovers message output_text when the top-level field is empty", async () => {
+    const responsesCreate = vi.fn(async () => ({
+      model: "provider-model",
+      output_text: "",
+      output: [
+        { type: "reasoning" },
+        {
+          type: "message",
+          content: [{ type: "output_text", text: '{"score":0.5}' }],
+        },
+      ],
+    }));
+    const createResponse = createJudgeProviderAdapter(
+      {
+        apiKey: "provider-key",
+        apiMode: "responses",
+        baseUrl: "https://provider.example/v1",
+        model: "judge-model",
+      },
+      {
+        responses: { create: responsesCreate },
+        chat: { completions: { create: vi.fn() } },
+      },
+    );
+
+    await expect(createResponse(input)).resolves.toEqual({
+      model: "provider-model",
+      output_text: '{"score":0.5}',
     });
+  });
+
+  it("rejects reasoning-only empty Responses output", async () => {
+    const createResponse = createJudgeProviderAdapter(
+      {
+        apiKey: "provider-key",
+        apiMode: "responses",
+        baseUrl: "https://provider.example/v1",
+        model: "judge-model",
+      },
+      {
+        responses: {
+          create: vi.fn(async () => ({
+            model: "provider-model",
+            output_text: "",
+            output: [{ type: "reasoning" }],
+          })),
+        },
+        chat: { completions: { create: vi.fn() } },
+      },
+    );
+
+    await expect(createResponse(input)).rejects.toThrow(
+      /empty Responses output \(reasoning-only\)/,
+    );
   });
 
   it("maps Chat Completions structured output through the shared provider mode", async () => {

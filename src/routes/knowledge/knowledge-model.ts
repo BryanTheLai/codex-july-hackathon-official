@@ -1,12 +1,12 @@
-import type { Correction, PlaybookFile, TestChangesResult } from "../../domain";
+import type { Correction, PlaybookFile, SavedTextCheckResult } from "../../domain";
 
-export type DreamPane = "files" | "editor" | "changes";
+export type KnowledgePane = "files" | "editor" | "changes";
 
 export type TestDockState =
   | { status: "closed" }
   | { status: "preparing"; completed: number; total: number }
   | { status: "running"; completed: number; total: number }
-  | { status: "complete"; result: TestChangesResult; stale: boolean }
+  | { status: "complete"; result: SavedTextCheckResult; stale: boolean }
   | { status: "error"; message: string };
 
 export function fileContent(file: PlaybookFile): string {
