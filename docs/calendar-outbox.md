@@ -131,6 +131,19 @@ and [Events reference](https://developers.google.com/workspace/calendar/api/v3/r
 
 Automated tests cover workspace booking conflicts, Google event create/delete, Telegram ICS
 publish/cancel, stale booking revisions, synthetic-fixture exclusion, migration access rules,
-reconnect requeue contract, and fenced outbox retry state with mocked providers. A real Google
-consent, calendar event, Telegram message, `.ics` document, and DigitalOcean deploy must still be
-smoke tested by the administrator because this repository cannot use their credentials.
+reconnect requeue contract, fenced outbox retry state, and factory reset transactional cleanup
+with mocked providers. Migration and server tests prove side-table deletion and credential
+preservation in Supabase. Playwright covers the factory reset confirmation dialog and
+authoritative browser state replacement through an in-memory workspace harness; it does not
+assert Postgres outbox or OAuth row counts. A real Google consent, calendar event, Telegram
+message, `.ics` document, and DigitalOcean deploy must still be smoke tested by the
+administrator because this repository cannot use their credentials.
+
+### Factory reset vs per-chat reset
+
+- **Factory reset** (`POST /api/demo/reset`, top-right Reset, `npm run demo:reset`): destructive,
+  irreversible, restores the compiled canonical seed, deletes all workspace demo activity and
+  side-table projections listed in the design spec, and preserves credentials only.
+- **Per-chat reset** (Chat Control → Reset this synthetic conversation): narrow fixture restore for
+  one synthetic conversation; never deletes Telegram traffic, Knowledge, Eval, calendar mappings,
+  outbox jobs, or OAuth state.

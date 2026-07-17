@@ -501,6 +501,7 @@ describe("visitor-approved Telegram text", () => {
               sha256: "a".repeat(64),
             };
           },
+          async clearWorkspace() {},
         },
         converter: {
           convertToWebm: vi.fn(),
@@ -600,6 +601,7 @@ describe("visitor-approved Telegram text", () => {
               sha256: "c".repeat(64),
             };
           },
+          async clearWorkspace() {},
         },
         converter: {
           convertToWebm: vi.fn(),
@@ -673,6 +675,7 @@ describe("visitor-approved Telegram text", () => {
               sha256: "b".repeat(64),
             };
           },
+          async clearWorkspace() {},
         },
         converter: {
           convertToWebm: vi.fn(),

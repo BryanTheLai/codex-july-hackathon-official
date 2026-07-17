@@ -937,7 +937,7 @@ export function createSupabaseDemoWorkspaceResetDataSource(
             ok: false,
             code: "revision_conflict",
             workspace: toWorkspaceEnvelope(current),
-          });
+          }) as Extract<SaveWorkspaceResult, { ok: false }>;
         }
         return throwDemoWorkspaceResetError();
       }

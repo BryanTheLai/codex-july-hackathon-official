@@ -2,14 +2,12 @@ import { createStore, type StoreApi } from "zustand";
 
 import type { JudgeClient } from "../contracts/judge";
 import {
-  projectEvalWorkspaceArtifacts,
-  resetDemo as resetLocalDemo,
   type AppState,
   type CorrectionId,
   type EvalCaseId,
   type MutationResult,
 } from "../domain";
-import { mergeTelegramWorkspaceState } from "../domain/telegram-workspace";
+import { projectAuthoritativeWorkspace } from "../domain/telegram-workspace";
 import { createHttpJudgeClient } from "../services/judge-client";
 import {
   ApiClientError,
@@ -19,6 +17,7 @@ import {
   createHttpTelegramOutboundClient,
   createHttpWorkspaceCommandClient,
   createHttpWorkspaceClient,
+  isFactoryResetCompletedWithCleanupFailure,
   type AgentClient,
   type BookingClient,
   type EvalClient,
@@ -153,20 +152,16 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
     const finishReset = (
       result: MutationResult,
       telegramWorkspaceState: TelegramWorkspaceState,
-      clearTelegramWorkspace: boolean,
+      feedback = "Demo reset to canonical seed.",
     ) => {
       const applied = applyMutation(
         setPartial,
         repository,
         result,
-        "Demo reset to canonical seed.",
+        feedback,
       );
       if (applied.ok) {
-        if (clearTelegramWorkspace) {
-          telegramWorkspaceRepository.clear();
-        } else {
-          telegramWorkspaceRepository.save(telegramWorkspaceState);
-        }
+        telegramWorkspaceRepository.save(telegramWorkspaceState);
         set({
           resetVersion: get().resetVersion + 1,
           routeUi: { ...DEFAULT_ROUTE_UI },
@@ -177,6 +172,30 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
       return applied;
     };
 
+    const clearedTelegramWorkspace = (
+      workspaceRevision: number,
+    ): TelegramWorkspaceState => ({
+      ...INITIAL_TELEGRAM_WORKSPACE,
+      status: "ready",
+      workspaceRevision,
+    });
+
+    const adoptAuthoritativeWorkspace = (
+      workspace: { revision: number; state: Parameters<typeof projectAuthoritativeWorkspace>[0] },
+      feedback: string,
+    ) => {
+      const projected = projectAuthoritativeWorkspace(workspace.state);
+      if (!projected.ok) {
+        set({ lastFeedback: projected.error });
+        return projected;
+      }
+      return finishReset(
+        projected,
+        clearedTelegramWorkspace(workspace.revision),
+        feedback,
+      );
+    };
+
     return {
       state: loaded.state,
       lastFeedback: loaded.loadNotice,
@@ -185,25 +204,26 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
       routeUi: DEFAULT_ROUTE_UI,
       telegramWorkspace,
       resetDemo() {
-        const workspaceState = get().telegramWorkspace;
-        const expectedRevision = workspaceState.workspaceRevision;
+        const expectedRevision = get().telegramWorkspace.workspaceRevision;
         const resetWorkspace = workspaceClient.reset;
-        if (
-          expectedRevision === null ||
-          !resetWorkspace
-        ) {
-          return finishReset(
-            resetLocalDemo(get().state),
-            INITIAL_TELEGRAM_WORKSPACE,
-            true,
-          );
+        if (expectedRevision === null || !resetWorkspace) {
+          const message =
+            "Factory reset is unavailable until the server workspace finishes loading.";
+          set({ lastFeedback: message });
+          return {
+            ok: false as const,
+            state: get().state,
+            error: message,
+          };
         }
         return (async () => {
           try {
             const response = await resetWorkspace(expectedRevision);
             if (!response.ok) {
               const message =
-                "Workspace changed before reset. Refresh and retry.";
+                response.code === "revision_conflict"
+                  ? "Workspace changed before reset. Refresh and retry."
+                  : "The demo could not be reset.";
               set({ lastFeedback: message });
               return {
                 ok: false as const,
@@ -211,56 +231,26 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
                 error: message,
               };
             }
-            const canonical = resetLocalDemo(get().state);
-            if (!canonical.ok) {
-              return canonical;
-            }
-            const server = response.workspace.state;
-            const projected = mergeTelegramWorkspaceState(
-              {
-                ...canonical.state,
-                schemaVersion: server.schemaVersion,
-                fixtureTime: server.fixtureTime,
-                playbookFolders: server.playbookFolders,
-                playbookFiles: server.playbookFiles,
-                corrections: server.corrections,
-                evalDatasets: server.evalDatasets,
-              },
-              server,
-            );
-            const evalProjection = projectEvalWorkspaceArtifacts(
-              projected.state,
-              server,
-            );
-            if (!evalProjection.ok) {
-              set({ lastFeedback: evalProjection.error });
-              return {
-                ok: false as const,
-                state: get().state,
-                error: evalProjection.error,
-              };
-            }
-            return finishReset(
-              evalProjection,
-              {
-                ...workspaceState,
-                status: "ready",
-                workspaceRevision: response.workspace.revision,
-                conversationRevisions:
-                  projected.conversationRevisions,
-              },
-              false,
+            return adoptAuthoritativeWorkspace(
+              response.workspace,
+              "Demo reset to canonical seed.",
             );
           } catch (error) {
             if (
               error instanceof ApiClientError &&
-              error.code === "feature_disabled"
+              isFactoryResetCompletedWithCleanupFailure(error)
             ) {
-              return finishReset(
-                resetLocalDemo(get().state),
-                INITIAL_TELEGRAM_WORKSPACE,
-                true,
-              );
+              try {
+                const envelope = await workspaceClient.load();
+                if (envelope.revision > expectedRevision) {
+                  return adoptAuthoritativeWorkspace(
+                    envelope,
+                    error.message,
+                  );
+                }
+              } catch {
+                // Fall through to the explicit failure below.
+              }
             }
             const message =
               error instanceof ApiClientError

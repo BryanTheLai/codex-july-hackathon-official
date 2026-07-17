@@ -157,6 +157,34 @@
   line-height: var(--kaunter-line-body);
 }
 
+.shell-dialog__description ul {
+  margin: var(--kaunter-space-2) 0;
+  padding-left: 1.25rem;
+}
+
+.shell-dialog__field {
+  display: grid;
+  gap: var(--kaunter-space-1);
+  margin-top: var(--kaunter-space-3);
+}
+
+.shell-dialog__field-label {
+  font-size: var(--kaunter-text-sm);
+  font-weight: 600;
+  color: var(--kaunter-fg);
+}
+
+.shell-dialog__input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--kaunter-space-2);
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: var(--kaunter-radius-md);
+  background: var(--kaunter-raised);
+  color: var(--kaunter-fg);
+  font: inherit;
+}
+
 .shell-dialog__actions {
   display: flex;
   justify-content: flex-end;
@@ -176,6 +204,11 @@
 .shell-dialog__button--confirm {
   border-color: var(--kaunter-risk-fg);
   color: var(--kaunter-risk-fg);
+}
+
+.shell-dialog__button--confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .shell-dialog__button--primary {

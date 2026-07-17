@@ -31,7 +31,6 @@ import {
 import {
   createCanonicalServerState,
   loadCompiledServerSeed,
-  mergeSyntheticReset,
   telegramInboundMessageId,
 } from "../src/domain";
 import { AGENT_PROMPT_VERSION } from "./agent-prompt";
@@ -94,6 +93,7 @@ import {
   createSupabaseTelegramDeliveryDataSource,
   createSupabaseTelegramEventDataSource,
   createSupabaseDemoSeedDataSource,
+  createSupabaseDemoWorkspaceResetDataSource,
   createSupabaseWorkspaceDataSource,
   readSupabaseConfig,
 } from "./supabase";
@@ -173,9 +173,15 @@ import {
   type WorkspaceRepository,
 } from "./workspace-repository";
 import {
-  BookingCommandServiceError,
   createBookingCommandService,
+  BookingCommandServiceError,
 } from "./booking-command-service";
+import {
+  createFactoryResetService,
+  assertWorkspaceMutationAllowed,
+  FactoryResetServiceError,
+  type FactoryResetService,
+} from "./factory-reset-service";
 
 if (process.env.NODE_ENV !== "test") {
   try {
@@ -222,6 +228,7 @@ type JudgeAppOptions = {
   workspace?: WorkspaceAppOptions | null;
   telegram?: TelegramAppOptions | null;
   googleCalendar?: GoogleCalendarService | null;
+  factoryReset?: FactoryResetService | null;
   translation?: TranslationService | null;
 };
 
@@ -275,6 +282,7 @@ function configuredWorkspace(): WorkspaceAppOptions | null {
     workspaceId: config.workspaceId,
     repository: createWorkspaceRepository(
       createSupabaseWorkspaceDataSource(client),
+      { mutationGuard: assertWorkspaceMutationAllowed },
     ),
     createCanonicalState: createCanonicalServerState,
     loadTemplateCanonicalState: () =>
@@ -289,10 +297,7 @@ function configuredOutbox(
   workspace: WorkspaceAppOptions | null,
 ): OutboxRepository | null {
   if (!workspace) return null;
-  if (
-    process.env.SUPABASE_URL === undefined &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY === undefined
-  ) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return null;
   }
   try {
@@ -329,6 +334,43 @@ function configuredGoogleCalendar(
   } catch (error) {
     log.error("google_calendar_configuration_failed", errorLogFields(error));
     return null;
+  }
+}
+
+function configuredFactoryReset(
+  workspace: WorkspaceAppOptions | null,
+  googleCalendar: GoogleCalendarService | null,
+): { service: FactoryResetService | null; unavailableReason: string | null } {
+  if (!workspace) {
+    return { service: null, unavailableReason: null };
+  }
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { service: null, unavailableReason: null };
+  }
+  try {
+    const config = readSupabaseConfig();
+    const client = createSupabaseServerClient(config);
+    const seedDataSource = createSupabaseDemoSeedDataSource(client);
+    const voiceArtifactStore = createSupabaseVoiceArtifactStore(client);
+    return {
+      service: createFactoryResetService({
+        workspaceId: workspace.workspaceId,
+        seedKey: DEFAULT_DEMO_SEED_KEY,
+        workspaceRepository: workspace.repository,
+        loadCompiledSeed: (seedKey) => seedDataSource.readCompiled(seedKey),
+        resetDataSource: createSupabaseDemoWorkspaceResetDataSource(client),
+        googleCalendar,
+        voiceArtifactStore,
+      }),
+      unavailableReason: null,
+    };
+  } catch (error) {
+    log.error("factory_reset_configuration_failed", errorLogFields(error));
+    return {
+      service: null,
+      unavailableReason:
+        "Factory reset is unavailable. Voice artifact storage must be configured.",
+    };
   }
 }
 
@@ -935,6 +977,29 @@ function requireWorkspace(
   return false;
 }
 
+function sendFactoryResetFailure(response: Response, error: unknown): void {
+  if (error instanceof FactoryResetServiceError) {
+    const status =
+      error.code === "invalid_request"
+        ? 400
+        : error.code === "not_found"
+          ? 404
+        : error.code === "revision_conflict"
+          ? 409
+          : error.code === "reset_in_progress"
+            ? 503
+            : 502;
+    sendApiError(response, status, {
+      code:
+        error.code === "reset_in_progress" ? "provider_failed" : error.code,
+      error: error.message,
+      retryable: error.retryable,
+    });
+    return;
+  }
+  sendWorkspaceFailure(response, error);
+}
+
 function sendWorkspaceFailure(response: Response, error: unknown): void {
   if (error instanceof WorkspaceRepositoryError) {
     if (error.code === "not_found") {
@@ -950,6 +1015,14 @@ function sendWorkspaceFailure(response: Response, error: unknown): void {
         code: "invalid_request",
         error: "Workspace request is invalid.",
         retryable: false,
+      });
+      return;
+    }
+    if (error.code === "reset_in_progress") {
+      sendApiError(response, 503, {
+        code: "provider_failed",
+        error: error.message,
+        retryable: true,
       });
       return;
     }
@@ -1247,6 +1320,13 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
     options.googleCalendar === undefined
       ? configuredGoogleCalendar(workspace, outboxRepository)
       : options.googleCalendar;
+  const configuredFactoryResetResult =
+    options.factoryReset === undefined
+      ? configuredFactoryReset(workspace, googleCalendar)
+      : { service: options.factoryReset, unavailableReason: null };
+  const factoryReset = configuredFactoryResetResult.service;
+  const factoryResetUnavailableReason =
+    configuredFactoryResetResult.unavailableReason;
   const agent = options.agent === undefined
     ? configuredAgent(workspace, outboxRepository)
     : options.agent;
@@ -2205,6 +2285,16 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       if (!requireWorkspace(workspace, response)) {
         return;
       }
+      if (!factoryReset) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error:
+            factoryResetUnavailableReason ??
+            "Factory reset is not configured.",
+          retryable: false,
+        });
+        return;
+      }
       const parsed = resetDemoRequestSchema.safeParse(request.body);
       if (!parsed.success) {
         sendApiError(response, 400, {
@@ -2214,57 +2304,16 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         });
         return;
       }
+      const connectionController = new AbortController();
+      request.once("aborted", () => connectionController.abort());
       try {
-        const current = await workspace.repository.load(workspace.workspaceId);
-        if (!current) {
-          sendApiError(response, 404, {
-            code: "not_found",
-            error: "Workspace not found.",
-            retryable: false,
-          });
-          return;
-        }
-        if (current.revision !== parsed.data.expectedRevision) {
-          response.status(409).json(
-            saveWorkspaceResultSchema.parse({
-              ok: false,
-              code: "revision_conflict",
-              workspace: current,
-            }),
-          );
-          return;
-        }
-        let canonical: ServerDomainStatePayload;
-        if (workspace.loadTemplateCanonicalState) {
-          try {
-            canonical = await workspace.loadTemplateCanonicalState();
-          } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Demo seed template is unavailable.";
-            if (message.includes("missing")) {
-            sendApiError(response, 503, {
-              code: "invalid_request",
-              error: message,
-              retryable: false,
-            });
-              return;
-            }
-            throw error;
-          }
-        } else {
-          canonical = await workspace.createCanonicalState();
-        }
-        const nextState = mergeSyntheticReset(current.state, canonical);
-        const result = await workspace.repository.save(
-          workspace.workspaceId,
+        const result = await factoryReset.reset(
           parsed.data.expectedRevision,
-          nextState,
+          connectionController.signal,
         );
         response.status(result.ok ? 200 : 409).json(result);
       } catch (error) {
-        sendWorkspaceFailure(response, error);
+        sendFactoryResetFailure(response, error);
       }
     },
   );

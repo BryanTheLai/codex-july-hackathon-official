@@ -23,6 +23,21 @@ export async function resetE2eWorkspace(page: Page) {
   expect(response.status()).toBe(204);
 }
 
+export async function performFactoryReset(page: Page) {
+  const resetResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/demo/reset") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Factory reset" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.getByLabel("Type RESET to confirm").fill("RESET");
+  await dialog.getByRole("button", { name: /^factory reset$/i }).click();
+  const response = await resetResponse;
+  expect(response.status()).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({ ok: true });
+}
+
 export async function installMockJudge(page: Page) {
   await page.route("**/api/judge", async (route) => {
     const request = route.request().postDataJSON() as JudgeRequest;

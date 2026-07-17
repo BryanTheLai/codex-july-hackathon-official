@@ -33,7 +33,7 @@ direction.
 - immutable Eval suites and run evidence
 - exact Knowledge proposals with human decision
 - candidate validation, activation, and rollback
-- Supabase-owned versioned demo seed and guarded reset
+- Supabase-owned versioned demo seed and destructive factory reset
 
 Not claimed: equipment diagnosis, unsupported quotes, production capacity,
 multi-tenant authentication, or automatic SOP activation.
@@ -134,11 +134,25 @@ The browser can boot from a local fallback for tests, but a successful server
 load replaces demo conversations, SOPs, corrections, datasets, and release
 state with the Supabase aggregate.
 
-### Guarded reset
+### Guarded factory reset
 
-Reset is destructive to the fixed `demo` workspace. Stop the app and live
-Telegram processing first. Migration `20260718010000_demo_seed_templates.sql`
-and a compiled seed (`npm run demo:seed`) must already exist.
+The top-right **Reset** control is a destructive **factory reset**. It permanently
+deletes all demo activity in the fixed `demo` workspace and restores the compiled
+canonical seed (`msme-aircon-v1`). OAuth tokens, API keys, and environment
+credentials are preserved; everything else in the workspace aggregate is replaced.
+
+Factory reset deletes workspace conversations, Knowledge edits, candidates,
+corrections, Eval datasets and artifacts, Telegram events and deliveries,
+calendar deliveries and mappings, outbox jobs, generated voice artifacts, and
+tracked external Google Calendar events. It is irreversible.
+
+This differs from **per-chat reset** in Chat Control, which restores one synthetic
+fixture conversation only and never touches Telegram traffic, Knowledge, Eval, or
+calendar state.
+
+Stop the app and live Telegram processing before using the CLI path. Migration
+`20260718010000_demo_seed_templates.sql` and a compiled seed (`npm run demo:seed`)
+must already exist.
 
 ```bash
 KAUNTER_ALLOW_DEMO_RESET=1 \
@@ -149,9 +163,10 @@ npm run demo:reset -- \
   --confirm RESET_DEMO
 ```
 
-The reset CLI removes mapped Google events, clears pending work, preserves the
-Google OAuth connection and sent Telegram audit, and installs the compiled
-aircon template.
+The browser path uses the same orchestration through `POST /api/demo/reset` and
+requires typing `RESET` in the confirmation dialog. The reset CLI and browser
+action remove mapped Google events, clear pending work, preserve the Google OAuth
+connection, and install the compiled aircon template.
 
 ## Telegram
 
@@ -251,8 +266,11 @@ npm run test:e2e
 
 The verification gate covers lint, TypeScript, unit/integration tests, the
 production build, and browser behavior. Live provider quality, Telegram
-delivery, Google OAuth/event CRUD, and destructive reset still require
-owner-controlled smoke tests with deployment credentials.
+delivery, Google OAuth/event CRUD, and Supabase-side factory reset table cleanup
+still require owner-controlled smoke tests with deployment credentials. The
+Playwright harness exercises the factory reset UI and authoritative browser
+state replacement through an in-memory workspace; migration tests own
+transactional side-table deletion.
 
 ## Deployment
 
@@ -262,3 +280,7 @@ serves the Vite build, and exposes `/healthz` and `/readyz`.
 
 Never commit `.env`, provider keys, Telegram tokens, Google credentials, or the
 Supabase service-role key. Never expose server secrets through `VITE_*`.
+
+## License
+
+KaunterAI is available under the [MIT License](LICENSE).

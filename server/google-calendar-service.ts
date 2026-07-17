@@ -43,6 +43,7 @@ export interface GoogleCalendarService {
     conversationId: string;
   }): Promise<void>;
   deleteMappedEvent(eventId: string): Promise<void>;
+  deleteTrackedEvents(workspaceId: string, signal?: AbortSignal): Promise<void>;
 }
 
 export class GoogleCalendarError extends Error {
@@ -230,6 +231,23 @@ export function createGoogleCalendarService({
     return { id: parsed.data.id, etag: parsed.data.etag ?? null };
   };
 
+  const deleteRemoteEvent = async (eventIdValue: string): Promise<void> => {
+    const credential = await accessToken();
+    if (!credential.connected || !config.enabled) return;
+    const result = await calendarRequest(
+      credential.token,
+      `/calendars/${encodeURIComponent(config.calendarId)}/events/${encodeURIComponent(eventIdValue)}?sendUpdates=none`,
+      { method: "DELETE" },
+    );
+    if (!result.response.ok && result.response.status !== 404) {
+      throw googleFailure(
+        result.body,
+        "Google Calendar event deletion failed.",
+        result.response.status >= 500 || result.response.status === 429,
+      );
+    }
+  };
+
   return {
     authorizationUrl(adminToken) {
       if (!config.enabled) throw new GoogleCalendarError("Google Calendar is not configured.", false);
@@ -311,18 +329,35 @@ export function createGoogleCalendarService({
     },
 
     async deleteMappedEvent(eventIdValue) {
-      const credential = await accessToken();
-      if (!credential.connected || !config.enabled) return;
-      const result = await calendarRequest(
-        credential.token,
-        `/calendars/${encodeURIComponent(config.calendarId)}/events/${encodeURIComponent(eventIdValue)}?sendUpdates=none`,
-        { method: "DELETE" },
-      );
-      if (!result.response.ok && result.response.status !== 404) {
-        throw googleFailure(
-          result.body,
-          "Google Calendar event deletion failed.",
-          result.response.status >= 500 || result.response.status === 429,
+      await deleteRemoteEvent(eventIdValue);
+    },
+
+    async deleteTrackedEvents(targetWorkspaceId, signal) {
+      if (targetWorkspaceId !== workspaceId) {
+        throw new GoogleCalendarError(
+          "Google Calendar workspace scope is invalid.",
+          false,
+        );
+      }
+      if (signal?.aborted) {
+        throw new GoogleCalendarError("Google Calendar cleanup was aborted.", false);
+      }
+      const mappings = await eventRepository.listByWorkspace(targetWorkspaceId);
+      for (const mapping of mappings) {
+        if (signal?.aborted) {
+          throw new GoogleCalendarError("Google Calendar cleanup was aborted.", false);
+        }
+        if (mapping.status !== "active") {
+          await eventRepository.deleteMapping(
+            targetWorkspaceId,
+            mapping.conversationId,
+          );
+          continue;
+        }
+        await deleteRemoteEvent(mapping.eventId);
+        await eventRepository.deleteMapping(
+          targetWorkspaceId,
+          mapping.conversationId,
         );
       }
     },

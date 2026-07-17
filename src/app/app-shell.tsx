@@ -1,5 +1,6 @@
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Bot, FlaskConical, MessagesSquare, RotateCcw, WandSparkles } from "lucide-react";
+import { useId, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 
 import { useAppStore } from "../store/app-store-context";
@@ -9,6 +10,8 @@ const SHELL_NAV = [
   { to: "/knowledge", end: false, label: "Knowledge", Icon: WandSparkles },
   { to: "/eval", end: false, label: "Evals", Icon: FlaskConical },
 ] as const;
+
+const FACTORY_RESET_CONFIRMATION = "RESET";
 
 function ShellNavLink({
   to,
@@ -37,14 +40,23 @@ function ShellNavLink({
 
 function ResetDialog() {
   const resetDemo = useAppStore((store) => store.resetDemo);
+  const confirmationInputId = useId();
+  const [confirmation, setConfirmation] = useState("");
+  const canConfirm = confirmation.trim() === FACTORY_RESET_CONFIRMATION;
 
   return (
-    <AlertDialog.Root>
+    <AlertDialog.Root
+      onOpenChange={(open) => {
+        if (!open) {
+          setConfirmation("");
+        }
+      }}
+    >
       <AlertDialog.Trigger asChild>
         <button
-          aria-label="Reset Demo"
+          aria-label="Factory reset"
           className="app-shell__reset"
-          title="Reset Demo"
+          title="Factory reset"
           type="button"
         >
           <RotateCcw aria-hidden="true" className="app-shell__reset-icon" size={18} strokeWidth={1.75} />
@@ -54,11 +66,32 @@ function ResetDialog() {
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="shell-dialog__overlay" />
         <AlertDialog.Content className="shell-dialog__content">
-          <AlertDialog.Title className="shell-dialog__title">Reset demo</AlertDialog.Title>
+          <AlertDialog.Title className="shell-dialog__title">
+            Factory reset demo
+          </AlertDialog.Title>
           <AlertDialog.Description className="shell-dialog__description">
-            Restores the canonical synthetic seed and resets route selections. After a server
-            workspace refresh, Telegram data and imported real Eval cases are preserved.
+            This permanently deletes all demo activity and restores the compiled canonical seed.
+            OAuth and environment credentials are preserved. Deleted data includes all workspace
+            conversations and chat history; Knowledge edits, candidates, corrections, and release
+            state; Eval datasets, run history, suites, and imported case evidence; Telegram events,
+            deliveries, and speech artifacts; calendar deliveries, mappings, and outbox jobs; and
+            generated voice artifacts plus tracked Google Calendar events. Type{" "}
+            <strong>{FACTORY_RESET_CONFIRMATION}</strong> below to confirm.
           </AlertDialog.Description>
+          <div className="shell-dialog__field">
+            <label className="shell-dialog__field-label" htmlFor={confirmationInputId}>
+              Type RESET to confirm
+            </label>
+            <input
+              autoComplete="off"
+              className="shell-dialog__input"
+              id={confirmationInputId}
+              onChange={(event) => setConfirmation(event.target.value)}
+              spellCheck={false}
+              type="text"
+              value={confirmation}
+            />
+          </div>
           <div className="shell-dialog__actions">
             <AlertDialog.Cancel asChild>
               <button type="button" className="shell-dialog__button">
@@ -68,12 +101,14 @@ function ResetDialog() {
             <AlertDialog.Action asChild>
               <button
                 className="shell-dialog__button shell-dialog__button--confirm"
+                disabled={!canConfirm}
                 type="button"
                 onClick={() => {
                   void resetDemo();
+                  setConfirmation("");
                 }}
               >
-                Confirm
+                Factory reset
               </button>
             </AlertDialog.Action>
           </div>

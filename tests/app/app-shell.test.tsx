@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "../../src/app/app-shell";
 import { RouteLoading } from "../../src/app/route-loading";
@@ -135,7 +135,7 @@ describe("app shell", () => {
     expect(screen.getByText("Synthetic Demo")).toHaveClass("app-shell__demo-full");
     expect(screen.getByText("Demo")).toHaveClass("app-shell__demo-compact");
 
-    const reset = screen.getByRole("button", { name: "Reset Demo" });
+    const reset = screen.getByRole("button", { name: "Factory reset" });
     expect(reset.querySelector(".app-shell__reset-icon")).toBeTruthy();
     expect(reset.querySelector("[aria-hidden='true']")).toBeTruthy();
     expect(reset.querySelector(".app-shell__reset-label")?.textContent).toBe("Reset");
@@ -196,10 +196,12 @@ describe("app shell", () => {
     expect(status).toHaveTextContent("Loading route...");
   });
 
-  it("reset dialog names the effect and confirm restores canonical seed", async () => {
+  it("factory reset dialog requires typing RESET before confirm is enabled", async () => {
     const user = userEvent.setup();
     const storage = new MemoryStorage();
     const store = createAppStore(storage);
+    const resetDemo = vi.fn();
+    store.setState({ resetDemo });
 
     render(
       <AppStoreProvider store={store}>
@@ -219,21 +221,30 @@ describe("app shell", () => {
       store.getState().state.conversations.find((c) => c.id === convoId)?.messages.at(-1)?.text,
     ).toBe("Shell mutation");
 
-    await user.click(screen.getByRole("button", { name: /reset demo/i }));
+    await user.click(screen.getByRole("button", { name: /factory reset/i }));
     const dialog = screen.getByRole("alertdialog");
-    expect(dialog).toHaveTextContent(/canonical|seed|draft|history|snapshot/i);
+    expect(dialog).toHaveTextContent(/conversation|knowledge|eval|telegram|calendar|voice/i);
+    expect(dialog).toHaveTextContent(/RESET/i);
 
-    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    const confirmInput = within(dialog).getByLabelText(/type reset to confirm/i);
+    const confirmButton = within(dialog).getByRole("button", { name: /^factory reset$/i });
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(confirmInput, "RESET");
+    expect(confirmButton).toBeEnabled();
+
+    await user.click(within(dialog).getByRole("button", { name: /cancel/i }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(
       store.getState().state.conversations.find((c) => c.id === convoId)?.messages.at(-1)?.text,
     ).toBe("Shell mutation");
+    expect(resetDemo).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: /reset demo/i }));
-    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    await user.click(screen.getByRole("button", { name: /factory reset/i }));
+    const reopened = screen.getByRole("alertdialog");
+    await user.type(within(reopened).getByLabelText(/type reset to confirm/i), "RESET");
+    await user.click(within(reopened).getByRole("button", { name: /^factory reset$/i }));
 
-    const seed = (await import("../../src/domain")).createCanonicalSeed();
-    expect(store.getState().state).toEqual(seed);
-    expect(store.getState().lastFeedback).toMatch(/reset/i);
+    expect(resetDemo).toHaveBeenCalledOnce();
   });
 });

@@ -81,6 +81,18 @@ export class ApiClientError extends Error {
   }
 }
 
+const FACTORY_RESET_COMPLETED_CLEANUP_FAILURE =
+  /workspace reset completed but voice artifact cleanup failed/i;
+
+export function isFactoryResetCompletedWithCleanupFailure(
+  error: ApiClientError,
+): boolean {
+  return (
+    error.code === "provider_failed" &&
+    FACTORY_RESET_COMPLETED_CLEANUP_FAILURE.test(error.message)
+  );
+}
+
 export interface WorkspaceClient {
   load(signal?: AbortSignal): Promise<WorkspaceEnvelope>;
   setTelegramAgentMode?(

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeTelegramWorkspaceState } from "../../src/domain/telegram-workspace";
+import {
+  mergeTelegramWorkspaceState,
+  projectAuthoritativeWorkspace,
+} from "../../src/domain/telegram-workspace";
 import {
   createCanonicalSeed,
   createCanonicalServerState,
@@ -93,5 +96,39 @@ describe("Telegram workspace projection", () => {
       projected.state.conversations[0]!.id,
     );
     expect(projected.conversationRevisions).toEqual({});
+  });
+
+  it("projects authoritative server workspace without merge artifacts", async () => {
+    const local = createCanonicalSeed();
+    const server = await serverStateWithTelegram();
+    const merged = mergeTelegramWorkspaceState(local, server);
+    const canonicalServer = await createCanonicalServerState();
+    const projected = projectAuthoritativeWorkspace(canonicalServer);
+
+    expect(projected.ok).toBe(true);
+    if (!projected.ok) {
+      return;
+    }
+
+    expect(
+      projected.state.conversations.some(
+        (conversation) => conversation.id === "telegram-conversation:-10042",
+      ),
+    ).toBe(false);
+    expect(
+      merged.state.conversations.some(
+        (conversation) => conversation.id === "telegram-conversation:-10042",
+      ),
+    ).toBe(true);
+    expect(projected.state.conversations.every(
+      (conversation) => conversation.channel === "Demo",
+    )).toBe(true);
+    expect(projected.state.evalDatasets).toEqual(canonicalServer.evalDatasets);
+    expect(projected.state.selections).toEqual({
+      conversationId: "convo-aircon-booking",
+      playbookFileId: "file-aircon-rate-card",
+      evalDatasetId: "dataset-aircon-ops",
+    });
+    expect(merged.state.conversations).not.toEqual(projected.state.conversations);
   });
 });

@@ -6,7 +6,9 @@ import {
   type ServerConversationPayload,
   type ServerDomainStatePayload,
 } from "../contracts/app-state";
-import type { AppState } from "./types";
+import { createCanonicalSeed } from "./seed";
+import { ok } from "./shared";
+import type { AppState, MutationResult } from "./types";
 
 export type TelegramWorkspaceProjection = {
   state: AppState;
@@ -66,6 +68,50 @@ function toConversationView(
       preferredLanguage: patient.preferredLanguage,
     },
   });
+}
+
+export function projectAuthoritativeWorkspace(
+  input: ServerDomainStatePayload,
+): MutationResult {
+  const server = serverDomainStateSchema.parse(input);
+  const {
+    conversations: serverConversations,
+    speechArtifacts,
+    playbookHistory: _playbookHistory,
+    evalArtifacts: _evalArtifacts,
+    ...domainFields
+  } = server;
+  const conversations = serverConversations.map((conversation) =>
+    toConversationView(conversation, speechArtifacts),
+  );
+  const seed = createCanonicalSeed();
+  const selectedConversationId = conversations.some(
+    (conversation) => conversation.id === seed.selections.conversationId,
+  )
+    ? seed.selections.conversationId
+    : (conversations[0]?.id ?? null);
+  const selectedPlaybookFileId = domainFields.playbookFiles.some(
+    (file) => file.id === seed.selections.playbookFileId,
+  )
+    ? seed.selections.playbookFileId
+    : (domainFields.playbookFiles[0]?.id ?? null);
+  const selectedEvalDatasetId = domainFields.evalDatasets.some(
+    (dataset) => dataset.id === seed.selections.evalDatasetId,
+  )
+    ? seed.selections.evalDatasetId
+    : (domainFields.evalDatasets[0]?.id ?? null);
+
+  return ok(
+    appStateSchema.parse({
+      ...domainFields,
+      conversations,
+      selections: {
+        conversationId: selectedConversationId,
+        playbookFileId: selectedPlaybookFileId,
+        evalDatasetId: selectedEvalDatasetId,
+      },
+    }),
+  );
 }
 
 export function mergeTelegramWorkspaceState(

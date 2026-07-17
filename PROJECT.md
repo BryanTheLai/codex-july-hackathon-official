@@ -51,7 +51,7 @@ the hackathon MVP.
 - customer-feedback capture into Eval
 - immutable Eval suites and run evidence
 - exact Knowledge proposals, candidate validation, activation, and rollback
-- database-owned versioned demo seed and transactional reset
+- database-owned versioned demo seed and destructive factory reset
 
 ### Timezone contract
 
@@ -256,6 +256,24 @@ pattern.
 
 ## 10. Demo reset
 
+### Factory reset (global)
+
+The top-right **Reset** action is a destructive factory reset. It restores the
+compiled canonical seed and deletes all demo activity in the fixed workspace.
+Credentials only are preserved: Google OAuth connection rows, API keys, and
+environment configuration. The compiled seed template and database schema are
+not removed.
+
+Factory reset deletes workspace conversations, Knowledge history, candidates,
+corrections, Eval datasets and artifacts, Telegram events and deliveries,
+calendar deliveries and mappings, outbox jobs, generated voice artifacts, and
+tracked external Google Calendar events. The browser must treat the server
+response as authoritative and clear local Telegram and route caches.
+
+Per-chat **Reset this synthetic conversation** in Chat Control is narrow: it
+restores one synthetic fixture conversation only. It does not reset Telegram
+traffic, Knowledge, Eval, calendar state, or the rest of the demo.
+
 The migration `supabase/migrations/20260718010000_demo_seed_templates.sql` must
 exist in the target database before reset. Without it, `demo:seed` and
 `demo:reset` fail because `public.demo_seed_templates` is missing.
@@ -301,8 +319,9 @@ npm run demo:reset -- \
 # Restart the app.
 ```
 
-The reset preserves Google OAuth and sent Telegram audit, removes pending work,
-and clears mapped Google events through the guarded CLI path. See also
+The factory reset preserves Google OAuth and removes pending work, outbox jobs,
+Telegram events and deliveries, calendar mappings and deliveries, and mapped
+Google events through the guarded CLI and `POST /api/demo/reset` paths. See also
 `README.md` → Supabase setup.
 
 ## 11. Demo beats

@@ -230,4 +230,33 @@ describe("Google Calendar service", () => {
     expect(fetcher).not.toHaveBeenCalled();
     expect(events).toEqual([]);
   });
+
+  it("deletes each tracked Google event and clears workspace mappings", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("oauth2.googleapis.com")) {
+        return Response.json({ access_token: "access", token_type: "Bearer" });
+      }
+      if (init?.method === "PUT") return new Response(null, { status: 404 });
+      if (init?.method === "POST") {
+        return Response.json({ id: "kau12345", etag: "etag-1" });
+      }
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      throw new Error(`Unexpected Google request: ${url}`);
+    });
+    const { events, service } = await configuredService(fetcher);
+    await service.syncBooking({
+      bookingRevision: 1,
+      conversationId: "telegram-conversation:-10042",
+    });
+    expect(events).toHaveLength(1);
+
+    await service.deleteTrackedEvents("demo");
+
+    expect(events).toHaveLength(0);
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining("/events/"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
 });
