@@ -38,6 +38,8 @@ pnpm-debug.log*
 # Local caches and scratch work
 .cache/
 .vite/
+.gstack/
+.codex-remote-attachments/
 
 # Editors and operating systems
 .idea/
