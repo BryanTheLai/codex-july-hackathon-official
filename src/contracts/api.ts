@@ -204,20 +204,30 @@ export const calendarDispatchResultSchema = z
   })
   .strict();
 
-const bookingCommandBaseSchema = z.object({
+const bookingCommandConversationBaseSchema = z.object({
   conversationId: z.string().min(1).max(256),
-  expectedBookingRevision: revisionSchema,
   expectedConversationRevision: revisionSchema,
 });
 
+const bookingCommandExistingBookingBaseSchema =
+  bookingCommandConversationBaseSchema.extend({
+    expectedBookingRevision: revisionSchema,
+  });
+
 export const bookingCommandRequestSchema = z.discriminatedUnion("action", [
-  bookingCommandBaseSchema.extend({
+  bookingCommandConversationBaseSchema.extend({
+    action: z.literal("create"),
+    provider: z.string().trim().min(1).max(256),
+    reason: z.string().trim().min(1).max(500),
+    slotIso: z.iso.datetime({ offset: true }),
+  }).strict(),
+  bookingCommandExistingBookingBaseSchema.extend({
     action: z.literal("update"),
     provider: z.string().trim().min(1).max(256),
     reason: z.string().trim().min(1).max(500),
     slotIso: z.iso.datetime({ offset: true }),
   }).strict(),
-  bookingCommandBaseSchema.extend({
+  bookingCommandExistingBookingBaseSchema.extend({
     action: z.literal("cancel"),
   }).strict(),
 ]);

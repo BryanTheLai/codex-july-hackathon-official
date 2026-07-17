@@ -205,13 +205,15 @@ function HandlerBadge({
   mode: AgentMode;
   live: boolean;
 }) {
-  const autonomous = live || mode === "synthetic_agent";
+  const autonomous = mode === "synthetic_agent";
   const label = autonomous
     ? live
       ? "Telegram inbox: autonomous agent can reply and manage bookings"
       : "Autonomous agent handling"
-    : "Staff only handling";
-  if (live) {
+    : live
+      ? "Telegram inbox: autopilot paused for staff-only replies"
+      : "Staff only handling";
+  if (live && autonomous) {
     return (
       <span
         aria-label={label}
@@ -654,7 +656,10 @@ function Composer({
       </div>
       {kind === "reply" && liveTelegram ? (
         <details className="chat-composer__delivery-options">
-          <summary>Manual delivery options</summary>
+          <summary aria-label="Open manual delivery options">
+            <strong>Open manual delivery options</strong>
+            <span>Translate, choose text or voice, then send</span>
+          </summary>
           <div className="chat-composer__live-controls">
             <label className="chat-composer__language">
               <span>Translate to</span>
@@ -1071,7 +1076,10 @@ export function ThreadPane({
     input: SendVisitorReplyInput,
     signal?: AbortSignal,
   ) => MutationResult | Promise<MutationResult>;
-  onSetAgentMode: (conversationId: string, mode: AgentMode) => MutationResult;
+  onSetAgentMode: (
+    conversationId: string,
+    mode: AgentMode,
+  ) => MutationResult | Promise<MutationResult>;
   onRetrySpeech?: (
     messageId: string,
     signal?: AbortSignal,
@@ -1104,7 +1112,7 @@ export function ThreadPane({
   }
 
   const resolved = conversation.workflowStatus === "resolved";
-  const serverControlledAgentMode = conversation.channel === "Telegram";
+  const liveTelegram = conversation.channel === "Telegram";
 
   return (
     <section aria-label="Selected conversation" className="chat-pane thread-pane" role="region">
@@ -1132,22 +1140,30 @@ export function ThreadPane({
           mode={conversation.agentMode}
         />
         <span className="thread-header__date">{formatFullTimestamp(conversation.messages[0]!.sentAt)}</span>
-        {!serverControlledAgentMode ? (
-          <label className="thread-header__mode">
-            <span className="visually-hidden">Agent mode</span>
-            <select
-              aria-label="Agent mode"
-              disabled={resolved}
-              onChange={(event) =>
-                onSetAgentMode(conversation.id, event.target.value as AgentMode)
-              }
-              value={conversation.agentMode}
-            >
-              <option value="synthetic_agent">Agent handling</option>
-              <option value="staff_only">Staff only</option>
-            </select>
-          </label>
-        ) : null}
+        <label className="thread-header__mode">
+          <span className="visually-hidden">
+            {liveTelegram ? "Telegram autopilot setting" : "Agent mode"}
+          </span>
+          <select
+            aria-label={liveTelegram ? "Telegram autopilot setting" : "Agent mode"}
+            disabled={resolved}
+            onChange={(event) => {
+              void onSetAgentMode(
+                conversation.id,
+                event.target.value as AgentMode,
+              );
+            }}
+            title={
+              liveTelegram
+                ? "Agent handling enables Telegram autopilot. Staff only pauses it."
+                : "Choose whether the agent or staff handles this conversation."
+            }
+            value={conversation.agentMode}
+          >
+            <option value="synthetic_agent">Agent handling</option>
+            <option value="staff_only">Staff only</option>
+          </select>
+        </label>
         {resolved ? (
           <button
             className="chat-button"

@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 
 import type {
   Conversation,
+  CreateBookingInput,
   MutationResult,
   UpdateBookingInput,
 } from "../../domain";
-import { previewBookingNotification } from "../../domain";
+import {
+  previewBookingNotification,
+  previewNewBookingNotification,
+} from "../../domain";
 
 function toDateTimeLocal(slotIso: string): string {
   return slotIso.slice(0, 16);
@@ -19,13 +23,17 @@ function toMalaysiaIso(value: string): string {
 
 export function BookingDialog({
   conversation,
+  defaultSlotIso,
   onOpenChange,
   onSave,
   open,
 }: {
   conversation: Conversation | null;
+  defaultSlotIso: string;
   onOpenChange: (open: boolean) => void;
-  onSave: (input: UpdateBookingInput) => MutationResult | Promise<MutationResult>;
+  onSave: (
+    input: CreateBookingInput | UpdateBookingInput,
+  ) => MutationResult | Promise<MutationResult>;
   open: boolean;
 }) {
   const [dateTime, setDateTime] = useState("");
@@ -35,25 +43,38 @@ export function BookingDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open || !conversation?.booking) {
+    if (!open || !conversation) {
       return;
     }
-    setDateTime(toDateTimeLocal(conversation.booking.slotIso));
-    setProvider(conversation.booking.provider);
-    setReason(conversation.booking.reason);
+    if (conversation.booking) {
+      setDateTime(toDateTimeLocal(conversation.booking.slotIso));
+      setProvider(conversation.booking.provider);
+      setReason(conversation.booking.reason);
+    } else {
+      setDateTime(toDateTimeLocal(defaultSlotIso));
+      setProvider("");
+      setReason("");
+    }
     setError("");
-  }, [conversation, open]);
+  }, [conversation, defaultSlotIso, open]);
 
-  const input: UpdateBookingInput | null = conversation?.booking
-    ? {
-        expectedRevision: conversation.booking.revision,
-        provider,
-        reason,
-        slotIso: toMalaysiaIso(dateTime),
-      }
+  const isCreate = Boolean(conversation && !conversation.booking);
+  const input: CreateBookingInput | UpdateBookingInput | null = conversation
+    ? conversation.booking
+      ? {
+          expectedRevision: conversation.booking.revision,
+          provider,
+          reason,
+          slotIso: toMalaysiaIso(dateTime),
+        }
+      : { provider, reason, slotIso: toMalaysiaIso(dateTime) }
     : null;
   const previewResult =
-    conversation && input ? previewBookingNotification(conversation, input) : null;
+    conversation && input
+      ? isCreate
+        ? previewNewBookingNotification(conversation, input)
+        : previewBookingNotification(conversation, input as UpdateBookingInput)
+      : null;
   const preview = previewResult?.ok ? previewResult.preview : null;
   const isPersistedTelegramBooking =
     conversation?.channel === "Telegram" &&
@@ -81,12 +102,16 @@ export function BookingDialog({
         <Dialog.Content className="chat-dialog__content">
           <Dialog.Title className="chat-dialog__title">
             <CalendarClock aria-hidden="true" size={18} />
-            Edit booking
+            {isCreate ? "Create booking" : "Edit booking"}
           </Dialog.Title>
           <Dialog.Description className="chat-dialog__description">
             {isPersistedTelegramBooking
-              ? "Update the booking and preview the patient message. Google Calendar synchronization is queued when it is connected. Times use Malaysia Time (MYT)."
-              : "Update this synthetic booking and preview the patient message. Nothing is sent to Telegram. Times use Malaysia Time (MYT)."}
+              ? isCreate
+                ? "Create a confirmed appointment and preview the patient message. Google Calendar synchronization is queued when it is connected; sending the patient message remains a separate staff action. Times use Malaysia Time (MYT)."
+                : "Update the booking and preview the patient message. Google Calendar synchronization is queued when it is connected; sending the patient message remains a separate staff action. Times use Malaysia Time (MYT)."
+              : isCreate
+                ? "Create this synthetic booking and preview the patient message. Nothing is sent to Telegram or Google Calendar. Times use Malaysia Time (MYT)."
+                : "Update this synthetic booking and preview the patient message. Nothing is sent to Telegram. Times use Malaysia Time (MYT)."}
           </Dialog.Description>
           <label className="chat-dialog__field">
             Date and time
@@ -114,7 +139,7 @@ export function BookingDialog({
             />
           </label>
           <section aria-live="polite" className="booking-notification-preview">
-            <strong>Patient message</strong>
+            <strong>Exact patient message preview</strong>
             {preview ? (
               <>
                 <p lang={preview.language === "Malay" ? "ms" : preview.language === "Mandarin" ? "zh" : "en"}>
@@ -129,7 +154,9 @@ export function BookingDialog({
               </>
             ) : (
               <p className="booking-notification-preview__empty">
-                Change a booking detail to preview the exact message.
+                {isCreate
+                  ? "Enter appointment details above to preview the exact message before creating it."
+                  : "Edit a booking detail above to preview the exact message before saving."}
               </p>
             )}
           </section>
@@ -150,7 +177,7 @@ export function BookingDialog({
               onClick={() => void submit()}
               type="button"
             >
-              {saving ? "Saving…" : "Save booking"}
+              {saving ? "Saving…" : isCreate ? "Create booking" : "Save booking"}
             </button>
           </div>
         </Dialog.Content>

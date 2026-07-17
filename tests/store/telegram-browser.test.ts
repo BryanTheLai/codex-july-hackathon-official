@@ -107,6 +107,55 @@ describe("Telegram browser store", () => {
     });
   });
 
+  it("persists a Telegram autopilot change instead of treating it as local demo state", async () => {
+    const server = await telegramServerState();
+    const conversation = server.conversations[0]!;
+    const workspaceClient: WorkspaceClient = {
+      load: vi.fn().mockResolvedValue({
+        workspaceId: "demo",
+        revision: 4,
+        state: server,
+      }),
+      save: vi.fn(async (request) => ({
+        ok: true as const,
+        workspace: {
+          workspaceId: "demo",
+          revision: 5,
+          state: request.state,
+        },
+      })),
+    };
+    const store = createAppStore(new MemoryStorage(), { workspaceClient });
+
+    await store.getState().refreshTelegramWorkspace();
+    const result = await store.getState().setTelegramAgentMode(
+      conversation.id,
+      "staff_only",
+    );
+
+    expect(result.ok).toBe(true);
+    expect(workspaceClient.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedRevision: 4,
+        state: expect.objectContaining({
+          conversations: expect.arrayContaining([
+            expect.objectContaining({
+              agentMode: "staff_only",
+              id: conversation.id,
+            }),
+          ]),
+        }),
+      }),
+      undefined,
+    );
+    expect(
+      store.getState().state.conversations.find(
+        (item) => item.id === conversation.id,
+      )?.agentMode,
+    ).toBe("staff_only");
+    expect(store.getState().lastFeedback).toContain("autopilot paused");
+  });
+
   it("keeps the local demo usable when server persistence is disabled", async () => {
     const workspaceClient: WorkspaceClient = {
       load: vi.fn().mockRejectedValue(

@@ -44,6 +44,7 @@ export {
   updatePatient,
   approveBooking,
   rejectBooking,
+  createBooking,
   cancelBooking,
   updateBooking,
   escalateEmergency,
@@ -57,6 +58,7 @@ export {
   previewBookingCancellation,
   previewBookingDecision,
   previewBookingNotification,
+  previewNewBookingNotification,
 } from "./booking-notifications";
 export { buildGenerationInput, generateSyntheticOutput } from "./eval-generation";
 export {

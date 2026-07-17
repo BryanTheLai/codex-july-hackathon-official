@@ -102,14 +102,14 @@ export function ChangesPane({
                       ) : null}
                       <div className="dream-correction__actions">
                         <button
-                          aria-label="Reject correction"
+                          aria-label={stale ? "Dismiss stale proposal" : "Reject correction"}
                           className="dream-button"
                           disabled={blocked}
                           onClick={() => onReject(correction)}
                           type="button"
                         >
                           <X aria-hidden="true" size={14} />
-                          Reject
+                          {stale ? "Dismiss stale proposal" : "Reject"}
                         </button>
                         <button
                           aria-label="Approve correction"

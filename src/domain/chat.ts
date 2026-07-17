@@ -4,6 +4,7 @@ import type {
   Booking,
   BookingNotificationPreview,
   ConversationId,
+  CreateBookingInput,
   MutationResult,
   PatientUpdateInput,
   SendStaffReplyInput,
@@ -15,6 +16,7 @@ import { FIXTURE_TIME_ISO } from "./types";
 import {
   createBookingNotification,
   previewBookingNotification,
+  previewNewBookingNotification,
 } from "./booking-notifications";
 import { createCanonicalSeed } from "./seed";
 import {
@@ -264,6 +266,37 @@ export function updateBooking(
     nextBooking,
     preview.preview,
     `${eventLabel} by staff at ${state.fixtureTime}. Before: ${before}. After: ${after}.`,
+  );
+  return ok(next);
+}
+
+export function createBooking(
+  state: AppState,
+  conversationId: ConversationId,
+  input: CreateBookingInput,
+): MutationResult {
+  const conversation = findConversation(state, conversationId);
+  if (!conversation) {
+    return err(state, "Conversation not found");
+  }
+  const preview = previewNewBookingNotification(conversation, input);
+  if (!preview.ok) {
+    return err(state, preview.error);
+  }
+
+  const nextBooking: Booking = {
+    provider: trimOrEmpty(input.provider),
+    reason: trimOrEmpty(input.reason),
+    slotIso: trimOrEmpty(input.slotIso),
+    status: "approved",
+    revision: (conversation.booking?.revision ?? 0) + 1,
+  };
+  const next = appendBookingTransition(
+    state,
+    conversationId,
+    nextBooking,
+    preview.preview,
+    `Booking created by staff for ${formatKualaLumpurSlot(nextBooking.slotIso)} with ${nextBooking.provider} at ${state.fixtureTime}.`,
   );
   return ok(next);
 }

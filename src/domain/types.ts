@@ -86,6 +86,8 @@ export type UpdateBookingInput = Pick<Booking, "provider" | "slotIso" | "reason"
   expectedRevision: number;
 };
 
+export type CreateBookingInput = Pick<Booking, "provider" | "slotIso" | "reason">;
+
 export type BookingNotificationPreview = {
   event: BookingNotificationEvent;
   text: string;

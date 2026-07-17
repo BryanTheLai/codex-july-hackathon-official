@@ -1192,6 +1192,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
   const bookingCommands = workspace
     ? createBookingCommandService({
         calendarAvailability: googleCalendar ?? undefined,
+        outboxRepository: outboxRepository ?? undefined,
         workspaceId: workspace.workspaceId,
         workspaceRepository: workspace.repository,
       })

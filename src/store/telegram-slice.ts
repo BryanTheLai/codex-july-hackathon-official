@@ -1,6 +1,7 @@
 import {
   sendStaffReply,
   type AppState,
+  type AgentMode,
   type MutationResult,
   type SendStaffReplyInput,
 } from "../domain";
@@ -305,6 +306,117 @@ export function createTelegramActions({
 
   return {
     refreshTelegramWorkspace,
+
+    async setTelegramAgentMode(
+      conversationId: string,
+      mode: AgentMode,
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      if (!workspaceClient.save) {
+        const message = "Telegram autopilot settings are unavailable.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+
+      try {
+        const workspace = await workspaceClient.load(signal);
+        const index = workspace.state.conversations.findIndex(
+          (conversation) => conversation.id === conversationId,
+        );
+        if (index < 0) {
+          const message = "Telegram conversation not found. Refresh the inbox and retry.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
+
+        const current = workspace.state.conversations[index]!;
+        if (current.source !== "telegram") {
+          const message = "Only Telegram autopilot settings can be changed here.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
+        if (current.workflowStatus === "resolved") {
+          const message = "Reopen the conversation before changing Telegram autopilot.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
+
+        const nextMode = mode === "staff_only" ? "staff_only" : "live_agent";
+        const enabled = nextMode === "live_agent";
+        if (current.agentMode === nextMode) {
+          const projected = mergeTelegramWorkspaceState(
+            getState(),
+            workspace.state,
+          );
+          set({
+            state: projected.state,
+            lastFeedback: enabled
+              ? "Telegram autopilot is already enabled."
+              : "Telegram autopilot is already paused for staff.",
+          });
+          setTelegramWorkspace({
+            ...getTelegramWorkspace(),
+            status: "ready",
+            workspaceRevision: workspace.revision,
+            conversationRevisions: projected.conversationRevisions,
+            speechArtifacts: projected.speechArtifacts,
+          });
+          repository.save(projected.state);
+          return { ok: true, state: projected.state };
+        }
+
+        const nextState = structuredClone(workspace.state);
+        nextState.conversations[index] = {
+          ...current,
+          agentMode: nextMode,
+          revision: current.revision + 1,
+          messages: [
+            ...current.messages,
+            {
+              id: `admin-telegram-autopilot-${current.id}-${current.revision + 1}`,
+              role: "system",
+              text: enabled
+                ? "Staff enabled Telegram autopilot. New messages may receive autonomous replies."
+                : "Staff paused Telegram autopilot. New messages remain staff-only.",
+              sentAt: new Date().toISOString(),
+            },
+          ],
+        };
+        const saved = await workspaceClient.save({
+          expectedRevision: workspace.revision,
+          state: nextState,
+        }, signal);
+        const projected = mergeTelegramWorkspaceState(getState(), saved.workspace.state);
+        const telegramWorkspace: TelegramWorkspaceState = {
+          ...getTelegramWorkspace(),
+          status: "ready",
+          workspaceRevision: saved.workspace.revision,
+          conversationRevisions: projected.conversationRevisions,
+          speechArtifacts: projected.speechArtifacts,
+        };
+        const message = saved.ok
+          ? enabled
+            ? "Telegram autopilot enabled. New messages may receive autonomous replies."
+            : "Telegram autopilot paused. New messages remain staff-only."
+          : "Conversation changed. Review the refreshed thread and retry.";
+        set({ state: projected.state, lastFeedback: message });
+        setTelegramWorkspace(telegramWorkspace);
+        repository.save(projected.state);
+        return saved.ok
+          ? { ok: true, state: projected.state }
+          : failed(projected.state, message);
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        if (error instanceof ApiClientError && error.code === "revision_conflict") {
+          await refreshTelegramWorkspace(signal);
+        }
+        const message = error instanceof ApiClientError
+          ? error.message
+          : "Telegram autopilot could not be updated.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
 
     async executeTelegramBookingCommand(
       request: BookingCommandRequest,

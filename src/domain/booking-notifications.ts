@@ -5,6 +5,7 @@ import type {
   BookingNotificationPreview,
   BookingNotificationPreviewResult,
   Conversation,
+  CreateBookingInput,
   UpdateBookingInput,
 } from "./types";
 
@@ -161,6 +162,44 @@ export function previewBookingNotification(
   return {
     ok: true,
     preview: createBookingNotification(conversation, nextBooking, event),
+  };
+}
+
+export function previewNewBookingNotification(
+  conversation: Conversation,
+  input: CreateBookingInput,
+): BookingNotificationPreviewResult {
+  if (
+    conversation.booking &&
+    conversation.booking.status !== "rejected" &&
+    conversation.booking.status !== "cancelled"
+  ) {
+    return { ok: false, error: "This conversation already has an active booking" };
+  }
+
+  const provider = trimOrEmpty(input.provider);
+  const reason = trimOrEmpty(input.reason);
+  const slotIso = trimOrEmpty(input.slotIso);
+  if (!provider) {
+    return { ok: false, error: "Booking provider cannot be empty" };
+  }
+  if (!reason) {
+    return { ok: false, error: "Booking reason cannot be empty" };
+  }
+  if (!slotIso || Number.isNaN(Date.parse(slotIso))) {
+    return { ok: false, error: "Booking date and time is invalid" };
+  }
+
+  const booking: Booking = {
+    provider,
+    reason,
+    slotIso,
+    status: "approved",
+    revision: (conversation.booking?.revision ?? 0) + 1,
+  };
+  return {
+    ok: true,
+    preview: createBookingNotification(conversation, booking, "confirmed"),
   };
 }
 

@@ -8,6 +8,7 @@ export function SchedulePane({
   compact,
   conversations,
   fixtureTime,
+  onCreateBooking,
   onEditBooking,
   onOpenConversation,
   onSendCalendar,
@@ -15,6 +16,7 @@ export function SchedulePane({
   compact: boolean;
   conversations: Conversation[];
   fixtureTime: string;
+  onCreateBooking: (conversationId: ConversationId) => void;
   onEditBooking: (conversationId: ConversationId) => void;
   onOpenConversation: (conversationId: ConversationId) => void;
   onSendCalendar: (conversationId: ConversationId) => void;
@@ -26,8 +28,17 @@ export function SchedulePane({
       conversation.booking.status !== "rejected" &&
       conversation.booking.status !== "cancelled",
   );
+  const bookingCandidates = conversations.filter(
+    (conversation) =>
+      !conversation.booking ||
+      conversation.booking.status === "rejected" ||
+      conversation.booking.status === "cancelled",
+  );
   const firstBookingDate = bookings[0]?.booking?.slotIso.slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(firstBookingDate ?? days[0]?.isoDate ?? "");
+  const [bookingCandidateId, setBookingCandidateId] = useState(
+    bookingCandidates[0]?.id ?? "",
+  );
   const [calendarMode, setCalendarMode] = useState<"demo" | "google">("demo");
 
   useEffect(() => {
@@ -57,10 +68,43 @@ export function SchedulePane({
     }
   }, [days, firstBookingDate, selectedDate]);
 
+  useEffect(() => {
+    if (!bookingCandidates.some((conversation) => conversation.id === bookingCandidateId)) {
+      setBookingCandidateId(bookingCandidates[0]?.id ?? "");
+    }
+  }, [bookingCandidateId, bookingCandidates]);
+
   const selectedBookings = bookings.filter(
     (conversation) => conversation.booking?.slotIso.slice(0, 10) === selectedDate,
   );
   const selectedDay = days.find((day) => day.isoDate === selectedDate);
+  const createBookingControls = bookingCandidates.length > 0 ? (
+    <div className="schedule-pane__create-booking">
+      <label>
+        <span className="visually-hidden">Patient for new booking</span>
+        <select
+          aria-label="Patient for new booking"
+          onChange={(event) => setBookingCandidateId(event.target.value)}
+          value={bookingCandidateId}
+        >
+          {bookingCandidates.map((conversation) => (
+            <option key={conversation.id} value={conversation.id}>
+              {conversation.patient.name} · {conversation.channel}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className="chat-button chat-button--primary"
+        disabled={!bookingCandidateId}
+        onClick={() => onCreateBooking(bookingCandidateId)}
+        type="button"
+      >
+        <CalendarPlus aria-hidden="true" size={14} />
+        Create booking
+      </button>
+    </div>
+  ) : null;
 
   const bookingList = (
     <div aria-label="Bookings for selected day" className="schedule-list" tabIndex={0}>
@@ -144,6 +188,7 @@ export function SchedulePane({
           </label>
           <strong>{calendarLabel}</strong>
         </header>
+        {createBookingControls}
         {bookingList}
       </section>
     );
@@ -196,10 +241,13 @@ export function SchedulePane({
                 scheduled
               </span>
             </div>
-            <span className="chat-badge chat-badge--info">
-              <Link2 aria-hidden="true" size={13} />
-              {calendarLabel}
-            </span>
+            <div className="schedule-pane__header-actions">
+              {createBookingControls}
+              <span className="chat-badge chat-badge--info">
+                <Link2 aria-hidden="true" size={13} />
+                {calendarLabel}
+              </span>
+            </div>
           </header>
           {bookingList}
         </section>

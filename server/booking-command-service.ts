@@ -7,6 +7,7 @@ import {
   type BookingCommandResult,
 } from "../src/contracts/api";
 import type { CalendarAvailability } from "./google-calendar-service";
+import type { OutboxRepository } from "./outbox-repository";
 import type { WorkspaceRepository } from "./workspace-repository";
 
 export class BookingCommandServiceError extends Error {
@@ -30,10 +31,22 @@ function auditMessageId(input: BookingCommandRequest): string {
 export function createBookingCommandService(input: {
   calendarAvailability?: CalendarAvailability;
   now?: () => string;
+  outboxRepository?: Pick<OutboxRepository, "enqueue">;
   workspaceId: string;
   workspaceRepository: WorkspaceRepository;
 }): BookingCommandService {
   const now = input.now ?? (() => new Date().toISOString());
+  const enqueueCalendarSync = async (
+    conversationId: string,
+    bookingRevision: number,
+  ) => {
+    await input.outboxRepository?.enqueue({
+      workspaceId: input.workspaceId,
+      kind: "google_calendar_sync",
+      dedupeKey: `google:${conversationId}:${bookingRevision}`,
+      payload: { conversationId, bookingRevision },
+    });
+  };
   return {
     async execute(raw) {
       const request = bookingCommandRequestSchema.parse(raw);
@@ -44,29 +57,54 @@ export function createBookingCommandService(input: {
       );
       if (index < 0) throw new BookingCommandServiceError("not_found", "Booking conversation not found.");
       const conversation = workspace.state.conversations[index]!;
-      if (conversation.source !== "telegram" || !conversation.booking) {
+      if (conversation.source !== "telegram") {
         throw new BookingCommandServiceError("invalid_request", "Only persisted Telegram bookings can be synchronized.");
       }
       const messageId = auditMessageId(request);
-      if (conversation.messages.some((message) => message.id === messageId)) {
+      if (
+        conversation.messages.some((message) => message.id === messageId) &&
+        conversation.booking
+      ) {
+        await enqueueCalendarSync(conversation.id, conversation.booking.revision);
         return bookingCommandResultSchema.parse({ workspace, booking: conversation.booking });
       }
+      if (conversation.revision !== request.expectedConversationRevision) {
+        throw new BookingCommandServiceError(
+          "revision_conflict",
+          "Booking changed before this update. Refresh and retry.",
+        );
+      }
       if (
-        conversation.revision !== request.expectedConversationRevision ||
-        conversation.booking.revision !== request.expectedBookingRevision
+        request.action !== "create" &&
+        (!conversation.booking ||
+          conversation.booking.revision !== request.expectedBookingRevision)
       ) {
         throw new BookingCommandServiceError(
           "revision_conflict",
           "Booking changed before this update. Refresh and retry.",
         );
       }
-      if (conversation.booking.status !== "approved") {
+      if (
+        request.action === "create" &&
+        conversation.booking &&
+        conversation.booking.status !== "cancelled" &&
+        conversation.booking.status !== "rejected"
+      ) {
+        throw new BookingCommandServiceError(
+          "invalid_request",
+          "This conversation already has an active booking. Edit that booking instead.",
+        );
+      }
+      if (
+        request.action !== "create" &&
+        conversation.booking?.status !== "approved"
+      ) {
         throw new BookingCommandServiceError(
           "invalid_request",
           "Only a confirmed booking can be updated or cancelled.",
         );
       }
-      if (request.action === "update" && input.calendarAvailability) {
+      if (request.action !== "cancel" && input.calendarAvailability) {
         const availability = await input.calendarAvailability.filterAvailableSlots({
           slots: [{ provider: request.provider, slotIso: request.slotIso }],
         });
@@ -77,18 +115,32 @@ export function createBookingCommandService(input: {
           );
         }
       }
-      const booking = request.action === "cancel"
-        ? { ...conversation.booking, status: "cancelled" as const, revision: conversation.booking.revision + 1 }
-        : {
-            ...conversation.booking,
+      const booking = request.action === "create"
+        ? {
             provider: request.provider,
             reason: request.reason,
             slotIso: request.slotIso,
-            revision: conversation.booking.revision + 1,
-          };
-      const actionText = request.action === "cancel"
-        ? "Admin cancelled the appointment. Google Calendar synchronization runs when connected."
-        : "Admin updated the appointment. Google Calendar synchronization runs when connected.";
+            status: "approved" as const,
+            revision: (conversation.booking?.revision ?? 0) + 1,
+          }
+        : request.action === "cancel"
+          ? {
+              ...conversation.booking!,
+              status: "cancelled" as const,
+              revision: conversation.booking!.revision + 1,
+            }
+          : {
+              ...conversation.booking!,
+              provider: request.provider,
+              reason: request.reason,
+              slotIso: request.slotIso,
+              revision: conversation.booking!.revision + 1,
+            };
+      const actionText = request.action === "create"
+        ? "Admin created the appointment. Google Calendar synchronization runs when connected."
+        : request.action === "cancel"
+          ? "Admin cancelled the appointment. Google Calendar synchronization runs when connected."
+          : "Admin updated the appointment. Google Calendar synchronization runs when connected.";
       const state = structuredClone(workspace.state);
       state.conversations[index] = {
         ...conversation,
@@ -110,6 +162,7 @@ export function createBookingCommandService(input: {
           "Booking changed before this update. Refresh and retry.",
         );
       }
+      await enqueueCalendarSync(conversation.id, booking.revision);
       return bookingCommandResultSchema.parse({ workspace: saved.workspace, booking });
     },
   };

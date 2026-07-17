@@ -6,10 +6,15 @@ import {
 } from "../../src/domain";
 import { createBookingCommandService } from "../../server/booking-command-service";
 import type { CalendarAvailability } from "../../server/google-calendar-service";
+import type { OutboxRepository } from "../../server/outbox-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
-async function configuredService(calendarAvailability?: CalendarAvailability) {
+async function configuredService(
+  calendarAvailability?: CalendarAvailability,
+  outboxRepository?: Pick<OutboxRepository, "enqueue">,
+  withBooking = true,
+) {
   const inbound = mergeTelegramInboundText(await createCanonicalServerState(), {
     channel: "telegram",
     externalEventId: "101",
@@ -26,13 +31,15 @@ async function configuredService(calendarAvailability?: CalendarAvailability) {
   const state = structuredClone(bootstrapped.state);
   state.conversations[0] = {
     ...conversation,
-    booking: {
-      provider: "Dr. Farah",
-      reason: "Routine checkup",
-      revision: 1,
-      slotIso: "2026-07-17T10:30:00+08:00",
-      status: "approved",
-    },
+    booking: withBooking
+      ? {
+          provider: "Dr. Farah",
+          reason: "Routine checkup",
+          revision: 1,
+          slotIso: "2026-07-17T10:30:00+08:00",
+          status: "approved",
+        }
+      : undefined,
   };
   const saved = await repository.save("demo", bootstrapped.revision, state);
   if (!saved.ok) throw new Error("Booking seed failed");
@@ -42,6 +49,7 @@ async function configuredService(calendarAvailability?: CalendarAvailability) {
     service: createBookingCommandService({
       calendarAvailability,
       now: () => "2026-07-17T02:00:00.000Z",
+      outboxRepository,
       workspaceId: "demo",
       workspaceRepository: repository,
     }),
@@ -77,6 +85,68 @@ describe("booking command service", () => {
       expectedConversationRevision: updatedConversation.revision,
     });
     expect(cancelled.booking).toMatchObject({ status: "cancelled", revision: 3 });
+  });
+
+  it("queues a Google Calendar sync for each persisted booking revision", async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const outboxRepository: Pick<OutboxRepository, "enqueue"> = {
+      enqueue: async (input) => {
+        await enqueue(input);
+      },
+    };
+    const { conversation, service } = await configuredService(undefined, outboxRepository);
+
+    await service.execute({
+      action: "update",
+      conversationId: conversation.id,
+      expectedBookingRevision: 1,
+      expectedConversationRevision: conversation.revision,
+      provider: "Dr. Lim",
+      reason: "Follow-up",
+      slotIso: "2026-07-17T14:00:00+08:00",
+    });
+
+    expect(enqueue).toHaveBeenCalledWith({
+      workspaceId: "demo",
+      kind: "google_calendar_sync",
+      dedupeKey: `google:${conversation.id}:2`,
+      payload: { conversationId: conversation.id, bookingRevision: 2 },
+    });
+  });
+
+  it("creates a persisted Telegram booking and queues its first Calendar revision", async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const outboxRepository: Pick<OutboxRepository, "enqueue"> = {
+      enqueue: async (input) => {
+        await enqueue(input);
+      },
+    };
+    const { conversation, service } = await configuredService(
+      undefined,
+      outboxRepository,
+      false,
+    );
+
+    const created = await service.execute({
+      action: "create",
+      conversationId: conversation.id,
+      expectedConversationRevision: conversation.revision,
+      provider: "Dr. Lim",
+      reason: "Follow-up",
+      slotIso: "2026-07-17T14:00:00+08:00",
+    });
+
+    expect(created.booking).toMatchObject({
+      provider: "Dr. Lim",
+      revision: 1,
+      status: "approved",
+    });
+    expect(enqueue).toHaveBeenCalledWith({
+      workspaceId: "demo",
+      kind: "google_calendar_sync",
+      dedupeKey: `google:${conversation.id}:1`,
+      payload: { conversationId: conversation.id, bookingRevision: 1 },
+    });
   });
 
   it("rejects stale updates instead of overwriting a newer booking", async () => {

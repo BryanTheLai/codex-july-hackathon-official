@@ -112,6 +112,29 @@ describe("HTTP workspace client", () => {
     );
   });
 
+  it("persists a revisioned workspace update for live Telegram controls", async () => {
+    const workspace = {
+      workspaceId: "demo",
+      revision: 4,
+      state: await createCanonicalServerState(),
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, workspace }), { status: 200 }),
+    );
+    const client = createHttpWorkspaceClient(fetcher);
+
+    await expect(
+      client.save!({ expectedRevision: 3, state: workspace.state }),
+    ).resolves.toEqual({ ok: true, workspace });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/workspace/state",
+      expect.objectContaining({
+        body: JSON.stringify({ expectedRevision: 3, state: workspace.state }),
+        method: "PUT",
+      }),
+    );
+  });
+
   it("returns the current workspace when a synthetic reset loses revision CAS", async () => {
     const workspace = {
       workspaceId: "demo",
@@ -324,6 +347,20 @@ describe("HTTP Eval client", () => {
       malformed.runCase(evalCaseRequest),
     ).rejects.toMatchObject({
       code: "provider_failed",
+      retryable: true,
+    });
+  });
+
+  it("reports an upstream HTTP failure instead of calling a non-JSON suite invalid", async () => {
+    const client = createHttpEvalClient(
+      vi.fn().mockResolvedValue(
+        new Response("<html>Bad gateway</html>", { status: 502 }),
+      ),
+    );
+
+    await expect(client.createSuite(evalSuiteRequest)).rejects.toMatchObject({
+      code: "provider_failed",
+      message: expect.stringContaining("HTTP 502"),
       retryable: true,
     });
   });

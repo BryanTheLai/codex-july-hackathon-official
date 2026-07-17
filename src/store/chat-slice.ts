@@ -2,6 +2,7 @@ import {
   addLabel,
   approveBooking,
   cancelBooking,
+  createBooking,
   escalateEmergency,
   rejectBooking,
   removeLabel,
@@ -19,6 +20,7 @@ import {
   type SimulateScenario,
   type PatientUpdateInput,
   type ConversationId,
+  type CreateBookingInput,
   type UpdateBookingInput,
 } from "../domain";
 import { applyMutation } from "./apply-mutation";
@@ -76,6 +78,13 @@ export function createChatActions({ getState, set, repository }: ChatSliceDeps) 
       return run(
         updateBooking(getState(), conversationId, input),
         "Booking updated in the synthetic workspace. No Telegram message was sent.",
+      );
+    },
+
+    createBooking(conversationId: ConversationId, input: CreateBookingInput) {
+      return run(
+        createBooking(getState(), conversationId, input),
+        "Booking created in the synthetic workspace. No Telegram message was sent.",
       );
     },
 

@@ -56,6 +56,15 @@ export function AnalyzeFailuresDrawer({
           <X aria-hidden="true" size={17} />
         </button>
       </header>
+      {status !== "idle" ? (
+        <p aria-live="polite" className={`analyze-drawer__status analyze-drawer__status--${status}`} role="status">
+          {status === "running"
+            ? "Analysis is running: asking the SOP proposer for one reviewable diff. It will not apply any change automatically."
+            : status === "complete"
+              ? "Analysis complete. Review the proposed diff before approving it in Dream."
+              : error}
+        </p>
+      ) : null}
       <div className="eval-drawer__scroll analyze-drawer__content" tabIndex={0}>
         <section>
           <h2>Failed train cases</h2>

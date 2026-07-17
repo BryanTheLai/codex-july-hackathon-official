@@ -65,6 +65,19 @@ have been sent.
 `https://app.example.com/api/admin/calendar/google/callback`. Register that exact value in Google
 Cloud; the placeholder `YOUR_APP_DOMAIN` below is not a value to deploy.
 
+### Current DigitalOcean deployment
+
+Until a custom domain is attached, configure the current App Platform URL exactly as follows:
+
+```text
+CALENDAR_UID_DOMAIN=kaunterai-594s3.ondigitalocean.app
+GOOGLE_CALENDAR_REDIRECT_URI=https://kaunterai-594s3.ondigitalocean.app/api/admin/calendar/google/callback
+```
+
+`CALENDAR_UID_DOMAIN` has no `https://` prefix and does not need a `calendar.` subdomain. Register
+the redirect URI exactly as shown in Google Cloud. When a permanent custom domain is ready, use
+that domain for new deployments and keep the chosen UID domain stable once real invitations exist.
+
 1. In Google Cloud, enable **Google Calendar API** and create an OAuth **Web application** client.
 2. Add this exact authorized redirect URI:
    `https://YOUR_APP_DOMAIN/api/admin/calendar/google/callback`.

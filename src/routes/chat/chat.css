@@ -280,6 +280,29 @@
   margin-left: auto;
 }
 
+.booking-save-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px var(--kaunter-space-3) 0;
+  padding: 9px 10px;
+  border: 1px solid var(--kaunter-success-fg);
+  border-radius: var(--kaunter-radius-md);
+  background: var(--kaunter-success-bg);
+  color: var(--kaunter-success-fg);
+  font-size: 12px;
+}
+
+.booking-save-banner div {
+  display: grid;
+  gap: 2px;
+}
+
+.booking-save-banner span {
+  line-height: 1.4;
+}
+
 .chat-route--single .chat-workbench {
   display: block;
 }
@@ -950,16 +973,44 @@
 }
 
 .chat-composer__delivery-options summary {
-  display: inline-flex;
-  min-height: 28px;
+  display: grid;
+  position: relative;
+  min-height: 42px;
   align-items: center;
-  color: var(--kaunter-muted);
+  gap: 1px;
+  padding: 6px 8px;
+  color: var(--kaunter-ink);
   cursor: pointer;
   font-size: 11px;
+  list-style: none;
+}
+
+.chat-composer__delivery-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-composer__delivery-options summary::before {
+  content: "+";
+  position: absolute;
+  right: 10px;
+  color: var(--kaunter-muted);
+  font-size: 16px;
+}
+
+.chat-composer__delivery-options summary strong {
+  font-size: 12px;
+}
+
+.chat-composer__delivery-options summary span {
+  color: var(--kaunter-muted);
 }
 
 .chat-composer__delivery-options[open] summary {
-  color: var(--kaunter-ink);
+  background: var(--kaunter-quiet);
+}
+
+.chat-composer__delivery-options[open] summary::before {
+  content: "–";
 }
 
 .chat-composer__live-controls .chat-composer__language {
@@ -1393,6 +1444,31 @@
   flex-direction: column;
 }
 
+.schedule-pane__header-actions {
+  align-items: center;
+  flex-direction: row !important;
+}
+
+.schedule-pane__create-booking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-pane__create-booking select {
+  max-width: 180px;
+  min-height: 32px;
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: var(--kaunter-radius-sm);
+  background: var(--kaunter-raised);
+  color: var(--kaunter-ink);
+}
+
+.schedule-pane__create-booking .chat-button {
+  gap: 5px;
+  white-space: nowrap;
+}
+
 .schedule-pane__header span {
   color: var(--kaunter-muted);
   font-size: var(--kaunter-text-meta);
@@ -1426,6 +1502,21 @@
   color: var(--kaunter-info-fg);
   font-size: var(--kaunter-text-meta);
   white-space: nowrap;
+}
+
+.schedule-pane--compact .schedule-pane__create-booking {
+  padding: 8px;
+  border-bottom: 1px solid var(--kaunter-hairline);
+}
+
+.schedule-pane--compact .schedule-pane__create-booking label {
+  flex: 1;
+  min-width: 0;
+}
+
+.schedule-pane--compact .schedule-pane__create-booking select {
+  width: 100%;
+  max-width: none;
 }
 
 .schedule-list {

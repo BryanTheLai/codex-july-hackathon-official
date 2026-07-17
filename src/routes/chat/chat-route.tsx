@@ -5,6 +5,7 @@ import { useMediaQuery } from "../../app/use-media-query";
 import type {
   AgentMode,
   ConversationId,
+  CreateBookingInput,
   PatientUpdateInput,
   SimulateScenario,
   UpdateBookingInput,
@@ -72,6 +73,9 @@ export default function ChatRoute() {
   const executeTelegramBookingCommand = useAppStore(
     (store) => store.executeTelegramBookingCommand,
   );
+  const setTelegramAgentMode = useAppStore(
+    (store) => store.setTelegramAgentMode,
+  );
   const telegramSpeechArtifacts = useAppStore(
     (store) => store.telegramWorkspace.speechArtifacts,
   );
@@ -79,6 +83,7 @@ export default function ChatRoute() {
   const reopenConversation = useAppStore((store) => store.reopenConversation);
   const updatePatient = useAppStore((store) => store.updatePatient);
   const cancelBooking = useAppStore((store) => store.cancelBooking);
+  const createBooking = useAppStore((store) => store.createBooking);
   const updateBooking = useAppStore((store) => store.updateBooking);
   const escalateEmergency = useAppStore((store) => store.escalateEmergency);
   const addLabel = useAppStore((store) => store.addLabel);
@@ -106,6 +111,7 @@ export default function ChatRoute() {
   const [railOpen, setRailOpen] = useState(false);
   const [simulateOpen, setSimulateOpen] = useState(false);
   const [bookingEditId, setBookingEditId] = useState<ConversationId | null>(null);
+  const [bookingNotice, setBookingNotice] = useState<string | null>(null);
   const isSinglePane = isMobile || containerTooNarrow;
   const usesRailDrawer = !isSinglePane && viewportUsesRailDrawer;
 
@@ -366,9 +372,14 @@ export default function ChatRoute() {
       onSaveManualTranscript={(messageId, input, signal) =>
         saveTelegramManualTranscript(messageId, input, signal)
       }
-      onSetAgentMode={(conversationId, mode: AgentMode) =>
-        setAgentMode({ conversationId, mode })
-      }
+      onSetAgentMode={(conversationId, mode: AgentMode) => {
+        const conversation = state.conversations.find(
+          (candidate) => candidate.id === conversationId,
+        );
+        return conversation?.channel === "Telegram"
+          ? setTelegramAgentMode(conversationId, mode)
+          : setAgentMode({ conversationId, mode });
+      }}
       showBack={isSinglePane}
       showDetails={isSinglePane || usesRailDrawer}
       speechArtifacts={telegramSpeechArtifacts}
@@ -462,12 +473,33 @@ export default function ChatRoute() {
           </button>
         ) : null}
       </section>
+      {bookingNotice ? (
+        <section
+          aria-live="polite"
+          className="booking-save-banner"
+          role="status"
+        >
+          <div>
+            <strong>Booking saved</strong>
+            <span>{bookingNotice}</span>
+          </div>
+          <button
+            aria-label="Dismiss booking confirmation"
+            className="chat-icon-button"
+            onClick={() => setBookingNotice(null)}
+            type="button"
+          >
+            ×
+          </button>
+        </section>
+      ) : null}
       <div aria-label="Chat workbench" className={`chat-workbench chat-workbench--${view}`}>
         {view === "schedule" ? (
           <SchedulePane
             compact={isSinglePane}
             conversations={state.conversations}
             fixtureTime={state.fixtureTime}
+            onCreateBooking={setBookingEditId}
             onEditBooking={setBookingEditId}
             onOpenConversation={openConversation}
             onSendCalendar={(conversationId) =>
@@ -496,12 +528,13 @@ export default function ChatRoute() {
         conversation={
           state.conversations.find((conversation) => conversation.id === bookingEditId) ?? null
         }
+        defaultSlotIso={state.fixtureTime}
         onOpenChange={(open) => {
           if (!open) {
             setBookingEditId(null);
           }
         }}
-        onSave={(input: UpdateBookingInput) => {
+        onSave={async (input: CreateBookingInput | UpdateBookingInput) => {
           if (!bookingEditId) {
             return {
               error: "Booking not found",
@@ -513,9 +546,9 @@ export default function ChatRoute() {
             (item) => item.id === bookingEditId,
           );
           const serverRevision = telegramConversationRevisions[bookingEditId];
+          const isUpdate = "expectedRevision" in input;
           if (
-            conversation?.channel === "Telegram" &&
-            conversation.booking
+            conversation?.channel === "Telegram"
           ) {
             if (serverRevision === undefined) {
               return {
@@ -524,17 +557,46 @@ export default function ChatRoute() {
                 state,
               };
             }
-            return executeTelegramBookingCommand({
-              action: "update",
-              conversationId: bookingEditId,
-              expectedBookingRevision: input.expectedRevision,
-              expectedConversationRevision: serverRevision,
-              provider: input.provider,
-              reason: input.reason,
-              slotIso: input.slotIso,
-            });
+            const result = await executeTelegramBookingCommand(
+              isUpdate
+                ? {
+                    action: "update",
+                    conversationId: bookingEditId,
+                    expectedBookingRevision: input.expectedRevision,
+                    expectedConversationRevision: serverRevision,
+                    provider: input.provider,
+                    reason: input.reason,
+                    slotIso: input.slotIso,
+                  }
+                : {
+                    action: "create",
+                    conversationId: bookingEditId,
+                    expectedConversationRevision: serverRevision,
+                    provider: input.provider,
+                    reason: input.reason,
+                    slotIso: input.slotIso,
+                  },
+            );
+            if (result.ok) {
+              setBookingNotice(
+                isUpdate
+                  ? "Google Calendar synchronization has been queued. Review and send the patient message from Inbox if notification is needed."
+                  : "Google Calendar synchronization has been queued for this new booking. Review and send the patient message from Inbox if notification is needed.",
+              );
+            }
+            return result;
           }
-          return updateBooking(bookingEditId, input);
+          const result = isUpdate
+            ? updateBooking(bookingEditId, input)
+            : createBooking(bookingEditId, input);
+          if (result.ok) {
+            setBookingNotice(
+              isUpdate
+                ? "This synthetic demo booking was updated locally. It does not send a patient message or create a Google Calendar event."
+                : "This synthetic demo booking was created locally. It does not send a patient message or create a Google Calendar event.",
+            );
+          }
+          return result;
         }}
         open={bookingEditId !== null}
       />

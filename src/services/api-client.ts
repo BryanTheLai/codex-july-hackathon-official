@@ -20,6 +20,7 @@ import {
   bookingCommandRequestSchema,
   bookingCommandResultSchema,
   manualSpeechTranscriptRequestSchema,
+  saveWorkspaceRequestSchema,
   saveWorkspaceResultSchema,
   workspaceEnvelopeSchema,
   type ApiErrorCode,
@@ -36,6 +37,7 @@ import {
   type BookingCommandResult,
   type ManualSpeechTranscriptRequest,
   type SaveWorkspaceResult,
+  type SaveWorkspaceRequest,
   type WorkspaceEnvelope,
 } from "../contracts/api";
 import {
@@ -81,6 +83,10 @@ export class ApiClientError extends Error {
 
 export interface WorkspaceClient {
   load(signal?: AbortSignal): Promise<WorkspaceEnvelope>;
+  save?(
+    request: SaveWorkspaceRequest,
+    signal?: AbortSignal,
+  ): Promise<SaveWorkspaceResult>;
   reset?(
     expectedRevision: number,
     signal?: AbortSignal,
@@ -193,10 +199,13 @@ async function requestJson<Result>({
   try {
     body = await response.json();
   } catch {
+    const message = response.status >= 500
+      ? `${requestError} Upstream returned HTTP ${response.status} without a valid API response.`
+      : invalidResponseError;
     throw new ApiClientError(
       "provider_failed",
-      invalidResponseError,
-      true,
+      message,
+      response.status >= 500,
     );
   }
 
@@ -250,6 +259,25 @@ export function createHttpWorkspaceClient(
         invalidResponseError:
           "The workspace server returned invalid state.",
         requestError: "The workspace request failed.",
+      });
+    },
+    save(input, signal) {
+      const request = saveWorkspaceRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: "/api/workspace/state",
+        init: {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: saveWorkspaceResultSchema,
+        networkError: "The workspace server could not be reached.",
+        invalidResponseError:
+          "The workspace server returned invalid state.",
+        requestError: "The workspace update failed.",
+        acceptNonOkResult: (result) => !result.ok,
       });
     },
     reset(expectedRevision, signal) {

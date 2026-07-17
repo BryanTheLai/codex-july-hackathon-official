@@ -1025,6 +1025,26 @@
   justify-content: space-between;
 }
 
+.analyze-drawer__status {
+  margin: 0;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--kaunter-hairline);
+  background: var(--kaunter-info-bg);
+  color: var(--kaunter-info-fg);
+  font-size: var(--kaunter-text-meta);
+  line-height: 1.4;
+}
+
+.analyze-drawer__status--error {
+  background: var(--kaunter-risk-bg);
+  color: var(--kaunter-risk-fg);
+}
+
+.analyze-drawer__status--complete {
+  background: var(--kaunter-success-bg);
+  color: var(--kaunter-success-fg);
+}
+
 .analyze-drawer__footer > span {
   color: var(--kaunter-muted);
   font-size: var(--kaunter-text-meta);
