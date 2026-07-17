@@ -1,0 +1,2 @@
+2. fix this please: The local UI shows a voice duration of 0:00 / 0:00, while Telegram shows a real 10-second voice reply — a separate audio-rendering/data issue.
+There’s no in-app Calendar connection control or clear recovery action after handoff.
