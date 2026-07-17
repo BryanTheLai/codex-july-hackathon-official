@@ -308,7 +308,7 @@ describe("booking decisions", () => {
       role: "staff",
       language: "Malay",
     });
-    expect(approvedConvo.messages.at(-2)?.gloss).toContain("appointment is confirmed");
+    expect(approvedConvo.messages.at(-2)?.gloss).toContain("aircon service visit is confirmed");
     expect(approvedConvo.messages.at(-1)).toMatchObject({ role: "system" });
     expect(approvedConvo.messages.at(-1)?.text).toContain("Booking approved");
   });
@@ -351,7 +351,7 @@ describe("booking decisions", () => {
       slotIso: "2026-07-10T14:30:00+08:00",
     });
     expect(updated.booking?.revision).toBe(2);
-    expect(updated.messages.at(-2)?.gloss).toContain("appointment request was updated");
+    expect(updated.messages.at(-2)?.gloss).toContain("service visit was updated");
     expect(updated.messages.at(-2)?.gloss).not.toContain("rescheduled");
     expect(updated.messages.at(-1)?.text).toContain("Booking request updated");
   });
@@ -373,7 +373,7 @@ describe("booking decisions", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const updated = result.state.conversations.find((c) => c.id === withBooking.id)!;
-    expect(updated.messages.at(-2)?.gloss).toContain("appointment has been rescheduled");
+    expect(updated.messages.at(-2)?.gloss).toContain("service visit has been rescheduled");
     expect(updated.messages.at(-1)?.text).toContain("Booking rescheduled");
   });
 
@@ -433,7 +433,7 @@ describe("booking decisions", () => {
     const conversation = cancelled.state.conversations.find((c) => c.id === withBooking.id)!;
     expect(conversation.booking?.status).toBe("cancelled");
     expect(conversation.booking?.revision).toBe(3);
-    expect(conversation.messages.at(-2)?.gloss).toContain("appointment");
+    expect(conversation.messages.at(-2)?.gloss).toContain("service visit");
     expect(conversation.messages.at(-2)?.gloss).toContain("cancelled");
     expect(conversation.messages.at(-1)?.text).toContain("Booking cancelled");
 

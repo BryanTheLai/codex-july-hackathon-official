@@ -265,6 +265,7 @@ export type CriterionInput = {
   instruction: string;
   required: boolean;
   caseTypes?: EvalCaseType[];
+  knowledgeFileIds?: PlaybookFileId[];
   examples?: {
     good?: string;
     bad?: string;
@@ -291,6 +292,7 @@ export type CriterionEditInput = {
   instruction?: string;
   required?: boolean;
   caseTypes?: EvalCaseType[];
+  knowledgeFileIds?: PlaybookFileId[];
   examples?: {
     good?: string;
     bad?: string;

@@ -152,6 +152,7 @@ insert into public.demo_seed_templates (
           "instruction": "Use RM99 general service and RM160 chemical wash; do not invent discounts",
           "required": true,
           "version": 1,
+          "knowledgeFileIds": ["file-aircon-rate-card"],
           "examples": {
             "good": "General service is RM99.",
             "bad": "I can discount it to RM80."
@@ -164,6 +165,7 @@ insert into public.demo_seed_templates (
           "required": true,
           "version": 1,
           "caseTypes": ["general"],
+          "knowledgeFileIds": ["file-aircon-service-selection"],
           "examples": {
             "good": "Chemical wash is RM160.",
             "bad": "General service is RM99."
@@ -176,6 +178,7 @@ insert into public.demo_seed_templates (
           "required": true,
           "version": 1,
           "caseTypes": ["booking"],
+          "knowledgeFileIds": ["file-aircon-booking"],
           "examples": {
             "good": "Please confirm the slot and address.",
             "bad": "Your booking is confirmed."

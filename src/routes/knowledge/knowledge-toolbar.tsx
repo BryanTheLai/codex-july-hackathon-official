@@ -10,8 +10,7 @@ export function KnowledgeToolbar({
   onImport,
   onNew,
   onRename,
-  onReplayAffected,
-  onReplayFull,
+  onValidate,
   onActivate,
   onDiscardCandidate,
   onRollback,
@@ -28,8 +27,7 @@ export function KnowledgeToolbar({
   onImport: () => void;
   onNew: () => void;
   onRename: () => void;
-  onReplayAffected: () => void;
-  onReplayFull: () => void;
+  onValidate: () => void;
   onActivate: () => void;
   onDiscardCandidate: () => void;
   onRollback: () => void;
@@ -88,22 +86,24 @@ export function KnowledgeToolbar({
         </button>
         {release?.candidateVersionId ? (
           <>
-            <button className="knowledge-button" disabled={releaseBusy} onClick={onReplayAffected} type="button">
-              Replay affected train cases
-            </button>
             <button
               className="knowledge-button knowledge-release-action"
               disabled={releaseBusy}
-              onClick={onReplayFull}
-              title="Runs affected train cases first, then all train and holdout cases."
+              onClick={onValidate}
+              title="Checks affected train cases, then the full train and holdout suite."
               type="button"
             >
-              Replay all eval cases
+              Validate candidate
             </button>
             <button
               className="knowledge-button knowledge-button--primary knowledge-release-action"
               disabled={!release.candidateReady || releaseBusy}
               onClick={onActivate}
+              title={
+                release.candidateReady
+                  ? "Activate this validated Knowledge version."
+                  : "Validate the candidate before activation."
+              }
               type="button"
             >
               Activate
@@ -142,9 +142,9 @@ export function KnowledgeToolbar({
                   <DropdownMenu.Item
                     className="knowledge-menu__item knowledge-menu__release"
                     disabled={releaseBusy}
-                    onSelect={onReplayFull}
+                    onSelect={onValidate}
                   >
-                    Replay all eval cases
+                    Validate candidate
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
                     className="knowledge-menu__item knowledge-menu__release"

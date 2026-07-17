@@ -23,11 +23,11 @@ describe("environment example", () => {
 
     expect(readAgentProviderConfig(environment)).toMatchObject({
       baseUrl: "https://api.openai.com/v1",
-      model: "gpt-5.6-luna",
+      model: "gpt-5.6",
     });
     expect(readJudgeProviderConfig(environment)).toMatchObject({
       baseUrl: "https://api.openai.com/v1",
-      model: "gpt-5.6-luna",
+      model: "gpt-5.6",
     });
   });
 

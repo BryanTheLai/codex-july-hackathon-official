@@ -25,21 +25,21 @@ function bookingSlot(slotIso: string, language: string): string {
 function englishBookingMessage(event: BookingNotificationEvent, booking: Booking): string {
   const slot = bookingSlot(booking.slotIso, "English");
   if (event === "confirmed") {
-    return `Your appointment is confirmed for ${slot}. Reply here if anything is incorrect.`;
+    return `Your aircon service visit is confirmed for ${slot}. Reply here if anything is incorrect.`;
   }
   if (event === "request_updated") {
-    return `Your appointment request was updated to ${slot}. Reply here if anything is incorrect.`;
+    return `Your service visit was updated to ${slot}. Reply here if anything is incorrect.`;
   }
   if (event === "request_rejected") {
-    return `We could not confirm your requested appointment for ${slot}. Reply here and we will help find another slot.`;
+    return `We could not confirm your requested service visit for ${slot}. Reply here and we will help find another slot.`;
   }
   if (event === "rescheduled") {
-    return `Your appointment has been rescheduled to ${slot}. Reply here if this does not work for you.`;
+    return `Your service visit has been rescheduled to ${slot}. Reply here if this does not work for you.`;
   }
   if (event === "details_updated") {
-    return `Your appointment details were updated. You are now booked on ${slot}. Reply here if anything is incorrect.`;
+    return `Your service visit details were updated. You are now booked on ${slot}. Reply here if anything is incorrect.`;
   }
-  return `Your appointment on ${slot} has been cancelled. Reply here if you need help booking another time.`;
+  return `Your service visit on ${slot} has been cancelled. Reply here if you need help booking another time.`;
 }
 
 function malayBookingMessage(event: BookingNotificationEvent, booking: Booking): string {
@@ -201,7 +201,7 @@ export function previewBookingCancellation(
     return { ok: false, error: "No booking to cancel" };
   }
   if (conversation.booking.status !== "approved") {
-    return { ok: false, error: "Only an approved appointment can be cancelled" };
+    return { ok: false, error: "Only a confirmed service visit can be cancelled" };
   }
   return {
     ok: true,

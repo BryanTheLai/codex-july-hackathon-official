@@ -12,7 +12,7 @@ export type AppointmentCalendarEvent = {
   endIso: string;
   location: string | null;
   startIso: string;
-  summary: "Appointment";
+  summary: "Aircon service visit";
 };
 
 export function createAppointmentCalendarEvent(
@@ -26,6 +26,6 @@ export function createAppointmentCalendarEvent(
     ).toISOString(),
     location: parsed.location,
     startIso: start.toISOString(),
-    summary: "Appointment",
+    summary: "Aircon service visit",
   };
 }

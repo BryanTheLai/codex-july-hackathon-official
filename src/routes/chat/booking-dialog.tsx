@@ -103,7 +103,7 @@ export function BookingDialog({
           <Dialog.Description className="chat-dialog__description">
             {isPersistedTelegramBooking
               ? isCreate
-                ? "Create a confirmed appointment and preview the customer message. Google Calendar synchronization is queued when it is connected; sending the customer message remains a separate staff action. Times use Malaysia Time (MYT)."
+                ? "Create a confirmed service visit and preview the customer message. Google Calendar synchronization is queued when connected; sending the customer message remains a separate staff action. Times use Malaysia Time (MYT)."
                 : "Update the booking and preview the customer message. Google Calendar synchronization is queued when it is connected; sending the customer message remains a separate staff action. Times use Malaysia Time (MYT)."
               : isCreate
                 ? "Create this synthetic booking and preview the customer message. Nothing is sent to Telegram or Google Calendar. Times use Malaysia Time (MYT)."
@@ -143,7 +143,7 @@ export function BookingDialog({
             ) : (
               <p className="booking-notification-preview__empty">
                 {isCreate
-                  ? "Enter appointment details above to preview the exact message before creating it."
+                  ? "Enter service visit details above to preview the exact message before creating it."
                   : "Edit a booking detail above to preview the exact message before saving."}
               </p>
             )}

@@ -7,7 +7,7 @@ delivery, Eval, and Knowledge. Direct OpenAI supplies text generation and judgin
 only speech-to-text (STT) and text-to-speech (TTS) through its direct HTTP APIs; it does not become
 a second agent implementation.
 
-This is deliberately a demo of an autonomous front desk, not a production clinic system.
+This is deliberately a demo of an autonomous aircon service desk, not a production field-service system.
 
 ## Why this is the smallest winning change
 
@@ -21,7 +21,7 @@ Telegram voice note
   -> existing CAS booking + audit messages
   -> existing Telegram text + selected TTS provider
   -> existing Ogg conversion + `.ics` delivery
-  -> existing patient timeline and Eval/Knowledge routes
+  -> existing customer timeline and Eval/Knowledge routes
 ```
 
 The model never receives Telegram credentials or a database client. It only chooses a declared
@@ -36,7 +36,7 @@ No SDK is added. Node 22 already provides `fetch`, `FormData`, and `Blob`.
 | --- | --- | --- |
 | STT input | Converted temporary WebM file | `POST /v1/speech-to-text`, multipart file, `model_id=scribe_v2` |
 | STT result | language, original transcript, optional English gloss, model | Map `language_code` to the existing display language; use the existing text translation service for a non-English gloss |
-| TTS input | short approved patient text plus target language | `POST /v1/text-to-speech/:voice_id/stream` |
+| TTS input | short approved customer text plus target language | `POST /v1/text-to-speech/:voice_id/stream` |
 | TTS result | audio bytes, model, voice | Preserve existing Ogg conversion, storage, and Telegram `sendVoice` flow |
 | Provider errors | timeout versus provider failure | Keep the current generic retry/error handling and never send an empty voice artifact |
 
@@ -49,7 +49,7 @@ is deployment configuration rather than dashboard-only state.
 # Existing direct OpenAI text/reasoning provider. Leave the base URL empty for OpenAI.
 LLM_BASE_URL=
 LLM_API_KEY=replace-in-deployment-only
-LLM_MODEL=gpt-5.6-luna
+LLM_MODEL=gpt-5.6
 LLM_API_MODE=responses
 LIVE_AGENT_ENABLED=true
 
@@ -127,7 +127,7 @@ prove a real Telegram receipt without the owner-controlled bot chat.
 | 6 | Replace the booking loop with ElevenLabs tools | Reject: unnecessary second agent control plane. |
 | 7 | Add a narrow Postgres outbox | **Select:** two typed jobs make autonomous replies and optional calendar sync recoverable without Redis or a second service. |
 | 8 | Add optional single-admin Google OAuth | **Select:** FreeBusy and event CRUD strengthen live proof while deterministic demo slots remain the fallback; Outlook stays deferred. |
-| 9 | Add a real clinic scheduler | Defer: breaks the deterministic demo. |
+| 9 | Add a full field-service scheduler | Defer: breaks the deterministic demo. |
 | 10 | Use ElevenLabs STT without an English gloss | Reject: weakens the multilingual judge moment. |
 | 11 | Use the existing generic text translation for the gloss | **Select:** preserves the existing data contract. |
 | 12 | Add a translation-specific provider | Reject: third speech/text control plane. |
@@ -176,8 +176,8 @@ prove a real Telegram receipt without the owner-controlled bot chat.
 ## Explicitly not in scope
 
 - ElevenAgents, voice calls, realtime browser speech, cloning a voice, or a second model agent.
-- New tables, Google/Outlook OAuth, PMS/EHR integration, a new scheduler, multi-tenant auth, or
-  a background job system.
+- Outlook OAuth, field-service ERP integration, a new scheduler, or multi-tenant auth.
+- A second background-job system; the existing Postgres outbox remains authoritative.
 - Claiming a live provider or Telegram result without an owner-controlled smoke.
 
 ## Primary references

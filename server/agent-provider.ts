@@ -29,7 +29,7 @@ const agentProviderEnvironmentSchema = z
       z.url().default("https://api.openai.com/v1"),
     ),
     LLM_API_KEY: z.string().trim().min(1),
-    LLM_MODEL: z.string().trim().min(1).default("gpt-5.6-luna"),
+    LLM_MODEL: z.string().trim().min(1).default("gpt-5.6"),
     LLM_API_MODE: z
       .enum(["responses", "chat_completions"])
       .default("responses"),

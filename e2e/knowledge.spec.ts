@@ -43,10 +43,10 @@ test("Knowledge satisfies its responsive review workbench contract", async ({ pa
     const changes = page.getByRole("complementary", { name: "Proposed changes" });
     await expect(files).toBeVisible();
     await expect(page.getByRole("region", { name: "Playbook editor", exact: true })).toBeVisible();
+    await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
     await expect(changes).toBeVisible();
     expect(Math.round((await files.boundingBox())?.width ?? 0)).toBe(230);
     expect(Math.round((await changes.boundingBox())?.width ?? 0)).toBe(320);
-    await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
   }
 
   const editor = page.getByRole("textbox", { name: "Playbook Markdown editor" });
@@ -97,20 +97,13 @@ test("Knowledge satisfies its responsive review workbench contract", async ({ pa
   await expect(page.getByText("Inactive candidate", { exact: true })).toHaveCount(0);
   await expect(changes.getByRole("button", { name: "Approve correction" })).toBeEnabled();
   await changes.getByRole("button", { name: "Approve correction" }).click();
-  await expect(changes).toContainText("approved");
-  if (mobile) {
-    await page.getByRole("tab", { name: "Files" }).click();
-  }
-  await page.getByRole("treeitem", { name: /aircon-booking\.md/i }).click();
-  await page.getByRole("button", { name: "Replay affected train cases", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("status").first()).toHaveText(
-    "Affected Eval replay completed.",
-  );
+  await expect(changes).toHaveCount(0);
+  await expect(page.locator(".cm-correction-gutter--approved")).toBeVisible();
   if (mobile) {
     await page.getByRole("button", { name: "More file actions" }).click();
-    await page.getByRole("menuitem", { name: "Replay all eval cases" }).click();
+    await page.getByRole("menuitem", { name: "Validate candidate" }).click();
   } else {
-    await page.getByRole("button", { name: "Replay all eval cases", exact: true }).click();
+    await page.getByRole("button", { name: "Validate candidate", exact: true }).click();
   }
   const releaseGate = page.getByRole("region", { name: "Knowledge release gate" });
   await expect(releaseGate).toContainText("ready");
@@ -124,16 +117,13 @@ test("Knowledge satisfies its responsive review workbench contract", async ({ pa
     await page.getByRole("button", { name: "Activate", exact: true }).click();
   }
   await expect(releaseGate).toContainText(`Active SOP${candidateVersion}`);
+  await expect(page.locator(".cm-correction-gutter--approved")).toHaveCount(0);
+  await expect(page.locator(".cm-correction-preview")).toHaveCount(0);
+  await expect(changes).toHaveCount(0);
   if (mobile) {
     await page.getByRole("tab", { name: "Files" }).click();
   }
   await page.getByRole("treeitem", { name: /aircon-service-selection\.md/i }).click();
-  if (mobile) {
-    await page.getByRole("tab", { name: "Changes" }).click();
-  }
-  await expect(
-    changes.getByRole("button", { name: /Focus correction at line \d+/ }),
-  ).toBeEnabled();
 
   await page.getByRole("button", { name: "Check saved text" }).click();
   const dock = page.getByRole("region", { name: "Saved text check results" });

@@ -38,7 +38,7 @@ describe("agent provider adapter", () => {
       apiMode: "responses",
       baseUrl: "https://api.openai.com/v1",
       liveEnabled: false,
-      model: "gpt-5.6-luna",
+      model: "gpt-5.6",
     });
     expect(() =>
       readAgentProviderConfig({

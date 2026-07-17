@@ -172,7 +172,7 @@ describe("booking command service", () => {
       }),
     ).rejects.toMatchObject({
       code: "invalid_request",
-      message: "That appointment slot is no longer available. Choose another time.",
+      message: "That service slot is no longer available. Choose another time.",
     });
     expect(filterAvailableSlots).toHaveBeenCalledWith({
       slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],

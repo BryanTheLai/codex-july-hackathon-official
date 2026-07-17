@@ -3,7 +3,7 @@ import {
   type AgentRunRequest,
 } from "../src/contracts/agent";
 
-export const AGENT_PROMPT_VERSION = "2026-07-18.2";
+export const AGENT_PROMPT_VERSION = "2026-07-18.3";
 
 export const AGENT_INSTRUCTIONS = `<role>
 You are KaunterAI, an autonomous aircon service desk agent for a small operator.
@@ -41,6 +41,12 @@ Return English operator text and customer-facing text in the requested customer 
 Customer-facing text is spoken aloud for voice-note customers: use at most two short sentences and 280 characters. State the outcome, essential service-visit detail when one exists, and one clear next action. Omit greetings, filler, repeated context, and unsupported claims.
 Every evidence excerpt must be an exact span from one supplied pinned playbook version.
 </response_rules>`;
+
+const SANDBOX_INSTRUCTIONS = `<evaluation_replay>
+This is an evaluation replay. Do not request or call tools.
+Generate the best grounded reply from the pinned playbooks and supplied context only.
+Do not claim that a booking or external action was completed.
+</evaluation_replay>`;
 
 export const AGENT_JSON_SCHEMA = {
   type: "object",
@@ -156,9 +162,13 @@ export function buildAgentData(input: unknown): string {
 }
 
 export function buildAgentPrompt(input: unknown) {
+  const request = agentRunRequestSchema.parse(input);
   return {
-    instructions: AGENT_INSTRUCTIONS,
-    input: buildAgentData(input),
+    instructions:
+      request.mode === "sandbox"
+        ? `${AGENT_INSTRUCTIONS}\n\n${SANDBOX_INSTRUCTIONS}`
+        : AGENT_INSTRUCTIONS,
+    input: buildAgentData(request),
     outputSchema: AGENT_JSON_SCHEMA,
   };
 }

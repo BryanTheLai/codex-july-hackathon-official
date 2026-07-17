@@ -161,7 +161,7 @@ export function createCalendarDispatchService({
           {
             id: auditMessageId,
             role: "system",
-            text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${bookingRevision}.`,
+            text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as booking.ics for booking revision ${bookingRevision}.`,
             sentAt: now().toISOString(),
           },
         ],
@@ -296,7 +296,7 @@ export function createCalendarDispatchService({
       if (delivery.record.status === "sending" || delivery.record.status === "unknown") {
         throw new CalendarDispatchError(
           "duplicate",
-          "Calendar delivery outcome is unknown. Verify with the patient before sending a replacement.",
+          "Calendar delivery outcome is unknown. Verify with the customer before sending a replacement.",
           false,
         );
       }
@@ -315,7 +315,7 @@ export function createCalendarDispatchService({
           {
             bytes: new TextEncoder().encode(content),
             contentType: "text/calendar",
-            filename: "appointment.ics",
+            filename: "booking.ics",
           },
           id,
         );

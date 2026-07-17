@@ -228,7 +228,7 @@ export function createGoogleCalendarService({
     const event = {
       id,
       summary: core.summary,
-      description: `Patient: ${conversation.patient.name}\nReason: ${conversation.booking.reason}\nKaunter conversation: ${conversation.id}`,
+      description: `Customer: ${conversation.patient.name}\nService request: ${conversation.booking.reason}\nKaunterAI conversation: ${conversation.id}`,
       location: core.location ?? undefined,
       start: { dateTime: core.startIso, timeZone: config.timeZone },
       end: {

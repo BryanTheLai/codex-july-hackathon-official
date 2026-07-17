@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -369,6 +370,9 @@ describe("Chat Control route", () => {
       store.getState().state.conversations[0]?.messages.length;
     const user = userEvent.setup();
     renderChat({ store });
+    await waitFor(() =>
+      expect(store.getState().telegramWorkspace.status).toBe("ready"),
+    );
     const selected = screen.getByRole("region", {
       name: "Selected conversation",
     });
@@ -440,6 +444,9 @@ describe("Chat Control route", () => {
     });
     const user = userEvent.setup();
     renderChat({ store });
+    await waitFor(() =>
+      expect(store.getState().telegramWorkspace.status).toBe("ready"),
+    );
     const selected = screen.getByRole("region", {
       name: "Selected conversation",
     });
@@ -488,6 +495,9 @@ describe("Chat Control route", () => {
     });
     const user = userEvent.setup();
     renderChat({ store });
+    await waitFor(() =>
+      expect(store.getState().telegramWorkspace.status).toBe("ready"),
+    );
     const selected = screen.getByRole("region", {
       name: "Selected conversation",
     });
@@ -1283,7 +1293,7 @@ describe("Chat Control route", () => {
                 {
                   id: "calendar-receipt",
                   role: "system" as const,
-                  text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision 1.`,
+                  text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as booking.ics for booking revision 1.`,
                   sentAt: "2026-07-17T01:00:00.000Z",
                 },
               ],
@@ -1320,7 +1330,7 @@ describe("Chat Control route", () => {
     await user.clear(reason);
     await user.type(reason, "Chemical wash");
     expect(within(dialog).getByText(/Permintaan temu janji anda telah dikemas kini/)).toBeVisible();
-    expect(within(dialog).getByText(/Your appointment request was updated/)).toBeVisible();
+    expect(within(dialog).getByText(/Your service visit was updated/)).toBeVisible();
     await user.click(save);
 
     const rail = screen.getByRole("complementary", { name: "Customer context" });
@@ -1333,16 +1343,16 @@ describe("Chat Control route", () => {
     );
   });
 
-  it("cancels an approved appointment in the synthetic workspace and removes it from Schedule", async () => {
+  it("cancels an approved service visit in the synthetic workspace and removes it from Schedule", async () => {
     const user = userEvent.setup();
     renderChat({ store: createStoreWithBooking("approved") });
 
     await user.click(screen.getByRole("button", { name: /Aina Demo/i }));
-    await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
-    const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
+    await user.click(screen.getByRole("button", { name: "Cancel service visit" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Cancel this service visit?" });
     expect(dialog).toHaveTextContent("Temu janji anda");
     expect(dialog).toHaveTextContent("dibatalkan");
-    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel service visit" }));
 
     expect(screen.getAllByText("cancelled").length).toBeGreaterThan(0);
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(

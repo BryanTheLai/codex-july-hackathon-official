@@ -238,6 +238,42 @@ describe("Eval service", () => {
     expect(judge).not.toHaveBeenCalled();
   });
 
+  it("rejects a case with no scoring criteria before freezing Eval evidence", async () => {
+    const { agent, judge, repository, service } = await setup();
+    const workspace = await repository.load("demo");
+    if (!workspace) throw new Error("Workspace is missing");
+    const next = structuredClone(workspace.state);
+    const dataset = next.evalDatasets.find((candidate) => candidate.id === "dataset-aircon-ops");
+    const sourceCase = dataset?.cases.find((candidate) => candidate.id === "case-aircon-confirm-train");
+    if (!dataset || !sourceCase) throw new Error("Seed Eval case is missing");
+    dataset.cases.push({
+      ...sourceCase,
+      id: "case-without-criteria",
+      title: "Legacy imported case without criteria",
+      criterionIds: [],
+    });
+    await expect(repository.save("demo", workspace.revision, next)).resolves.toMatchObject({
+      ok: true,
+    });
+
+    await expect(
+      service.createSuite({
+        datasetId: "dataset-aircon-ops",
+        caseIds: ["case-without-criteria"],
+        playbookVersionId: "playbook-version-1",
+        expectedWorkspaceRevision: 2,
+      }),
+    ).rejects.toEqual(
+      new EvalServiceError(
+        "invalid_request",
+        "Eval case case-without-criteria needs at least one scoring criterion",
+        false,
+      ),
+    );
+    expect(agent).not.toHaveBeenCalled();
+    expect(judge).not.toHaveBeenCalled();
+  });
+
   it("does not commit partial evidence when agent or judge evidence is invalid", async () => {
     const first = await setup();
     const firstSuite = await createSeedSuite(first.service);

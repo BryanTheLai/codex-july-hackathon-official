@@ -212,6 +212,7 @@ export function addCriterion(
         instruction,
         required: input.required,
         caseTypes: input.caseTypes,
+        knowledgeFileIds: input.knowledgeFileIds,
         examples: examples.good || examples.bad ? examples : undefined,
         version: 1,
       },
@@ -249,11 +250,13 @@ export function editCriterion(
         };
   const required = input.required ?? current.required;
   const caseTypes = input.caseTypes ?? current.caseTypes;
+  const knowledgeFileIds = input.knowledgeFileIds ?? current.knowledgeFileIds;
   const normalizedExamples = examples?.good || examples?.bad ? examples : undefined;
   const semanticChanged =
     instruction !== current.instruction ||
     required !== current.required ||
     JSON.stringify(caseTypes) !== JSON.stringify(current.caseTypes) ||
+    JSON.stringify(knowledgeFileIds) !== JSON.stringify(current.knowledgeFileIds) ||
     JSON.stringify(normalizedExamples) !== JSON.stringify(current.examples);
 
   const next = updateDataset(state, dataset.id, (valueDataset) => ({
@@ -266,6 +269,7 @@ export function editCriterion(
             instruction,
             required,
             caseTypes,
+            knowledgeFileIds,
             examples: normalizedExamples,
             version: semanticChanged ? criterion.version + 1 : criterion.version,
           }

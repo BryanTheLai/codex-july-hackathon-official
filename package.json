@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BryanTheLai/codex-hack-july.git"
+    "url": "git+https://github.com/BryanTheLai/codex-july-hackathon-official.git"
   },
   "keywords": [
     "msme",
@@ -31,9 +31,9 @@
   "author": "KaunterAI",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/BryanTheLai/codex-hack-july/issues"
+    "url": "https://github.com/BryanTheLai/codex-july-hackathon-official/issues"
   },
-  "homepage": "https://github.com/BryanTheLai/codex-hack-july#readme",
+  "homepage": "https://github.com/BryanTheLai/codex-july-hackathon-official#readme",
   "engines": {
     "node": ">=22.12"
   },

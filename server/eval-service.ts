@@ -329,6 +329,18 @@ export function createEvalService({
           false,
         );
       }
+      const unscoredCase = dataset?.cases.find(
+        (evalCase) =>
+          request.caseIds.includes(evalCase.id) &&
+          evalCase.criterionIds.length === 0,
+      );
+      if (unscoredCase) {
+        fail(
+          "invalid_request",
+          `Eval case ${unscoredCase.id} needs at least one scoring criterion`,
+          false,
+        );
+      }
       let suite: EvalSuiteSnapshot;
       try {
         suite = await freezeEvalSuiteSnapshot({

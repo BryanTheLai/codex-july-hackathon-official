@@ -17,22 +17,13 @@ export type TelegramWorkspaceProjection = {
   >;
 };
 
-function isProjectedTelegramConversation(
-  conversation: ConversationPayload,
-): boolean {
-  return (
-    conversation.channel === "Telegram" &&
-    conversation.id.startsWith("telegram-conversation:")
-  );
-}
-
 function toConversationView(
   conversation: ServerConversationPayload,
   speechArtifacts: ServerDomainStatePayload["speechArtifacts"],
 ): ConversationPayload {
   const {
     agentMode,
-    channel: _channel,
+    channel,
     externalConversationId: _externalConversationId,
     latestAgentArtifactId: _latestAgentArtifactId,
     patient,
@@ -67,7 +58,7 @@ function toConversationView(
           };
     }),
     agentMode: agentMode === "live_agent" ? "synthetic_agent" : agentMode,
-    channel: "Telegram",
+    channel: channel === "telegram" ? "Telegram" : "Demo",
     patient: {
       name: patient.name,
       phone: patient.phone ?? "",
@@ -85,14 +76,9 @@ export function mergeTelegramWorkspaceState(
   const telegram = server.conversations.filter(
     (conversation) => conversation.source === "telegram",
   );
-  const conversations = [
-    ...telegram.map((conversation) =>
-      toConversationView(conversation, server.speechArtifacts),
-    ),
-    ...current.conversations.filter(
-      (conversation) => !isProjectedTelegramConversation(conversation),
-    ),
-  ];
+  const conversations = server.conversations.map((conversation) =>
+    toConversationView(conversation, server.speechArtifacts),
+  );
   const selectedConversationId = conversations.some(
     (conversation) =>
       conversation.id === current.selections.conversationId,

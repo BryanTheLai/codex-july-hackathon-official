@@ -148,7 +148,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
   }
   await expect(
     page.getByRole("region", {
-      name: mobile ? "Synthetic schedule" : "Appointment schedule",
+      name: mobile ? "Synthetic schedule" : "Service visit schedule",
     }),
   ).toBeVisible();
   await expectNoDocumentOverflow(page);

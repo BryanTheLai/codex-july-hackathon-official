@@ -1082,7 +1082,7 @@ function sendWorkspaceCommandFailure(response: Response, error: unknown): void {
 
 function configuredJudgeModel(): string {
   if (!process.env.LLM_API_KEY) {
-    return "gpt-5.6-luna";
+    return "gpt-5.6";
   }
   return readJudgeProviderConfig().model;
 }

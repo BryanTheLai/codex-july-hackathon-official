@@ -172,7 +172,7 @@ function BookingTimeline({ conversation }: { conversation: Conversation }) {
     (message) =>
       message.role === "system" &&
       message.text ===
-        `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${booking.revision}.`,
+        `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as booking.ics for booking revision ${booking.revision}.`,
   );
   const availabilityChecked = booking.status === "approved" || booking.status === "cancelled";
   const rescheduled = conversation.messages.some(
@@ -353,7 +353,7 @@ export function PatientRail({
             {conversation.booking.status === "approved" ? (
               <div className="rail-action-row">
                 <ConfirmAction
-                  confirmLabel="Cancel appointment"
+                  confirmLabel="Cancel service visit"
                   description={
                     cancellationPreview.ok
                       ? `${cancellationPreview.preview.text}${
@@ -366,10 +366,10 @@ export function PatientRail({
                   onConfirm={() => {
                     void runAsync(onCancelBooking);
                   }}
-                  title="Cancel this appointment?"
+                  title="Cancel this service visit?"
                   trigger={
                     <button className="chat-button chat-button--risk" type="button">
-                      Cancel appointment
+                      Cancel service visit
                     </button>
                   }
                 />

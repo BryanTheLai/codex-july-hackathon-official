@@ -39,7 +39,7 @@ import { FileListPane } from "./file-list-pane";
 import { TestDock } from "./test-dock";
 import "./knowledge.css";
 
-const PANES: KnowledgePane[] = ["files", "editor", "changes"];
+const CORE_PANES: KnowledgePane[] = ["files", "editor"];
 type KnowledgeFeedback = {
   message: string;
   state: "succeeded" | "failed";
@@ -97,6 +97,18 @@ export default function KnowledgeRoute() {
   );
   const query = searchParams.toString();
   const release = store.knowledgeRelease;
+  const pendingCorrections = corrections.filter(
+    (correction) => correction.status === "pending",
+  );
+  const showChanges = pendingCorrections.length > 0;
+  const panes: KnowledgePane[] = showChanges
+    ? [...CORE_PANES, "changes"]
+    : CORE_PANES;
+  const editorCorrections = release
+    ? release.candidateVersionId
+      ? corrections
+      : pendingCorrections
+    : corrections;
   const linkedDatasetId =
     store.state.evalDatasets.find((dataset) =>
       dataset.cases.some((evalCase) =>
@@ -138,6 +150,12 @@ export default function KnowledgeRoute() {
       knowledgePane: pane,
     });
   }, [focusedCorrectionId, pane, store.updateRouteUi]);
+
+  useEffect(() => {
+    if (!showChanges && pane === "changes") {
+      setPane("editor");
+    }
+  }, [pane, showChanges]);
 
   useEffect(() => {
     let active = true;
@@ -199,7 +217,7 @@ export default function KnowledgeRoute() {
       setFocusedCorrectionId(correction.id);
       setFeedback({
         message:
-          "Correction opened from Eval evidence. Review the diff, replay affected cases, then activate only if the full suite passes.",
+          "Correction opened from Eval evidence. Review the diff, validate the candidate, then activate only if the full suite passes.",
         state: "succeeded",
       });
     }
@@ -321,19 +339,19 @@ export default function KnowledgeRoute() {
             : remote;
         setSaving(false);
         if (result.ok) {
-        showFeedback(
-          remote.ok
-            ? "Inactive candidate created. Replay affected Eval cases next."
-            : "Draft saved locally; configure the release server to create a candidate.",
-        );
-        cancelTest();
-        setTestDock((current) =>
-          current.status === "complete"
-            ? { ...current, stale: true }
-            : current.status === "closed"
-              ? current
-              : { message: "Saved text changed. Check the saved text again.", status: "error" },
-        );
+          showFeedback(
+            remote.ok
+              ? "Inactive candidate created. Validate it before activation."
+              : "Draft saved locally; configure the release server to create a candidate.",
+          );
+          cancelTest();
+          setTestDock((current) =>
+            current.status === "complete"
+              ? { ...current, stale: true }
+              : current.status === "closed"
+                ? current
+                : { message: "Saved text changed. Check the saved text again.", status: "error" },
+          );
         } else {
           showFeedback(result.error, "failed");
         }
@@ -527,7 +545,7 @@ export default function KnowledgeRoute() {
       );
       showFeedback(
         result.ok
-          ? "Markdown imported as an inactive candidate. Replay affected Eval cases next."
+          ? "Markdown imported as an inactive candidate. Validate it before activation."
           : result.error,
         result.ok ? "succeeded" : "failed",
       );
@@ -535,16 +553,16 @@ export default function KnowledgeRoute() {
   };
 
   const tabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: KnowledgePane) => {
-    const currentIndex = PANES.indexOf(current);
+    const currentIndex = panes.indexOf(current);
     const target =
       event.key === "Home"
-        ? PANES[0]
+        ? panes[0]
         : event.key === "End"
-          ? PANES[PANES.length - 1]
+          ? panes[panes.length - 1]
           : event.key === "ArrowRight"
-            ? PANES[(currentIndex + 1) % PANES.length]
+            ? panes[(currentIndex + 1) % panes.length]
             : event.key === "ArrowLeft"
-              ? PANES[(currentIndex - 1 + PANES.length) % PANES.length]
+              ? panes[(currentIndex - 1 + panes.length) % panes.length]
               : null;
     if (!target) {
       return;
@@ -587,7 +605,7 @@ export default function KnowledgeRoute() {
   const editorPane = (
     <Suspense fallback={<div className="knowledge-editor-loading" role="status">Loading Markdown editor</div>}>
       <EditorPane
-        corrections={corrections}
+        corrections={editorCorrections}
         dock={dock}
         file={selectedFile}
         focusedCorrectionId={focusedCorrectionId}
@@ -604,7 +622,7 @@ export default function KnowledgeRoute() {
   );
   const changesPane = (
     <ChangesPane
-      corrections={corrections}
+      corrections={pendingCorrections}
       file={selectedFile}
       focusedCorrectionId={focusedCorrectionId}
       onApprove={(correction) =>
@@ -635,8 +653,7 @@ export default function KnowledgeRoute() {
         onImport={() => markdownImportRef.current?.click()}
         onNew={() => setFileDialog("create")}
         onRename={() => setFileDialog("rename")}
-        onReplayAffected={() => runReleaseReplay("affected")}
-        onReplayFull={() => runReleaseReplay("full")}
+        onValidate={() => runReleaseReplay("full")}
         onActivate={activateRelease}
         onDiscardCandidate={discardRelease}
         onRollback={rollbackRelease}
@@ -664,8 +681,8 @@ export default function KnowledgeRoute() {
           </strong>
           <small>
             {release?.candidateVersionId
-              ? "Replay all eval cases runs affected train cases first, then all train and holdout cases."
-              : "Edit -> Replay all eval cases (affected train first) -> Activate. Approve a correction or save a draft to create a candidate."}
+              ? "Validate checks affected train cases first, then the full train and holdout suite."
+              : "Approve a correction or save a draft to create a candidate, then validate and activate."}
           </small>
         </div>
         <div>
@@ -681,7 +698,7 @@ export default function KnowledgeRoute() {
       <OperationStatusBanner status={operationStatus} />
       {mobile ? (
         <div aria-label="Knowledge panes" className="knowledge-tabs" role="tablist">
-          {PANES.map((item) => (
+          {panes.map((item) => (
             <button
               aria-label={item === "files" ? "Files" : item === "editor" ? "Editor" : "Changes"}
               aria-controls={`knowledge-panel-${item}`}
@@ -696,8 +713,8 @@ export default function KnowledgeRoute() {
               type="button"
             >
               {item === "files" ? "Files" : item === "editor" ? "Editor" : "Changes"}
-              {item === "changes" && pendingCount(corrections) > 0 ? (
-                <b>{pendingCount(corrections)}</b>
+              {item === "changes" && pendingCorrections.length > 0 ? (
+                <b>{pendingCorrections.length}</b>
               ) : null}
             </button>
           ))}
@@ -705,7 +722,7 @@ export default function KnowledgeRoute() {
       ) : null}
       <div
         aria-label="Knowledge workbench"
-        className={`route-workbench knowledge-workbench${mobile ? " knowledge-workbench--mobile" : ""}`}
+        className={`route-workbench knowledge-workbench${showChanges ? "" : " knowledge-workbench--without-changes"}${mobile ? " knowledge-workbench--mobile" : ""}`}
       >
         {mobile ? (
           <div
@@ -720,7 +737,7 @@ export default function KnowledgeRoute() {
           <>
             {filesPane}
             {editorPane}
-            {changesPane}
+            {showChanges ? changesPane : null}
           </>
         )}
       </div>

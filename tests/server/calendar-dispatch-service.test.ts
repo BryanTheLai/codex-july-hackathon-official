@@ -82,7 +82,7 @@ describe("calendar dispatch service", () => {
       config: {
         defaultDurationMinutes: 30,
         enabled: true,
-        location: "KaunterAI Clinic",
+        location: "KaunterAI Aircon Service Hub",
         uidDomain: "calendar.kaunterai.test",
       },
       deliveryRepository: calendarRepository,
@@ -109,7 +109,7 @@ describe("calendar dispatch service", () => {
     expect(sendDocument).toHaveBeenCalledTimes(1);
     expect(sendDocument).toHaveBeenCalledWith(
       "-10042",
-      expect.objectContaining({ contentType: "text/calendar", filename: "appointment.ics" }),
+      expect.objectContaining({ contentType: "text/calendar", filename: "booking.ics" }),
       first.requestId,
     );
     expect(new TextDecoder().decode(sendDocument.mock.calls[0]?.[1].bytes)).not.toContain(
@@ -121,7 +121,7 @@ describe("calendar dispatch service", () => {
     );
     expect(conversation?.messages.at(-1)).toMatchObject({
       role: "system",
-      text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision 1.`,
+      text: `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as booking.ics for booking revision 1.`,
     });
   });
 
@@ -141,7 +141,7 @@ describe("calendar dispatch service", () => {
       config: {
         defaultDurationMinutes: 30,
         enabled: true,
-        location: "KaunterAI Clinic",
+        location: "KaunterAI Aircon Service Hub",
         uidDomain: "calendar.kaunterai.test",
       },
       deliveryRepository: createCalendarDeliveryRepository(dataSource),
@@ -248,7 +248,7 @@ describe("calendar dispatch service", () => {
     await expect(service.send(request)).rejects.toEqual(
       new CalendarDispatchError(
         "duplicate",
-        "Calendar delivery outcome is unknown. Verify with the patient before sending a replacement.",
+        "Calendar delivery outcome is unknown. Verify with the customer before sending a replacement.",
         false,
       ),
     );

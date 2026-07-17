@@ -51,7 +51,11 @@ async function run(): Promise<void> {
   const config = readSupabaseConfig();
   const client = createSupabaseServerClient(config);
   const dataSource = createSupabaseDemoSeedDataSource(client);
-  const template = await dataSource.readSource(seedKey);
+  const template = await dataSource.readSource(seedKey).catch(() => {
+    throw new Error(
+      "Seed template is unavailable. Verify Supabase credentials, apply migration 20260718010000_demo_seed_templates.sql, and load supabase/seed.sql.",
+    );
+  });
   if (!template) {
     console.error(`Seed template not found: ${seedKey}`);
     process.exit(1);

@@ -99,7 +99,7 @@ async function configuredService(fetcher: typeof fetch) {
         clientId: "client-id",
         clientSecret: "client-secret",
         defaultDurationMinutes: 30,
-        location: "KaunterAI Clinic",
+        location: "KaunterAI Aircon Service Hub",
         redirectUri: "https://example.com/callback",
         timeZone: "Asia/Kuala_Lumpur",
         tokenEncryptionKey: key,
@@ -144,7 +144,7 @@ describe("Google Calendar service", () => {
     });
   });
 
-  it("upserts the appointment and deletes it after a cancellation", async () => {
+  it("upserts the service visit and deletes it after a cancellation", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("oauth2.googleapis.com")) {
@@ -172,8 +172,8 @@ describe("Google Calendar service", () => {
       summary: string;
     };
     expect(event).toMatchObject({
-      location: "KaunterAI Clinic",
-      summary: "Appointment",
+      location: "KaunterAI Aircon Service Hub",
+      summary: "Aircon service visit",
       start: { timeZone: "Asia/Kuala_Lumpur" },
       end: { timeZone: "Asia/Kuala_Lumpur" },
     });

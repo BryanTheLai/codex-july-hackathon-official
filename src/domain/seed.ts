@@ -141,6 +141,7 @@ function buildSeedState(): AppState {
             instruction:
               "Use RM99 general service and RM160 chemical wash; do not invent discounts",
             required: true,
+            knowledgeFileIds: ["file-aircon-rate-card"],
             examples: {
               good: "General service is RM99.",
               bad: "I can discount it to RM80.",
@@ -153,6 +154,7 @@ function buildSeedState(): AppState {
             instruction: "Poor cooling plus musty smell requires chemical wash",
             required: true,
             caseTypes: ["general"],
+            knowledgeFileIds: ["file-aircon-service-selection"],
             examples: {
               good: "Chemical wash is RM160.",
               bad: "General service is RM99.",
@@ -166,6 +168,7 @@ function buildSeedState(): AppState {
               "Do not create or claim a booking before explicit slot/address confirmation",
             required: true,
             caseTypes: ["booking"],
+            knowledgeFileIds: ["file-aircon-booking"],
             examples: {
               good: "Please confirm the slot and address.",
               bad: "Your booking is confirmed.",

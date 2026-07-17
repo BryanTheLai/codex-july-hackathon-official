@@ -308,9 +308,18 @@ describe("v1 migration", () => {
     expect(criterionById["crit-dismissive"]?.caseTypes).toBeUndefined();
     expect(criterionById["crit-custom-legacy"]?.caseTypes).toBeUndefined();
 
-    expect(caseById["case-emergency-train"]?.criterionIds).toEqual(["crit-emergency"]);
-    expect(caseById["case-booking-train"]?.criterionIds).toEqual(["crit-booking"]);
-    expect(caseById["case-prescription-train"]?.criterionIds).toEqual(["crit-prescription"]);
+    expect(caseById["case-emergency-train"]?.criterionIds).toEqual([
+      "crit-emergency",
+      "crit-custom-legacy",
+    ]);
+    expect(caseById["case-booking-train"]?.criterionIds).toEqual([
+      "crit-booking",
+      "crit-custom-legacy",
+    ]);
+    expect(caseById["case-prescription-train"]?.criterionIds).toEqual([
+      "crit-prescription",
+      "crit-custom-legacy",
+    ]);
   });
 });
 
