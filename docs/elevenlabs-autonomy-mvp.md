@@ -3,9 +3,9 @@
 ## Decision
 
 This hackathon app remains the authority for Telegram, the agent loop, booking state, `.ics`
-delivery, Eval, and Dream. ElevenLabs supplies only speech-to-text (STT) and text-to-speech
-(TTS) through its direct HTTP APIs. DigitalOcean may supply the text model through the existing
-OpenAI-compatible `LLM_*` configuration, but it does not become a second agent implementation.
+delivery, Eval, and Dream. Direct OpenAI supplies text generation and judging. ElevenLabs supplies
+only speech-to-text (STT) and text-to-speech (TTS) through its direct HTTP APIs; it does not become
+a second agent implementation.
 
 This is deliberately a demo of an autonomous front desk, not a production clinic system.
 
@@ -47,10 +47,10 @@ code.
 ## Configuration
 
 ```dotenv
-# Existing text/reasoning provider. DigitalOcean is optional and remains OpenAI-compatible.
-LLM_BASE_URL=https://inference.do-ai.run/v1
+# Existing direct OpenAI text/reasoning provider. Leave the base URL empty for OpenAI.
+LLM_BASE_URL=
 LLM_API_KEY=replace-in-deployment-only
-LLM_MODEL=choose-an-available-DigitalOcean-model
+LLM_MODEL=gpt-5.6-luna
 LLM_API_MODE=responses
 LIVE_AGENT_ENABLED=true
 
@@ -73,10 +73,9 @@ ELEVENLABS_TTS_USE_SPEAKER_BOOST=
 LIVE_TELEGRAM_ENABLED=true
 ```
 
-DigitalOcean text inference is configuration-only because the repository already creates the
-OpenAI client with a configurable base URL and supports Responses and Chat Completions. Before it
-is used for a live demo, it must pass the provider smoke below: structured final JSON, function
-call, function continuation, and a translation request. Do not switch provider during the demo.
+Direct OpenAI text generation remains the fixed provider for the live demo. Its configured model
+must pass the provider smoke below: structured final JSON, function call, function continuation,
+and a translation request. Do not switch provider during the demo.
 
 ## State and schema impact
 
@@ -157,11 +156,11 @@ prove a real Telegram receipt without the owner-controlled bot chat.
 
 ## What I need from the owner
 
-1. Set secrets in DigitalOcean, never in chat or source control: an ElevenLabs API key, authorized
-   voice ID, optional DigitalOcean inference key, current provider model ID, Telegram token, and
-   Supabase service-role key.
-2. Choose whether the demo runs direct OpenAI text or DigitalOcean text after the smoke test. Keep
-   the existing text provider if the DigitalOcean Responses function continuation differs.
+1. Set secrets in the deployment environment, never in chat or source control: an ElevenLabs API
+   key with `speech_to_text` and `text_to_speech` permissions, an authorized voice ID, the direct
+   OpenAI key, Telegram token, and Supabase service-role key.
+2. Keep direct OpenAI text generation. DigitalOcean App Platform may host the service, but
+   DigitalOcean Model Inference is out of scope.
 3. Send two messages from the owner-controlled Telegram chat after deployment: a booking request
    and a natural-language complaint about the outcome. This is the only way to prove real receipt.
 
@@ -188,5 +187,3 @@ prove a real Telegram receipt without the owner-controlled bot chat.
   for the multipart Scribe v2 request, detected `language_code`, and optional timestamps.
 - ElevenLabs, [Create speech](https://elevenlabs.io/docs/api-reference/text-to-speech/convert)
   for the direct voice endpoint, request-scoped voice settings, language code, and audio response.
-- DigitalOcean, [Inference API reference](https://docs.digitalocean.com/products/inference/reference/api/)
-  for the current Serverless Inference Responses and Chat Completions surface.

@@ -2759,23 +2759,16 @@ separates runtime configuration and post-POC work from the completed release wor
   configured. Voice-originated agent replies now send concise text plus TTS voice after a saved
   transcription; live provider smoke and durable retry remain unproven.
 
-### Deferred TODO: optional DigitalOcean inference provider switch
+### Decision record: no DigitalOcean model inference
 
-Do this only after the current direct-OpenAI demo path has been smoke-tested and a separate
-DigitalOcean Model Access Key exists:
+Recorded 2026-07-17: the project will not migrate its agent or Eval text generation to
+DigitalOcean Model Inference. Keep the existing direct OpenAI-compatible text provider, leave
+`LLM_BASE_URL` empty for the OpenAI endpoint, and do not add or maintain a DigitalOcean inference
+key. ElevenLabs remains an independent speech-only provider for STT and TTS.
 
-1. Set `LLM_BASE_URL=https://inference.do-ai.run/v1`, never the full
-   `/chat/completions` path.
-2. Keep `LLM_API_MODE=responses`; DigitalOcean supports `/v1/responses`.
-3. Create a separate Model Access Key restricted to the selected text model and the exact TTS model.
-   Do not reuse the App Platform MCP token.
-4. Run a synthetic agent/Eval smoke test before setting `LLM_MODEL` and `JUDGE_MODEL` to
-   `openai-gpt-5.6-luna`.
-5. Verify TTS separately before enabling outbound AI voice, because text inference and speech have
-   different model access scopes.
-
-References: [DigitalOcean Model Access Keys](https://docs.digitalocean.com/products/inference/how-to/manage-model-access-keys/)
-and [Responses API](https://docs.digitalocean.com/products/inference/how-to/use-responses-api/).
+This removes the extra model-access scope, model-availability, and function-continuation smoke
+from the production checklist. DigitalOcean App Platform may still host the web service; hosting
+and model inference are separate decisions.
 
 ### MVP completion order
 
@@ -2912,8 +2905,8 @@ No draft, rejected correction, or unapproved file enters a live run.
    demo loop is complete.
 3. **Decision deferred:** browser Realtime latency proof, inbound phone calls, and outbound
    dispatch have no committed design or build order.
-4. **Optional inference migration:** follow the DigitalOcean provider-switch TODO above only after
-   model-scoped key creation and separate synthetic text and TTS smoke tests.
+4. **Text provider:** keep direct OpenAI-compatible generation; a DigitalOcean inference migration
+   is explicitly out of scope for this MVP.
 
 ### Post-POC complete-target gaps
 

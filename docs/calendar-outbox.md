@@ -50,6 +50,21 @@ refresh token.
 
 ## Google setup
 
+### Production values
+
+`KAUNTER_WORKSPACE_ID` is the exact workspace row used by Supabase. Keep `demo` when deploying
+the fixed demo workspace; change it only if production uses a different seeded workspace ID.
+
+`CALENDAR_UID_DOMAIN` is not a web link. It is the stable domain namespace embedded in `.ics`
+event UIDs. `calendar.kaunterai.test` is suitable for local/test use only. In production use a
+stable domain you control, for example `calendar.example.com`, and keep it unchanged after events
+have been sent.
+
+`GOOGLE_CALENDAR_REDIRECT_URI` is the real public HTTPS app URL plus
+`/api/admin/calendar/google/callback`, for example
+`https://app.example.com/api/admin/calendar/google/callback`. Register that exact value in Google
+Cloud; the placeholder `YOUR_APP_DOMAIN` below is not a value to deploy.
+
 1. In Google Cloud, enable **Google Calendar API** and create an OAuth **Web application** client.
 2. Add this exact authorized redirect URI:
    `https://YOUR_APP_DOMAIN/api/admin/calendar/google/callback`.

@@ -106,7 +106,7 @@ Authentication, EHR integration, and broader provider-quality validation remain 
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
-- Post-MVP backlog and the DigitalOcean inference-switch TODO: `PROJECT.md` section 16
+- Post-MVP backlog and the text-provider decision record: `PROJECT.md` section 16
 - Channel, hosting research, Meta boundary: `PROJECT.md` section 17
 
 The deterministic Analyze failures path remains a no-provider fallback. With `LLM_API_KEY`
