@@ -39,6 +39,9 @@ export function CaseEvidence({
     .slice(-5)
     .reverse();
   const criterionById = new Map(dataset.criteria.map((criterion) => [criterion.id, criterion]));
+  const needsHumanCorrection = !evalCase.expectedHumanOutput.trim();
+  const feedbackReason =
+    evalCase.source.kind === "autonomous_feedback" ? evalCase.source.reason : null;
 
   return (
     <Dialog.Root defaultOpen onOpenChange={(open) => !open && onClose()}>
@@ -63,9 +66,19 @@ export function CaseEvidence({
               <pre>{inputText(evalCase)}</pre>
             </section>
             <section className="case-evidence__expected">
-              <h2><GlossaryTerm definition={EVAL_GLOSSARY.expectedHitl}>Staff-approved reply</GlossaryTerm></h2>
-              <p>{evalCase.expectedHumanOutput}</p>
-              <span>The agent never sees this reply during replay. The judge uses it as one reference for a valid resolution.</span>
+              {needsHumanCorrection ? (
+                <>
+                  <h2>Human correction needed</h2>
+                  <p>{feedbackReason ?? "This candidate needs a human reference reply."}</p>
+                  <span>Edit this candidate with the response the patient should have received, then run it through Eval.</span>
+                </>
+              ) : (
+                <>
+                  <h2><GlossaryTerm definition={EVAL_GLOSSARY.expectedHitl}>Staff-approved reply</GlossaryTerm></h2>
+                  <p>{evalCase.expectedHumanOutput}</p>
+                  <span>The agent never sees this reply during replay. The judge uses it as one reference for a valid resolution.</span>
+                </>
+              )}
             </section>
             <section className="case-evidence__actual">
               <h2><GlossaryTerm definition={EVAL_GLOSSARY.actualSynthetic}>Agent reply</GlossaryTerm></h2>
@@ -133,7 +146,7 @@ export function CaseEvidence({
             {running ? (
               <button className="eval-button eval-button--risk" onClick={() => onCancel(evalCase.id)} type="button"><Square aria-hidden="true" size={14} /> Cancel run</button>
             ) : (
-              <button className="eval-button eval-button--primary" disabled={operationBlocked} onClick={() => onRun(evalCase.id)} type="button"><Play aria-hidden="true" size={14} /> Run case</button>
+              <button className="eval-button eval-button--primary" disabled={operationBlocked || needsHumanCorrection} onClick={() => onRun(evalCase.id)} type="button"><Play aria-hidden="true" size={14} /> Run case</button>
             )}
             <button className="eval-button" disabled={operationBlocked} onClick={() => onEdit(evalCase)} type="button"><Edit3 aria-hidden="true" size={14} /> Edit</button>
             <DropdownMenu.Root>

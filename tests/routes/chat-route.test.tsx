@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -1166,7 +1167,7 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
 
-  it("edits patient details, handles booking approval, labels, and emergency escalation", async () => {
+  it("edits patient details, hides booking gates, labels, and handles emergency escalation", async () => {
     const user = userEvent.setup();
     renderChat();
 
@@ -1195,18 +1196,13 @@ describe("Chat Control route", () => {
     await user.click(
       screen.getByRole("button", { name: "Open conversation with Nurul Aisyah" }),
     );
-    await user.click(screen.getByRole("button", { name: "Approve booking" }));
-    const confirmation = screen.getByRole("alertdialog", { name: "Confirm this appointment?" });
-    expect(confirmation).toHaveTextContent("Temu janji anda disahkan");
-    await user.click(
-      within(confirmation).getByRole("button", { name: "Confirm booking" }),
+    expect(screen.queryByRole("button", { name: "Approve booking" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject booking" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Booking status timeline" })).toHaveTextContent(
+      "Requested",
     );
-    expect(screen.getByText("approved")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
-      "Temu janji anda disahkan",
-    );
-    expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
-      "Your appointment is confirmed",
+    expect(screen.getByRole("region", { name: "Booking status timeline" })).toHaveTextContent(
+      "Availability checked",
     );
   });
 
@@ -1247,23 +1243,20 @@ describe("Chat Control route", () => {
 
   it("cancels an approved appointment in the synthetic workspace and removes it from Schedule", async () => {
     const user = userEvent.setup();
-    renderChat();
+    const { store } = renderChat();
+
+    act(() => {
+      store.getState().approveBooking("convo-booking");
+    });
 
     await user.click(screen.getByRole("button", { name: /Nurul Aisyah/i }));
-    await user.click(screen.getByRole("button", { name: "Approve booking" }));
-    await user.click(
-      within(screen.getByRole("alertdialog", { name: "Confirm this appointment?" })).getByRole(
-        "button",
-        { name: "Confirm booking" },
-      ),
-    );
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
     const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
     expect(dialog).toHaveTextContent("Temu janji anda");
     expect(dialog).toHaveTextContent("dibatalkan");
     await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
 
-    expect(screen.getByText("cancelled")).toBeInTheDocument();
+    expect(screen.getAllByText("cancelled").length).toBeGreaterThan(0);
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
       "Booking cancelled",
     );

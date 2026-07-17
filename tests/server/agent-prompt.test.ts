@@ -62,6 +62,12 @@ describe("agent prompt assembly", () => {
     expect(AGENT_INSTRUCTIONS).toContain(
       "You may call only the supplied tools. Never invent a tool",
     );
+    expect(AGENT_INSTRUCTIONS).toContain(
+      "call flag_autonomous_action_wrong exactly once",
+    );
+    expect(AGENT_INSTRUCTIONS).toContain(
+      "Do not use keyword or pattern matching as a trigger",
+    );
     expect(prompt.instructions).toBe(AGENT_INSTRUCTIONS);
     expect(prompt.outputSchema).toBe(AGENT_JSON_SCHEMA);
     expect(playbookIndex).toBeGreaterThanOrEqual(0);

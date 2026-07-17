@@ -54,4 +54,12 @@ export const evalCaseSourceSchema = z.discriminatedUnion("kind", [
       kind: z.literal(EVAL_CASE_SOURCE_KINDS[2]),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal(EVAL_CASE_SOURCE_KINDS[3]),
+      conversationId: z.string().min(1),
+      messageIds: z.array(z.string().min(1)).min(1),
+      reason: z.string().trim().min(1).max(500),
+    })
+    .strict(),
 ]);

@@ -335,6 +335,64 @@ describe("Telegram webhook", () => {
     );
   });
 
+  it("uses the feedback-candidate revision for the autonomous patient reply", async () => {
+    const send = vi.fn(async () => ({
+      deliveryIds: ["agent-auto-feedback-delivery"],
+      status: "sent" as const,
+      text: {
+        acceptedAt: "2026-07-17T01:00:00.000Z",
+        providerMessageId: "126",
+      },
+    }));
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice: vi.fn(),
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const { baseUrl } = await configuredServer({
+      agent: {
+        agentConfigVersion: "auto-agent-v1",
+        liveEnabled: true,
+        run: vi.fn(async (): Promise<AgentRunResult> => ({
+          draft: {
+            englishText: "I have recorded that feedback for review.",
+            patientLanguage: "Malay",
+            patientText: "Saya telah rekodkan maklum balas itu untuk semakan.",
+          },
+          evidence: [],
+          handoffReason: null,
+          latencyMs: 12,
+          proposedAction: "reply",
+          runId: "agent-auto-feedback",
+          stopReason: "completed",
+          toolCalls: [
+            {
+              callId: "call-feedback-1",
+              name: "flag_autonomous_action_wrong",
+              status: "completed",
+              summary: "Created a pending Eval candidate from patient feedback.",
+              conversationRevision: 2,
+            },
+          ],
+          usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+        })),
+      },
+      autoReplyEnabled: true,
+      outbound,
+    });
+
+    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedPatientText: "Saya telah rekodkan maklum balas itu untuk semakan.",
+        expectedConversationRevision: 2,
+      }),
+    );
+  });
+
   it("rejects a wrong provider secret before persistence", async () => {
     const { baseUrl, eventDataSource } = await configuredServer();
 

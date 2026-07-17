@@ -87,6 +87,7 @@ type ChatToolCall = {
 };
 
 type ChatCompletionsOutput = {
+  id?: string;
   model?: string;
   choices: Array<{
     message: {
@@ -286,6 +287,7 @@ function chatOutput(
   return {
     model: response.model,
     outputText: message?.content ?? "",
+    ...(response.id ? { responseId: response.id } : {}),
     ...(toolCalls.length > 0 ? { toolCalls } : {}),
     usage: response.usage
       ? {

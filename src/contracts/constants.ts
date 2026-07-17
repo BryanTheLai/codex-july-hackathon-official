@@ -22,7 +22,12 @@ export const EVAL_CASE_TYPES = [
   "lab_follow_up",
   "general",
 ] as const;
-export const EVAL_CASE_SOURCE_KINDS = ["seed", "hitl", "manual"] as const;
+export const EVAL_CASE_SOURCE_KINDS = [
+  "seed",
+  "hitl",
+  "manual",
+  "autonomous_feedback",
+] as const;
 export const SEED_EVAL_CASE_IDS = [
   "case-emergency-train",
   "case-booking-train",

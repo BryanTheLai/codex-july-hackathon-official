@@ -12,7 +12,7 @@ KaunterAI is a multilingual clinic front desk that can autonomously:
 - reschedule or cancel a confirmed appointment;
 - send the response and, when configured, an `.ics` calendar file;
 - record the action in the conversation; and
-- route a patient correction back through the existing Evals and Dream playbook workflow.
+- turn an agent-recognized patient correction into an Eval candidate for a human-written reference.
 
 There is no staff approval step for those administrative actions. The agent is free to choose and sequence only the capabilities supplied to it. It cannot access arbitrary records, shell commands, credentials, or clinical tools.
 
@@ -31,8 +31,10 @@ flowchart LR
   C --> K[Optional .ics calendar delivery]
   T --> F[Patient correction]
   F --> A
-  F --> H[Human-written correction or approval]
-  H --> E[Resolve, import to Evals, improve playbook in Dream]
+  A --> G[flag_autonomous_action_wrong]
+  G --> E[Eval candidate: empty human reference]
+  E --> H[Human writes correction]
+  H --> D[Eval, then Dream proposal and replay]
 ```
 
 The model never writes the workspace directly. It selects a function, the server validates its arguments, and the function performs the committed action. A patient-facing response is sent only after the booking function has reported success.
@@ -47,6 +49,7 @@ telegram_events (update id, payload hash)
        -> conversations[] (one per Telegram chat, own revision)
             -> messages[] (patient, sent reply, autonomous audit)
             -> booking? (provider, slotIso, reason, status, booking revision)
+       -> evalDatasets[] -> cases[] (autonomous_feedback source, human reference)
        -> playbookHistory (pinned agent evidence)
   -> telegram_deliveries (request id, provider receipt, sync status)
   -> calendar_deliveries (calendar UID, sequence, provider receipt)
@@ -70,6 +73,7 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 | `create_booking` | provider, returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking |
 | `reschedule_booking` | provider, returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |
+| `flag_autonomous_action_wrong` | concise reason | conversation has patient input; server creates a bounded Eval candidate | Adds a `autonomous_feedback` candidate with no reference answer |
 
 Every function result follows a bounded envelope. Success returns `success: true` and the current booking or slots. Failure returns `success: false`, `error_type`, `message`, and a recovery suggestion. The model receives that result before it writes the patient reply.
 
@@ -86,16 +90,21 @@ No dependency was added for this feature. The MVP uses the repository's existing
 | Calendar | `ical-generator` | `.ics` invitation after a confirmed autonomous booking |
 | UI | React 19 | Shows the manual-run autonomous action trace |
 
-Required live path switches remain `LIVE_TELEGRAM_ENABLED=true` and `LIVE_AGENT_ENABLED=true`, plus the existing Supabase, Telegram, and `LLM_*` values. A live provider or Telegram account was not contacted during local verification.
+Required live path switches remain `LIVE_TELEGRAM_ENABLED=true` and `LIVE_AGENT_ENABLED=true`, plus the existing Supabase, Telegram, and `LLM_*` values. The local suite proves the complete contract with deterministic providers; a real inbound Telegram-to-model-to-receipt smoke still requires a user-controlled test chat.
 
 ## Feedback and learning loop
 
-The agent may correct a booking when a patient replies. If that outcome is a learning example, a human
-first writes the corrective or approved response, then resolves and imports that conversation to
-Evals. The human response is the hidden reference; the autonomous response is never allowed to
-grade itself. Dream can then propose and replay an immutable playbook correction before activation.
+The model decides semantically from the supplied conversation whether the patient is saying the
+agent got something wrong. It has no regex, keyword, or client-side button trigger. When it calls
+`flag_autonomous_action_wrong`, the server creates an `autonomous_feedback` Eval case containing
+the patient messages and the model's concise reason. The case intentionally has an empty expected
+human output, so it cannot run in Eval until a human supplies the correction. The human response is
+the hidden reference; the autonomous response is never allowed to grade itself. Dream can then
+propose and replay an immutable playbook correction before activation.
+
 The agent does not rewrite its own system prompt from a single message: that would turn untrusted
-feedback into a prompt-injection path.
+feedback into a prompt-injection path. The feedback function is a learning signal, not a policy
+mutation.
 
 This is deliberate autonomy: the agent acts immediately in its permitted workflow, while changes to the policy that governs every future patient still use the existing Eval and Dream release gate.
 

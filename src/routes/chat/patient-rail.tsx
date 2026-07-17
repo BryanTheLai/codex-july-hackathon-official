@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   previewBookingCancellation,
-  previewBookingDecision,
   type Conversation,
   type MutationResult,
   type PatientUpdateInput,
@@ -170,18 +169,60 @@ function PatientIdentity({
   );
 }
 
+function BookingTimeline({ conversation }: { conversation: Conversation }) {
+  const booking = conversation.booking;
+  if (!booking) return null;
+
+  const agentAudit = conversation.messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.text)
+    .join(" ")
+    .toLocaleLowerCase();
+  const availabilityChecked = agentAudit.includes("checked demo availability");
+  const rescheduled = agentAudit.includes("rescheduled the appointment");
+  const cancelled = booking.status === "cancelled";
+  const confirmed = booking.status === "approved" || cancelled;
+  const finalLabel = cancelled ? "Cancelled" : rescheduled ? "Rescheduled" : "Confirmed";
+  const steps = [
+    { label: "Requested", state: "complete" },
+    {
+      label: "Availability checked",
+      state: availabilityChecked ? "complete" : "pending",
+    },
+    {
+      label: finalLabel,
+      state: confirmed ? "active" : "pending",
+    },
+  ];
+
+  return (
+    <section aria-label="Booking status timeline" className="rail-section booking-timeline">
+      <header className="rail-section__header">
+        <h3>Booking status</h3>
+        <span>{booking.status}</span>
+      </header>
+      <ol>
+        {steps.map((step) => (
+          <li className={`booking-timeline__step booking-timeline__step--${step.state}`} key={step.label}>
+            <span aria-hidden="true" />
+            {step.label}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export function PatientRail({
   conversation,
   showClose,
   onAddLabel,
-  onApproveBooking,
   onCancelBooking,
   onClose,
   onDream,
   onEditBooking,
   onEscalate,
   onImportEval,
-  onRejectBooking,
   onRemoveLabel,
   onResetSyntheticConversation,
   onUpdatePatient,
@@ -189,14 +230,12 @@ export function PatientRail({
   conversation: Conversation;
   showClose: boolean;
   onAddLabel: (label: string) => MutationResult;
-  onApproveBooking: () => MutationResult;
   onCancelBooking: () => MutationResult;
   onClose: () => void;
   onDream: () => void;
   onEditBooking: () => void;
   onEscalate: () => MutationResult;
   onImportEval: () => MutationResult;
-  onRejectBooking: () => MutationResult;
   onRemoveLabel: (label: string) => MutationResult;
   onResetSyntheticConversation: () => MutationResult;
   onUpdatePatient: (input: PatientUpdateInput) => MutationResult;
@@ -210,8 +249,6 @@ export function PatientRail({
   const [newLabel, setNewLabel] = useState(availableLabels[0] ?? "");
   const [error, setError] = useState("");
   const importReady = hasResolvedStaffReply(conversation);
-  const approvalPreview = previewBookingDecision(conversation, "approve");
-  const rejectionPreview = previewBookingDecision(conversation, "reject");
   const cancellationPreview = previewBookingCancellation(conversation);
   const canResetSyntheticConversation =
     conversation.id.startsWith("convo-") || conversation.id.startsWith("sim-");
@@ -307,52 +344,7 @@ export function PatientRail({
                 <dd>{conversation.booking.reason}</dd>
               </div>
             </dl>
-            {conversation.booking.status === "pending" ? (
-              <div className="rail-action-row">
-                <ConfirmAction
-                  confirmLabel="Confirm booking"
-                  description={
-                    approvalPreview.ok
-                      ? `${approvalPreview.preview.text}${
-                          approvalPreview.preview.gloss
-                            ? ` English meaning: ${approvalPreview.preview.gloss}`
-                            : ""
-                        }`
-                      : approvalPreview.error
-                  }
-                  onConfirm={() => {
-                    run(onApproveBooking);
-                  }}
-                  title="Confirm this appointment?"
-                  trigger={
-                    <button className="chat-button chat-button--primary" type="button">
-                      Approve booking
-                    </button>
-                  }
-                />
-                <ConfirmAction
-                  confirmLabel="Reject booking"
-                  description={
-                    rejectionPreview.ok
-                      ? `${rejectionPreview.preview.text}${
-                          rejectionPreview.preview.gloss
-                            ? ` English meaning: ${rejectionPreview.preview.gloss}`
-                            : ""
-                        }`
-                      : rejectionPreview.error
-                  }
-                  onConfirm={() => {
-                    run(onRejectBooking);
-                  }}
-                  title="Reject this booking?"
-                  trigger={
-                    <button className="chat-button chat-button--risk" type="button">
-                      Reject booking
-                    </button>
-                  }
-                />
-              </div>
-            ) : null}
+            <BookingTimeline conversation={conversation} />
             {conversation.booking.status === "approved" ? (
               <div className="rail-action-row">
                 <ConfirmAction

@@ -129,8 +129,9 @@ KaunterAI is designed to reduce:
 2. The patient asks to book; the agent checks demo availability and confirms the booking itself.
 3. The patient changes or cancels; the agent updates the confirmed booking itself and records the action.
 4. A successful create or reschedule can send an `.ics` calendar attachment through Telegram.
-5. A patient flags something wrong; the next message can trigger a correction, while representative
-   feedback can enter the existing Eval-to-Dream release workflow for a governed playbook change.
+5. If a patient says the autonomous agent got something wrong, the model can flag that conversation
+   as an Eval candidate. A human adds the correction before it can enter the Eval-to-Dream release
+   workflow for a governed playbook change.
 6. Clinical or urgent requests receive an immediate safe acknowledgement and routing message; the
    agent does not diagnose or prescribe.
 

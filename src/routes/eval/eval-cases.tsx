@@ -31,6 +31,9 @@ function SplitLabel({ split }: { split: EvalCase["split"] }) {
 }
 
 function SourceLabel({ evalCase }: { evalCase: EvalCase }) {
+  if (evalCase.source.kind === "autonomous_feedback") {
+    return "Patient feedback";
+  }
   if (evalCase.source.kind === "hitl") {
     return "Resolved staff chat";
   }
@@ -46,6 +49,15 @@ function Result({ evalCase, running }: { evalCase: EvalCase; running: boolean })
       <span aria-live="polite" className="eval-result eval-result--running">
         <LoaderCircle aria-hidden="true" size={14} /> Replaying...
       </span>
+    );
+  }
+
+  if (!evalCase.expectedHumanOutput.trim()) {
+    return (
+      <div className="eval-result">
+        <span className="eval-status eval-status--needs-review">Needs correction</span>
+        <small>Add the human correction before running</small>
+      </div>
     );
   }
 
@@ -85,6 +97,7 @@ function CaseActions({
     event.stopPropagation();
     callback();
   };
+  const needsHumanCorrection = !evalCase.expectedHumanOutput.trim();
 
   return (
     <div aria-label="Case actions" className="eval-case-actions" role="group">
@@ -95,9 +108,9 @@ function CaseActions({
       ) : (
         <button
           aria-label={`Run ${evalCase.title}`}
-          disabled={runBlocked}
+          disabled={runBlocked || needsHumanCorrection}
           onClick={stop(() => onRun(evalCase.id))}
-          title="Run case"
+          title={needsHumanCorrection ? "Add a human correction before running" : "Run case"}
           type="button"
         >
           <Play aria-hidden="true" size={14} />

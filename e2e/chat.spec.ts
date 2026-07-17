@@ -120,6 +120,15 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     await page
       .getByRole("button", { name: "Open conversation with Nurul Aisyah" })
       .click();
+    const patientContext = page.getByRole("complementary", {
+      name: "Patient context",
+    });
+    await expect(patientContext.getByRole("button", { name: "Approve booking" })).toHaveCount(0);
+    await expect(patientContext.getByRole("button", { name: "Reject booking" })).toHaveCount(0);
+    await expect(patientContext.getByLabel("Booking status timeline")).toContainText("Requested");
+    await expect(patientContext.getByLabel("Booking status timeline")).toContainText(
+      "Availability checked",
+    );
     await page.getByRole("button", { name: "Generate draft" }).click();
     await expect(page.getByText("Autonomous action trace")).toBeVisible();
     await expect(

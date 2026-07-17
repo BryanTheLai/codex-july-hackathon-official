@@ -365,7 +365,7 @@ function automaticReplyRequestId(event: NormalizedInboundEvent): string {
   return `agent-auto-${createHash("sha256").update(identity).digest("hex").slice(0, 48)}`;
 }
 
-function autonomousBookingRevision(
+function autonomousActionRevision(
   result: AgentRunResult,
 ): { calendar: boolean; conversationRevision: number } | null {
   const mutation = [...result.toolCalls]
@@ -374,9 +374,7 @@ function autonomousBookingRevision(
       (call) =>
         call.status === "completed" &&
         call.conversationRevision !== null &&
-        (call.name === "create_booking" ||
-          call.name === "reschedule_booking" ||
-          call.name === "cancel_booking"),
+        call.name !== "list_available_slots",
     );
   if (!mutation || mutation.conversationRevision === null) {
     return null;
@@ -486,10 +484,10 @@ async function runTelegramAutoReply(input: {
       });
     }
 
-    const bookingMutation = autonomousBookingRevision(result);
+    const autonomousAction = autonomousActionRevision(result);
     const expectedConversationRevision =
-      bookingMutation?.conversationRevision ?? conversation.revision;
-    if (bookingMutation?.calendar && telegram.calendar) {
+      autonomousAction?.conversationRevision ?? conversation.revision;
+    if (autonomousAction?.calendar && telegram.calendar) {
       try {
         const calendar = await telegram.calendar.send({
           conversationId: conversation.id,

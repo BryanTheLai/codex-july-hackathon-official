@@ -1089,6 +1089,54 @@
   overflow-wrap: anywhere;
 }
 
+.booking-timeline {
+  gap: 8px;
+}
+
+.booking-timeline ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-timeline__step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-label);
+}
+
+.booking-timeline__step > span {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: 999px;
+  background: var(--kaunter-raised);
+}
+
+.booking-timeline__step--complete,
+.booking-timeline__step--active {
+  color: var(--kaunter-ink);
+}
+
+.booking-timeline__step--complete > span {
+  border-color: var(--kaunter-success-fg);
+  background: var(--kaunter-success-bg);
+}
+
+.booking-timeline__step--active {
+  font-weight: 600;
+}
+
+.booking-timeline__step--active > span {
+  border-color: var(--kaunter-accent);
+  background: var(--kaunter-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kaunter-accent) 18%, transparent);
+}
+
 .rail-form {
   display: grid;
   gap: 8px;

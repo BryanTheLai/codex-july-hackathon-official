@@ -324,6 +324,13 @@ export function createEvalActions({
       const evalCase = dataset?.cases.find(
         (candidate) => candidate.id === caseId,
       );
+      if (evalCase && !evalCase.expectedHumanOutput.trim()) {
+        return {
+          ok: false as const,
+          state: getState(),
+          error: "Add the human correction before running this patient-feedback candidate.",
+        };
+      }
       if (
         evalClient &&
         workspaceClient &&
@@ -365,6 +372,13 @@ export function createEvalActions({
             error: "Eval dataset was not found",
           };
         }
+        if (dataset.cases.some((evalCase) => !evalCase.expectedHumanOutput.trim())) {
+          return {
+            ok: false as const,
+            state: getState(),
+            error: "Add human corrections to patient-feedback candidates before running the suite.",
+          };
+        }
         if (dataset.cases.some((evalCase) => evalCase.source.kind !== "seed") && !workspaceCommandClient) {
           return {
             ok: false as const,
@@ -380,6 +394,16 @@ export function createEvalActions({
           options?.onCaseStart,
           options?.onProgress,
         );
+      }
+      const localDataset = getState().evalDatasets.find(
+        (candidate) => candidate.id === datasetId,
+      );
+      if (localDataset?.cases.some((evalCase) => !evalCase.expectedHumanOutput.trim())) {
+        return {
+          ok: false as const,
+          state: getState(),
+          error: "Add human corrections to patient-feedback candidates before running the suite.",
+        };
       }
       let sourceState = getState();
       let incrementalFailure: string | null = null;

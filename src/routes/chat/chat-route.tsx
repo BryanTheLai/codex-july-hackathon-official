@@ -72,8 +72,6 @@ export default function ChatRoute() {
   const resolveConversation = useAppStore((store) => store.resolveConversation);
   const reopenConversation = useAppStore((store) => store.reopenConversation);
   const updatePatient = useAppStore((store) => store.updatePatient);
-  const approveBooking = useAppStore((store) => store.approveBooking);
-  const rejectBooking = useAppStore((store) => store.rejectBooking);
   const cancelBooking = useAppStore((store) => store.cancelBooking);
   const updateBooking = useAppStore((store) => store.updateBooking);
   const escalateEmergency = useAppStore((store) => store.escalateEmergency);
@@ -280,7 +278,6 @@ export default function ChatRoute() {
       <PatientRail
         conversation={selectedConversation}
         onAddLabel={(label) => addLabel(selectedConversation.id, label)}
-        onApproveBooking={() => approveBooking(selectedConversation.id)}
         onCancelBooking={() => cancelBooking(selectedConversation.id)}
         onClose={() => {
           setRailOpen(false);
@@ -290,7 +287,6 @@ export default function ChatRoute() {
         onEditBooking={() => setBookingEditId(selectedConversation.id)}
         onEscalate={() => escalateEmergency(selectedConversation.id)}
         onImportEval={openEval}
-        onRejectBooking={() => rejectBooking(selectedConversation.id)}
         onRemoveLabel={(label) => removeLabel(selectedConversation.id, label)}
         onResetSyntheticConversation={() =>
           resetSyntheticConversation(selectedConversation.id)

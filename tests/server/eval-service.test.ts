@@ -195,6 +195,48 @@ describe("Eval service", () => {
     expect(judge).not.toHaveBeenCalled();
   });
 
+  it("blocks a patient-feedback candidate until a human reference reply is added", async () => {
+    const { agent, judge, repository, service } = await setup();
+    const workspace = await repository.load("demo");
+    if (!workspace) throw new Error("Workspace is missing");
+    const next = structuredClone(workspace.state);
+    const dataset = next.evalDatasets.find((candidate) => candidate.id === "dataset-seed");
+    const sourceCase = dataset?.cases.find((candidate) => candidate.id === "case-booking-train");
+    if (!dataset || !sourceCase) throw new Error("Seed Eval case is missing");
+    dataset.cases.push({
+      ...sourceCase,
+      id: "case-agent-feedback-pending",
+      title: "Autonomous feedback: Aina Zulkifli",
+      expectedHumanOutput: "",
+      source: {
+        kind: "autonomous_feedback",
+        conversationId: "convo-booking",
+        messageIds: ["bk-1"],
+        reason: "The patient says the autonomous response was wrong.",
+      },
+    });
+    await expect(repository.save("demo", workspace.revision, next)).resolves.toMatchObject({
+      ok: true,
+    });
+
+    await expect(
+      service.createSuite({
+        datasetId: "dataset-seed",
+        caseIds: ["case-agent-feedback-pending"],
+        playbookVersionId: "playbook-version-1",
+        expectedWorkspaceRevision: 2,
+      }),
+    ).rejects.toEqual(
+      new EvalServiceError(
+        "invalid_request",
+        "Eval case case-agent-feedback-pending needs a human correction before it can run",
+        false,
+      ),
+    );
+    expect(agent).not.toHaveBeenCalled();
+    expect(judge).not.toHaveBeenCalled();
+  });
+
   it("does not commit partial evidence when agent or judge evidence is invalid", async () => {
     const first = await setup();
     const firstSuite = await createSeedSuite(first.service);

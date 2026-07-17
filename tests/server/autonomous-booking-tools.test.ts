@@ -122,6 +122,64 @@ describe("autonomous booking tools", () => {
     expect(conversation?.booking?.slotIso).toBe(slotIso);
   });
 
+  it("turns agent-decided patient feedback into one pending Eval candidate", async () => {
+    const { executor, repository, request } = await configuredWorkspace();
+    const first = await executor({
+      request,
+      call: {
+        callId: "call-feedback-1",
+        name: "flag_autonomous_action_wrong",
+        argumentsJson: JSON.stringify({
+          reason: "The patient says the autonomous booking response used the wrong date.",
+        }),
+      },
+    });
+
+    expect(first).toMatchObject({
+      status: "completed",
+      conversationRevision: 2,
+      output: {
+        success: true,
+        action: "feedback_flagged",
+        evalCaseId: expect.stringMatching(/^case-agent-feedback-/),
+      },
+    });
+
+    const replay = await executor({
+      request,
+      call: {
+        callId: "call-feedback-1",
+        name: "flag_autonomous_action_wrong",
+        argumentsJson: JSON.stringify({
+          reason: "The patient says the autonomous booking response used the wrong date.",
+        }),
+      },
+    });
+    expect(replay).toMatchObject({
+      status: "completed",
+      conversationRevision: 2,
+      summary: "This autonomous action was already completed.",
+    });
+
+    const saved = await repository.load("demo");
+    const conversation = saved?.state.conversations.find(
+      (candidate) => candidate.id === request.conversation.id,
+    );
+    const candidate = saved?.state.evalDatasets
+      .find((dataset) => dataset.protected)
+      ?.cases.find((evalCase) => evalCase.source.kind === "autonomous_feedback");
+    expect(conversation?.labels).toContain("agent-feedback");
+    expect(conversation?.messages.at(-1)?.text).toContain("Eval candidate");
+    expect(candidate).toMatchObject({
+      expectedHumanOutput: "",
+      source: {
+        kind: "autonomous_feedback",
+        conversationId: request.conversation.id,
+        reason: "The patient says the autonomous booking response used the wrong date.",
+      },
+    });
+  });
+
   it("rejects stale booking mutations and never changes the booking", async () => {
     const { executor, repository, request } = await configuredWorkspace();
     const workspace = await repository.load("demo");

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type {
   BookingPayload,
+  EvalCasePayload,
   ServerDomainStatePayload,
 } from "../src/contracts/app-state";
 import type {
@@ -34,6 +35,12 @@ const bookingArgumentsSchema = z
   .strict();
 
 const cancelArgumentsSchema = z.object({}).strict();
+
+const feedbackArgumentsSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
 
 export const autonomousBookingTools: AgentProviderFunctionTool[] = [
   {
@@ -105,19 +112,46 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "flag_autonomous_action_wrong",
+    description:
+      "Create a pending Eval candidate when the patient says an autonomous action or reply was wrong, unwanted, or needs correction. Decide from the conversation itself; do not use keyword matching or flag ordinary new requests.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {
+        reason: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "A concise factual summary of why the patient says the autonomous outcome was wrong.",
+        },
+      },
+      required: ["reason"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 type BookingToolName =
   | "list_available_slots"
   | "create_booking"
   | "reschedule_booking"
-  | "cancel_booking";
+  | "cancel_booking"
+  | "flag_autonomous_action_wrong";
 
 type ToolSuccess = {
   success: true;
-  action: "availability_listed" | "booking_created" | "booking_rescheduled" | "booking_cancelled";
+  action:
+    | "availability_listed"
+    | "booking_created"
+    | "booking_rescheduled"
+    | "booking_cancelled"
+    | "feedback_flagged";
   booking?: BookingPayload;
   conversationRevision: number | null;
+  evalCaseId?: string;
   slots?: Array<{ provider: string; slotIso: string }>;
 };
 
@@ -155,6 +189,10 @@ function success(
 
 function toolAuditMessageId(callId: string): string {
   return `agent-action-${createHash("sha256").update(callId).digest("hex").slice(0, 32)}`;
+}
+
+function feedbackCaseId(callId: string): string {
+  return `case-agent-feedback-${createHash("sha256").update(callId).digest("hex").slice(0, 24)}`;
 }
 
 function localDate(now: Date): string {
@@ -243,7 +281,7 @@ export function createAutonomousBookingToolExecutor({
       return failure(
         "invalid_arguments",
         "The requested tool is not available to this agent.",
-        "Choose one of the supplied booking tools.",
+        "Choose one of the supplied autonomous agent tools.",
       );
     }
 
@@ -280,7 +318,9 @@ export function createAutonomousBookingToolExecutor({
     const parsed =
       call.name === "cancel_booking"
         ? parseArguments(call.argumentsJson, cancelArgumentsSchema)
-        : parseArguments(call.argumentsJson, bookingArgumentsSchema);
+        : call.name === "flag_autonomous_action_wrong"
+          ? parseArguments(call.argumentsJson, feedbackArgumentsSchema)
+          : parseArguments(call.argumentsJson, bookingArgumentsSchema);
     if (!parsed.ok) {
       return failure(
         "invalid_arguments",
@@ -308,12 +348,17 @@ export function createAutonomousBookingToolExecutor({
             ? "booking_created"
             : call.name === "reschedule_booking"
               ? "booking_rescheduled"
-              : "booking_cancelled";
+              : call.name === "cancel_booking"
+                ? "booking_cancelled"
+                : "feedback_flagged";
         return success("This autonomous action was already completed.", {
           success: true,
           action,
           booking: conversation.booking,
           conversationRevision: conversation.revision,
+          ...(call.name === "flag_autonomous_action_wrong"
+            ? { evalCaseId: feedbackCaseId(call.callId) }
+            : {}),
         });
       }
       if (conversation.revision !== request.conversation.revision) {
@@ -329,6 +374,106 @@ export function createAutonomousBookingToolExecutor({
           "A resolved conversation cannot change a booking.",
           "Ask the patient to start a new request.",
         );
+      }
+
+      if (call.name === "flag_autonomous_action_wrong") {
+        const feedback = parsed.value as z.infer<typeof feedbackArgumentsSchema>;
+        const protectedDatasetIndex = workspace.state.evalDatasets.findIndex(
+          (dataset) => dataset.protected,
+        );
+        const targetDatasetIndex =
+          protectedDatasetIndex >= 0
+            ? protectedDatasetIndex
+            : workspace.state.evalDatasets.length > 0
+              ? 0
+              : -1;
+        if (targetDatasetIndex < 0) {
+          return failure(
+            "invalid_state",
+            "No Eval dataset is available for patient feedback.",
+            "Choose an Eval dataset before retrying the feedback action.",
+          );
+        }
+        const inputMessages = conversation.messages.filter((message) => message.role !== "system");
+        if (inputMessages.length === 0) {
+          return failure(
+            "invalid_state",
+            "Patient feedback needs a conversation transcript.",
+            "Wait for a patient message before creating an Eval candidate.",
+          );
+        }
+        const dataset = workspace.state.evalDatasets[targetDatasetIndex]!;
+        const type =
+          conversation.urgency === "emergency" || conversation.labels.includes("emergency")
+            ? "emergency_triage"
+            : conversation.labels.includes("booking") || conversation.booking
+              ? "booking"
+              : conversation.labels.includes("prescription")
+                ? "prescription"
+                : conversation.labels.includes("lab-results")
+                  ? "lab_follow_up"
+                  : "general";
+        const evalCaseId = feedbackCaseId(call.callId);
+        const evalCase: EvalCasePayload = {
+          id: evalCaseId,
+          title: `Autonomous feedback: ${conversation.patient.name}`,
+          split: "train",
+          type,
+          language: conversation.patient.preferredLanguage,
+          inputConversation: { messages: inputMessages },
+          expectedHumanOutput: "",
+          criterionIds: dataset.criteria
+            .filter((criterion) =>
+              criterion.caseTypes && criterion.caseTypes.length > 0
+                ? criterion.caseTypes.includes(type)
+                : true,
+            )
+            .map((criterion) => criterion.id),
+          source: {
+            kind: "autonomous_feedback",
+            conversationId: conversation.id,
+            messageIds: inputMessages.map((message) => message.id),
+            reason: feedback.reason,
+          },
+        };
+        const auditText = `Autonomous agent flagged patient feedback as Eval candidate ${evalCaseId}.`;
+        const nextState = structuredClone(workspace.state);
+        nextState.evalDatasets[targetDatasetIndex] = {
+          ...dataset,
+          cases: [...dataset.cases, evalCase],
+        };
+        const existing = nextState.conversations[index]!;
+        nextState.conversations[index] = {
+          ...existing,
+          revision: existing.revision + 1,
+          labels: existing.labels.includes("agent-feedback")
+            ? existing.labels
+            : [...existing.labels, "agent-feedback"],
+          messages: [
+            ...existing.messages,
+            {
+              id: auditMessageId,
+              role: "system",
+              text: auditText,
+              sentAt: now().toISOString(),
+            },
+          ],
+        };
+        const saved = await workspaceRepository.save(
+          workspaceId,
+          workspace.revision,
+          nextState,
+        );
+        if (saved.ok) {
+          const savedConversation = saved.workspace.state.conversations[index]!;
+          return success(auditText, {
+            success: true,
+            action: "feedback_flagged",
+            conversationRevision: savedConversation.revision,
+            evalCaseId,
+          });
+        }
+        continue;
       }
 
       let nextBooking: BookingPayload;
@@ -380,7 +525,7 @@ export function createAutonomousBookingToolExecutor({
             revision: (conversation.booking?.revision ?? 0) + 1,
           };
           action = "booking_created";
-          auditText = `Autonomous agent confirmed an appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked demo availability and confirmed an appointment with ${nextBooking.provider}.`;
         } else {
           if (!conversation.booking || conversation.booking.status !== "approved") {
             return failure(
@@ -397,7 +542,7 @@ export function createAutonomousBookingToolExecutor({
             revision: conversation.booking.revision + 1,
           };
           action = "booking_rescheduled";
-          auditText = `Autonomous agent rescheduled the appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked demo availability and rescheduled the appointment with ${nextBooking.provider}.`;
         }
       }
 

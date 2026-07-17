@@ -313,6 +313,21 @@ export function createEvalService({
       const workspace = await loadAtRevision(
         request.expectedWorkspaceRevision,
       );
+      const dataset = workspace.state.evalDatasets.find(
+        (candidate) => candidate.id === request.datasetId,
+      );
+      const pendingFeedbackCase = dataset?.cases.find(
+        (evalCase) =>
+          request.caseIds.includes(evalCase.id) &&
+          !evalCase.expectedHumanOutput.trim(),
+      );
+      if (pendingFeedbackCase) {
+        fail(
+          "invalid_request",
+          `Eval case ${pendingFeedbackCase.id} needs a human correction before it can run`,
+          false,
+        );
+      }
       let suite: EvalSuiteSnapshot;
       try {
         suite = await freezeEvalSuiteSnapshot({

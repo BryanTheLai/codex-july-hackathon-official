@@ -343,6 +343,103 @@ describe("agent provider adapter", () => {
     );
   });
 
+  it("continues Chat Completions function calls with the completion ID and tool history", async () => {
+    const chatCreate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "chat-1",
+        model: "chat-model",
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: "call-1",
+                  type: "function",
+                  function: {
+                    name: "list_available_slots",
+                    arguments: '{"date":null,"provider":"Dr. Farah"}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      })
+      .mockResolvedValueOnce({
+        id: "chat-2",
+        model: "chat-model",
+        choices: [{ message: { content: '{"proposedAction":"reply"}' } }],
+        usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+      });
+    const createResponse = createAgentProviderAdapter(
+      {
+        apiKey: "provider-key",
+        apiMode: "chat_completions",
+        baseUrl: "https://provider.example/v1",
+        liveEnabled: true,
+        model: "agent-model",
+      },
+      {
+        responses: { create: vi.fn() },
+        chat: { completions: { create: chatCreate } },
+      },
+    );
+    const toolInput: AgentProviderCreateInput = {
+      ...input,
+      tools: [
+        {
+          type: "function",
+          name: "list_available_slots",
+          description: "Find slots",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      toolChoice: "auto",
+    };
+
+    const first = await createResponse(toolInput);
+    expect(first).toMatchObject({
+      responseId: "chat-1",
+      toolCalls: [
+        { callId: "call-1", name: "list_available_slots" },
+      ],
+    });
+    await expect(
+      createResponse({
+        ...toolInput,
+        previousResponseId: first.responseId,
+        toolHistory: [
+          {
+            calls: first.toolCalls!,
+            outputs: [{ callId: "call-1", output: '{"success":true}' }],
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ responseId: "chat-2" });
+    expect(chatCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "assistant",
+            tool_calls: [
+              expect.objectContaining({ id: "call-1" }),
+            ],
+          }),
+          {
+            role: "tool",
+            tool_call_id: "call-1",
+            content: '{"success":true}',
+          },
+        ]),
+      }),
+      { signal: undefined },
+    );
+  });
+
   it("sanitizes provider failures and classifies aborts as timeouts", async () => {
     const providerFailure = createAgentProviderAdapter(
       {
