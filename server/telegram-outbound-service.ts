@@ -72,6 +72,16 @@ type VoiceDependencies = {
   tts: TtsProvider;
 };
 
+function isOgg(bytes: Uint8Array): boolean {
+  return (
+    bytes.byteLength >= 4 &&
+    bytes[0] === 0x4f &&
+    bytes[1] === 0x67 &&
+    bytes[2] === 0x67 &&
+    bytes[3] === 0x53
+  );
+}
+
 export interface TelegramOutboundService {
   attachRecordedVoice(
     requestId: string,
@@ -401,6 +411,20 @@ export function createTelegramOutboundService({
     return null;
   };
 
+  const readNormalizedVoiceAudio = async (
+    objectPath: string,
+  ): Promise<Uint8Array> => {
+    const dependencies = requireVoice(voice);
+    const bytes = await dependencies.artifactStore.download(objectPath);
+    if (isOgg(bytes)) return bytes;
+    const converted = await dependencies.converter.convertToOgg(bytes);
+    try {
+      return new Uint8Array(await readFile(converted.filePath));
+    } finally {
+      await converted.cleanup();
+    }
+  };
+
   const sendPart = async (
     request: OutboundSendRequest,
     target: Target,
@@ -459,7 +483,7 @@ export function createTelegramOutboundService({
           : await adapter.sendVoice(
               target.externalConversationId,
               {
-                bytes: await requireVoice(voice).artifactStore.download(
+                bytes: await readNormalizedVoiceAudio(
                   claimed.audioObjectPath!,
                 ),
                 contentType: "audio/ogg",
@@ -515,20 +539,30 @@ export function createTelegramOutboundService({
           status: "recording_required",
         });
       }
-      const synthesized = await requireVoice(voice).tts.synthesize(
+      const dependencies = requireVoice(voice);
+      const synthesized = await dependencies.tts.synthesize(
         request.approvedPatientText,
         { targetLanguage: request.targetLanguage, signal },
       );
-      const artifact = await requireVoice(voice).artifactStore.upload(
-        voiceArtifactObjectPath(request.requestId),
+      const converted = await dependencies.converter.convertToOgg(
         synthesized.bytes,
+        signal,
       );
-      await deliveryRepository.attachVoiceArtifact({
-        requestId: request.requestId,
-        ...artifact,
-        ttsModel: synthesized.model,
-        ttsVoice: synthesized.voice,
-      });
+      try {
+        const bytes = new Uint8Array(await readFile(converted.filePath));
+        const artifact = await dependencies.artifactStore.upload(
+          voiceArtifactObjectPath(request.requestId),
+          bytes,
+        );
+        await deliveryRepository.attachVoiceArtifact({
+          requestId: request.requestId,
+          ...artifact,
+          ttsModel: synthesized.model,
+          ttsVoice: synthesized.voice,
+        });
+      } finally {
+        await converted.cleanup();
+      }
       return outboundVoicePrepareResultSchema.parse({
         requestId: request.requestId,
         source: "tts",
@@ -591,7 +625,7 @@ export function createTelegramOutboundService({
           false,
         );
       }
-      return requireVoice(voice).artifactStore.download(delivery.audioObjectPath);
+      return readNormalizedVoiceAudio(delivery.audioObjectPath);
     },
 
     async send(input) {

@@ -22,6 +22,7 @@ import {
   manualSpeechTranscriptRequestSchema,
   saveWorkspaceResultSchema,
   telegramAgentModeRequestSchema,
+  telegramReplyNowRequestSchema,
   workspaceEnvelopeSchema,
   type ApiErrorCode,
   type OutboundReconcileRequest,
@@ -86,6 +87,14 @@ export interface WorkspaceClient {
     conversationId: string,
     request: {
       agentMode: "live_agent" | "staff_only";
+      expectedConversationRevision: number;
+      expectedWorkspaceRevision: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<SaveWorkspaceResult>;
+  replyToLatestTelegramMessage?(
+    conversationId: string,
+    request: {
       expectedConversationRevision: number;
       expectedWorkspaceRevision: number;
     },
@@ -281,6 +290,25 @@ export function createHttpWorkspaceClient(
         invalidResponseError:
           "The workspace server returned invalid state.",
         requestError: "The workspace update failed.",
+        acceptNonOkResult: (result) => !result.ok,
+      });
+    },
+    replyToLatestTelegramMessage(conversationId, input, signal) {
+      const request = telegramReplyNowRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: `/api/telegram/conversations/${encodeURIComponent(conversationId)}/reply-now`,
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: saveWorkspaceResultSchema,
+        networkError: "The Telegram reply-now server could not be reached.",
+        invalidResponseError:
+          "The Telegram reply-now server returned invalid state.",
+        requestError: "The waiting Telegram message could not be answered.",
         acceptNonOkResult: (result) => !result.ok,
       });
     },

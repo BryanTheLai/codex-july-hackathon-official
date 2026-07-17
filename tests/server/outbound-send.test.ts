@@ -1,4 +1,7 @@
 import type { AddressInfo } from "node:net";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -470,6 +473,15 @@ describe("visitor-approved Telegram text", () => {
 
   it("prepares AI voice once and sends only the requested voice part", async () => {
     const artifacts = new Map<string, Uint8Array>();
+    const directory = await mkdtemp(join(tmpdir(), "kaunter-outbound-test-"));
+    const convertedPath = join(directory, "reply.ogg");
+    const convertedBytes = new Uint8Array([79, 103, 103, 83, 4, 5, 6]);
+    await writeFile(convertedPath, convertedBytes);
+    const cleanup = vi.fn(() => rm(directory, { force: true, recursive: true }));
+    const convertToOgg = vi.fn().mockResolvedValue({
+      filePath: convertedPath,
+      cleanup,
+    });
     const synthesize = vi.fn().mockResolvedValue({
       bytes: new Uint8Array([1, 2, 3]),
       model: "gpt-4o-mini-tts",
@@ -492,7 +504,7 @@ describe("visitor-approved Telegram text", () => {
         },
         converter: {
           convertToWebm: vi.fn(),
-          convertToOgg: vi.fn(),
+          convertToOgg,
         },
         tts: {
           synthesize,
@@ -533,6 +545,13 @@ describe("visitor-approved Telegram text", () => {
       request.approvedPatientText,
       { targetLanguage: request.targetLanguage, signal: undefined },
     );
+    expect(convertToOgg).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]), undefined);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(configured.adapter.sendVoice).toHaveBeenCalledWith(
+      "-10042",
+      expect.objectContaining({ bytes: convertedBytes, contentType: "audio/ogg" }),
+      "send-42",
+    );
     expect(await configured.deliveryRepository.read("send-42", "voice")).toMatchObject({
       status: "sent",
       workspaceSyncStatus: "synced",
@@ -555,8 +574,80 @@ describe("visitor-approved Telegram text", () => {
     });
   });
 
+  it("normalizes a legacy non-OGG artifact when the browser reads it", async () => {
+    const artifacts = new Map<string, Uint8Array>();
+    const convertedBytes = new Uint8Array([79, 103, 103, 83, 4, 5, 6]);
+    const convertToOgg = vi.fn(async () => {
+      const directory = await mkdtemp(join(tmpdir(), "kaunter-legacy-voice-test-"));
+      const filePath = join(directory, "reply.ogg");
+      await writeFile(filePath, convertedBytes);
+      return {
+        filePath,
+        cleanup: () => rm(directory, { force: true, recursive: true }),
+      };
+    });
+    const configured = await configuredOutbound({
+      voice: {
+        artifactStore: {
+          async download(path) {
+            return artifacts.get(path) ?? new Uint8Array();
+          },
+          async upload(path, bytes) {
+            artifacts.set(path, bytes);
+            return {
+              objectPath: path,
+              contentType: "audio/ogg",
+              sha256: "c".repeat(64),
+            };
+          },
+        },
+        converter: {
+          convertToWebm: vi.fn(),
+          convertToOgg,
+        },
+        tts: {
+          synthesize: vi.fn().mockResolvedValue({
+            bytes: new Uint8Array([1, 2, 3]),
+            model: "legacy-tts",
+            voice: "legacy-voice",
+          }),
+        },
+      },
+    });
+    await configured.outbound.prepareVoice({
+      requestId: "send-42",
+      conversationId: sendRequest.conversationId,
+      expectedConversationRevision: sendRequest.expectedConversationRevision,
+      targetLanguage: sendRequest.targetLanguage,
+      approvedPatientText: sendRequest.approvedPatientText,
+      source: "tts",
+    });
+    const artifactPath = [...artifacts.keys()][0]!;
+    artifacts.set(artifactPath, new Uint8Array([73, 68, 51, 4, 5, 6]));
+
+    await expect(configured.outbound.readVoiceAudio("send-42")).resolves.toEqual(
+      convertedBytes,
+    );
+    await expect(
+      configured.outbound.send({
+        ...sendRequest,
+        mode: "voice",
+        voiceSource: "tts",
+      }),
+    ).resolves.toMatchObject({ status: "sent" });
+    expect(configured.adapter.sendVoice).toHaveBeenCalledWith(
+      "-10042",
+      expect.objectContaining({ bytes: convertedBytes }),
+      "send-42",
+    );
+    expect(convertToOgg).toHaveBeenCalledTimes(3);
+  });
+
   it("retries a partial text and voice delivery without resending accepted text", async () => {
     const artifacts = new Map<string, Uint8Array>();
+    const directory = await mkdtemp(join(tmpdir(), "kaunter-outbound-retry-test-"));
+    const convertedPath = join(directory, "reply.ogg");
+    await writeFile(convertedPath, new Uint8Array([79, 103, 103, 83, 4, 5, 6]));
     const adapter = fakeAdapter();
     adapter.sendVoice = vi
       .fn<ChannelAdapter["sendVoice"]>()
@@ -585,7 +676,10 @@ describe("visitor-approved Telegram text", () => {
         },
         converter: {
           convertToWebm: vi.fn(),
-          convertToOgg: vi.fn(),
+          convertToOgg: vi.fn().mockResolvedValue({
+            filePath: convertedPath,
+            cleanup: () => rm(directory, { force: true, recursive: true }),
+          }),
         },
         tts: {
           synthesize: vi.fn().mockResolvedValue({

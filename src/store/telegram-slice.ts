@@ -406,6 +406,64 @@ export function createTelegramActions({
       }
     },
 
+    async replyToLatestTelegramMessage(
+      conversationId: string,
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      try {
+        if (!workspaceClient.replyToLatestTelegramMessage) {
+          const message = "Reply now is unavailable until Telegram is configured.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
+        const workspace = await workspaceClient.load(signal);
+        const conversation = workspace.state.conversations.find(
+          (candidate) => candidate.id === conversationId,
+        );
+        if (!conversation || conversation.source !== "telegram") {
+          const message = "Telegram conversation not found. Refresh the inbox and retry.";
+          set({ lastFeedback: message });
+          return failed(getState(), message);
+        }
+        const saved = await workspaceClient.replyToLatestTelegramMessage(
+          conversationId,
+          {
+            expectedConversationRevision: conversation.revision,
+            expectedWorkspaceRevision: workspace.revision,
+          },
+          signal,
+        );
+        const projected = mergeTelegramWorkspaceState(
+          getState(),
+          saved.workspace.state,
+        );
+        set({
+          state: projected.state,
+          lastFeedback: "Telegram autopilot replied to the waiting message.",
+        });
+        setTelegramWorkspace({
+          ...getTelegramWorkspace(),
+          status: "ready",
+          workspaceRevision: saved.workspace.revision,
+          conversationRevisions: projected.conversationRevisions,
+          speechArtifacts: projected.speechArtifacts,
+        });
+        repository.save(projected.state);
+        return { ok: true, state: projected.state };
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        if (error instanceof ApiClientError && error.code === "revision_conflict") {
+          await refreshTelegramWorkspace(signal);
+        }
+        const message =
+          error instanceof ApiClientError
+            ? error.message
+            : "The waiting Telegram message could not be answered.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
+
     async executeTelegramBookingCommand(
       request: BookingCommandRequest,
       signal?: AbortSignal,

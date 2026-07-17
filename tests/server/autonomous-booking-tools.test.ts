@@ -62,22 +62,25 @@ describe("autonomous booking tools", () => {
       requireConnectedCalendar: true,
     });
 
-    await expect(
-      executor({
-        request,
-        call: {
-          callId: "call-live-list-1",
-          name: "list_available_slots",
-          argumentsJson: '{"date":null}',
-        },
-      }),
-    ).resolves.toMatchObject({
+    const unavailable = await executor({
+      request,
+      call: {
+        callId: "call-live-list-1",
+        name: "list_available_slots",
+        argumentsJson: '{"date":null}',
+      },
+    });
+    expect(unavailable).toMatchObject({
       status: "failed",
       output: {
         error_type: "provider_failed",
+        message: "Live availability is temporarily unavailable.",
+        reason_code: "availability_unavailable",
         success: false,
+        suggestion: expect.stringContaining("remain active"),
       },
     });
+    expect(JSON.stringify(unavailable.output)).not.toMatch(/Google Calendar|ask staff/i);
     await expect(
       executor({
         request,
