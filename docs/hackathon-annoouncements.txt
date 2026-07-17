@@ -1,0 +1,119 @@
+📢 Codex Community Hackathon Kuala Lumpur 2026 - Important Event Updates
+
+Hi @everyone ! Please review the two posters below for the latest information on the physical hackathon day and project submission requirements.
+
+🗓️ Physical Hackathon Day
+Date: Saturday, 18 July 2026
+Time: 8:00 AM – 6:00 PM MYT
+Venue: Sunway University, Q-Exam Hall, Level 5
+
+The programme includes registration, opening remarks, keynote, sponsor spotlight, team demo presentations, judging, winner announcements, group photos, and networking.
+
+⚠️ Please keep the full day available, as timings may be adjusted.
+
+📤 Project Submission Deadline
+Saturday, 18 July 2026 at 10:00 AM MYT
+
+Your submission must include:
+
+• A working project built with Codex using GPT-5.6 and Sol/Terra/Luna
+• Your registered track
+• A project description
+• A public demo video under 3 minutes
+• A code repository link
+• Your Codex /feedback Session ID
+• Additional testing instructions for plugins or developer tools, where applicable
+
+For private repositories, please share access with:
+Clairechong998@gmail.com
+(Ignore typo on poster)
+
+The following are optional and only required for the Global Hackathon (at Devpost):
+• testing@devpost.com
+• build-week-event@openai.com
+
+All projects must be submitted through the official submission form. (which will be shared on Sat) Ensure that every link is accessible and working before the deadline.
+
+🌐 codexhackathon.my
+💬 discord.gg/nEexnkUwp
+🚀 #AIForMalaysiaBoleh
+
+
+
+# Codex Community Hackathon Kuala Lumpur 2026
+
+**Theme:** Raising the Floor: AI for Malaysia Boleh
+
+**Date:** 18 July 2026 (Saturday)
+
+**Location:** Sunway University, Q-Exam Hall, Level 5
+
+## Program Schedule – 18 July 2026
+
+| Time | Programme | Details |
+| --- | --- | --- |
+| 08:00 – 09:00 | Registration & Check-in | Team check-in, ID verification, tags, event kit. Collect Wi-Fi info & venue brief. |
+| 09:00 – 09:30 | Opening Ceremony | Welcome remarks by Codex Community KL, OpenAI Developer Relations team, and Mr Reza Ali - Director of AI Policy, NAIO Malaysia. |
+| 09:30 – 10:00 | Keynote: AI for Malaysia Boleh | Keynote address from guest speaker. |
+| 10:00 – 10:30 | Sponsor & Partner Spotlight | Updates from our sponsors: Zemyth, Databricks & Sunway University. |
+| 10:30 – 12:30 | Team Demo Presentations (Part 1) | Teams present their projects to the judging panel (Format: 6 min demo + 4 min Q&A). |
+| 12:30 – 13:30 | Lunch Break | Lunch provided for all participants, mentors, judges & volunteers. |
+| 13:30 – 15:30 | Team Demo Presentations (Part 2) | Remaining teams present their projects (Format: 6 min demo + 4 min Q&A). |
+| 15:30 – 16:00 | Judges’ Deliberation | Judges confer to determine winners. |
+| 16:00 – 16:30 | Lightning Demos (Top Shortlisted) | Top shortlisted teams deliver a 2-minute lightning demo. |
+| 16:30 – 17:30 | Winners Announcement & Prize Ceremony | Announcement of winners, prize presentation & group photos. |
+| 17:30 – 17:45 | Closing Remarks | Closing words & appreciation. |
+| 17:45 – 18:00 | Group Photo & Networking | Official group photo and networking session. |
+
+---
+
+*Please keep the full day available. Timings are subject to change. All times in Malaysia Time (MYT).*
+
+
+# Submission Format & Requirements
+
+**Submission Deadline:** 18 July 2026 (Saturday) by 10:00 AM (MYT)
+
+## Project Submission Steps
+
+1. **Working Project:** A working project that meets challenge requirements, built with Codex using GPT-5.6, So/Terra/Luna.
+2. **Category:** Continue working on your registered track.
+3. **Project Description:** Explain what you created and how it works.
+4. **Demo Video (<3 Min):** Upload a <3-minute public YouTube video demonstrating the project working, with audio covering your use of Codex and GPT-5.6.
+5. **Code Repository:** Provide a URL to your code repository for judging and testing.
+6. **Feedback Session ID:** Include your `/feedback` Codex Session ID where the majority of the core functionality was built.
+* *How to get it:* Run `/feedback` in Codex, copy the Session ID, and paste it into the submission form.
+
+
+7. **Additional for Plugins or Developer Tools:** If submitting a plugin or developer tool, include installation instructions, supported platforms, and a way for judges to test your project without rebuilding it from scratch (e.g., demo instance, sandbox, or test account).
+
+---
+
+## Code Repository Requirements
+
+* The repository must be **Public** (with relevant licensing) OR **Private** and shared with:
+* Clairechon9998@gmail.com
+* Optional (Global Hackathon only): testing@devpost.com
+* Optional (Global Hackathon only): build-week-event@openai.com
+
+
+* Include a **README** with:
+* Setup instructions
+* Sample data (if needed)
+* Clear guidance for running your project
+
+
+* Highlight where Codex accelerated your workflow, key decisions made, and how GPT-5.6 and Codex were used for judging evaluation.
+
+---
+
+## Important Notes
+
+* **Submission Method:** All submissions will be collected via the official submission form.
+* Submit by the deadline to be eligible for judging.
+* Ensure all links are accessible and working.
+* Incomplete submissions may not be considered.
+
+---
+
+*For more information, visit codexhackathon.my or join the discord at discord.gg/nEexnkUwp.*
