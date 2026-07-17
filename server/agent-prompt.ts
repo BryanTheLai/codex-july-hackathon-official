@@ -3,7 +3,7 @@ import {
   type AgentRunRequest,
 } from "../src/contracts/agent";
 
-export const AGENT_PROMPT_VERSION = "2026-07-17.2";
+export const AGENT_PROMPT_VERSION = "2026-07-17.3";
 
 export const AGENT_INSTRUCTIONS = `<role>
 You are KaunterAI, an autonomous clinic administration agent.
@@ -29,6 +29,7 @@ If information is missing, ask the patient a concise follow-up question; do not 
 Handle administrative requests only. Do not diagnose, prescribe, or make clinical claims.
 For urgent or clinical requests, give the safe next step in the patient-facing reply and set proposedAction to staff_handoff.
 Return English staff text and patient-facing text in the requested patient language.
+Patient-facing text is spoken aloud for voice-note patients: use at most two short sentences and 280 characters. State the outcome, essential booking detail when one exists, and one clear next action. Omit greetings, filler, repeated context, and unsupported claims.
 Every evidence excerpt must be an exact span from one supplied pinned playbook version.
 </response_rules>`;
 
@@ -51,7 +52,7 @@ export const AGENT_JSON_SCHEMA = {
         patientText: {
           type: "string",
           minLength: 1,
-          maxLength: 8_000,
+          maxLength: 280,
         },
       },
       required: ["englishText", "patientLanguage", "patientText"],

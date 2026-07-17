@@ -26,6 +26,7 @@ export const AGENT_STOP_REASONS = [
 
 const idSchema = z.string().trim().min(1).max(200);
 const textSchema = z.string().trim().min(1).max(8_000);
+const concisePatientReplySchema = z.string().trim().min(1).max(280);
 const languageSchema = z.string().trim().min(1).max(100);
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -93,7 +94,7 @@ export const agentDraftSchema = z
   .object({
     englishText: textSchema,
     patientLanguage: languageSchema,
-    patientText: textSchema,
+    patientText: concisePatientReplySchema,
   })
   .strict();
 

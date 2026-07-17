@@ -1,15 +1,16 @@
 # Hackathon autonomy MVP plan
 
 This is a demo of a capable autonomous front desk, not a real-clinic deployment. The smallest
-winning story is: **a patient asks for a slot, the agent checks the demo schedule, books it, sends
-a calendar invitation, shows every action, then converts a patient correction into a measurable
-learning candidate.**
+winning story is: **a patient sends a Malay voice note, the agent transcribes and understands it,
+checks the demo schedule, books it, sends concise text plus a voice confirmation and a calendar
+invitation, shows every action, then converts a patient correction into a measurable learning
+candidate.**
 
 ## Priority order
 
 | Rank | Deliverable | Why it comes now | Status |
 | ---: | --- | --- | --- |
-| 1 | Complete Telegram booking happy path: date/time -> availability -> booking -> reply -> `.ics` -> action trace | This is the irreplaceable autonomous-agent moment. | Implemented and covered by deterministic server tests. |
+| 1 | Complete Telegram voice booking: voice -> transcript/gloss -> availability -> booking -> concise text + TTS voice -> `.ics` -> action trace | This is the irreplaceable autonomous-agent moment. | Implemented and covered by deterministic server tests. |
 | 2 | Remove Approve / Reject booking controls | A staff gate contradicts the story in the first five seconds. | Implemented. |
 | 3 | Visible booking timeline | Lets a judge understand the state transition at a glance. | Implemented. |
 | 4 | Agent-owned wrong-action feedback tool -> Eval candidate | Shows the agent can notice its own failure and make it measurable. | Implemented; a human must add the reference correction. |
@@ -17,8 +18,8 @@ learning candidate.**
 | 6 | Demo choreography and screenshots | Ensures a distinct proof point at least every 20 seconds. | Ready after live smoke. |
 
 Do not spend hackathon time on Google/Outlook OAuth, a clinic PMS, a new scheduler, a durable job
-queue, authentication, or automatic voice replies. Those are useful production work but dilute the
-demo and are not needed to prove tool-using autonomy.
+queue or authentication. Those are useful production work but dilute the demo and are not needed
+to prove tool-using autonomy.
 
 ## What is true now
 
@@ -31,7 +32,7 @@ demo and are not needed to prove tool-using autonomy.
 | Eval progress | A suite shows `Replaying <case> / <n> of <total>`, marks the active row, disables competing actions, and exposes Cancel. | The output is deterministic in local tests; a live judge run is optional demo proof, not needed for the booking story. |
 | Feedback | The model can call `flag_autonomous_action_wrong`; the server creates an `autonomous_feedback` Eval case once. | A human must write the expected answer before Eval/Dream can use it. |
 | Delivery | Text and calendar sends use idempotency records. | The post-webhook agent work is background work, so a process crash can lose an in-flight reply. |
-| Voice | Inbound transcription remains separate. | No autonomous voice reply is shipped. |
+| Voice | A persisted inbound voice note is transcribed, glossed for staff, run through the agent, and answered with concise text plus AI TTS voice. | Live provider quality and crash recovery need an owner-controlled smoke test. |
 
 ## Minimal architecture and data contract
 
@@ -135,5 +136,5 @@ known chat so the audience and consequence are explicit.
 ## Post-hackathon backlog
 
 Only after the demo lands: durable outbox/worker, real scheduling authority, external calendar
-OAuth, voice reply, tenant/auth boundaries, notification retry policy, and live UI updates. They
+OAuth, tenant/auth boundaries, notification retry policy, and live UI updates. They
 are production concerns, not blockers for a truthful hackathon demo.

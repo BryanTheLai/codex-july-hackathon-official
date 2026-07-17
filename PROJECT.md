@@ -5,8 +5,8 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text control flow are implemented. A newly persisted live-agent Telegram text message runs an autonomous function-calling agent that can check demo availability, create, reschedule, or cancel a booking, then sends one idempotent reply; handoff acknowledgement also sends and voice waits for transcription. Dashboard authentication, durable jobs, live external availability, and broader provider-quality validation remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic replies, and autonomous server-owned booking tools for newly persisted live-agent Telegram text. It retains the existing no-provider deterministic Analyze fallback. Automatic voice reply, durable job retry, authentication, multi-user authorization, and live external availability remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text and transcribed-voice control flow are implemented. A newly persisted live-agent Telegram text message or successfully transcribed voice note runs an autonomous function-calling agent that can check demo availability, create, reschedule, or cancel a booking, then sends one idempotent reply; voice-originated replies deliver concise text plus TTS voice, with text-only fallback. Dashboard authentication, durable jobs, live external availability, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic text replies, automatic concise text-plus-TTS-voice replies after inbound voice transcription, and autonomous server-owned booking tools. It retains the existing no-provider deterministic Analyze fallback. Durable job retry, authentication, multi-user authorization, and live external availability remain deferred."
 created: "2026-07-08"
 last_updated: "2026-07-17"
 last_verified: "2026-07-17"
@@ -2754,9 +2754,9 @@ separates runtime configuration and post-POC work from the completed release wor
 - Dashboard authentication, authorization, clinic tenancy, and multi-user coordination before the
   public URL is shared beyond controlled demo use.
 - DigitalOcean alert-recipient confirmation and a deliberate production-provider smoke-test record.
-- Automatic voice reply after transcription. Autonomous Telegram create/reschedule now sends an
-  `.ics` attachment when calendar delivery is configured; live provider smoke and durable retry
-  remain unproven.
+- Autonomous Telegram create/reschedule sends an `.ics` attachment when calendar delivery is
+  configured. Voice-originated agent replies now send concise text plus TTS voice after a saved
+  transcription; live provider smoke and durable retry remain unproven.
 
 ### Deferred TODO: optional DigitalOcean inference provider switch
 
@@ -2803,9 +2803,9 @@ candidate's immutable full-suite evidence is Ready.
 | Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
 | Conversation source | `SIMULATED` | Seed data and local patient simulation |
 | Translation | `BUILT` adapter, automated proof, and controlled live Malay translation | Output quality still requires human review by clinic staff |
-| Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text when both live switches are enabled | Deploy and smoke the automatic path; voice remains transcription-only and partial provider failure remains deterministic-test-only |
-| Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text replies and autonomous booking tools with mocked proof | Broader live-provider quality validation and automatic voice remain unproven |
-| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text-reply and function-call orchestration | Broader live-provider quality validation and durable job execution remain |
+| Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text or transcribed voice when both live switches are enabled | Deploy and smoke the automatic path; partial provider failure remains deterministic-test-only |
+| Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text and transcribed-voice replies with autonomous booking tools under mocked proof | Broader live-provider quality validation remains unproven |
+| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text/voice reply and function-call orchestration | Broader live-provider quality validation and durable job execution remain |
 | Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |
@@ -2831,7 +2831,6 @@ candidate's immutable full-suite evidence is Ready.
 | Vector database | Two to twenty playbook files fit deterministic routing and full-text search |
 | Multi-agent orchestration | One autonomous agent with clear tool traces is easier to inspect |
 | Fine-tuning | Playbooks, prompts, traces, and evals must work first |
-| Automatic voice reply | Text and booking dispatch are autonomous; voice awaits transcription and remains deferred |
 | Real clinical advice | Administrative work only; clinical questions hand off to staff |
 | Full analytics suite | Run traces and a small release scorecard are enough |
 | Production capacity claims | The demo proves behavior, not load or clinic readiness |

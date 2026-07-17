@@ -6,7 +6,7 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message runs an autonomous agent that can reply, check slots, create, reschedule, or cancel a booking, then sends one idempotent reply. Voice waits for transcription. Dashboard authentication, durable background jobs, live external availability, and broader provider-quality validation remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message or successfully transcribed voice note runs an autonomous agent that can reply, check slots, create, reschedule, or cancel a booking, then sends one idempotent reply. Voice-note replies send concise text plus AI TTS voice, with text-only fallback if TTS preparation fails. Dashboard authentication, durable background jobs, live external availability, and broader provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
@@ -99,8 +99,9 @@ text, AI TTS voice, and staff-recorded voice provider acceptance. For live Teleg
 persisted update can run the active agent and deliver its reply automatically when both live
 switches are on. The agent can call server-owned availability, create, reschedule, and cancellation
 tools without staff approval. A duplicate update does not rerun the model or resend; a clinical
-handoff acknowledgement is also delivered automatically. Voice stays pending until transcription
-completes. Authentication, durable background jobs, live external availability, and broader
+handoff acknowledgement is also delivered automatically. A successfully transcribed voice note
+runs the same agent and receives concise text plus AI TTS voice; a TTS failure falls back to text.
+Authentication, durable background jobs, live external availability, and broader
 provider-quality validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
@@ -190,18 +191,20 @@ environment values are not stored in the repository, so the deployed text-model 
 checked in the deployment settings rather than inferred from this file.
 
 The agent has two bounded paths. Staff can still explicitly generate and edit a grounded draft.
-For a newly persisted Telegram **text** message in a live-agent conversation, the webhook starts the
-same agent in the background. With both `LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` true, it
-can autonomously call `list_available_slots`, `create_booking`, `reschedule_booking`, and
-`cancel_booking`, then deliver its reply. A `staff_handoff` is an autonomous patient-facing
-acknowledgement for clinical work, not a gate on administrative booking. Voice waits for
-transcription. See [`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md).
+For a newly persisted Telegram **text** message or successfully transcribed **voice** message in a
+live-agent conversation, the webhook starts the same agent in the background. With both
+`LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` true, it can autonomously call
+`list_available_slots`, `create_booking`, `reschedule_booking`, and `cancel_booking`, then deliver
+its reply. Voice-originated replies are limited to two short sentences and send both text and AI
+TTS voice; if TTS preparation fails, the text remains deliverable. A `staff_handoff` is an
+autonomous patient-facing acknowledgement for clinical work, not a gate on administrative booking.
+See [`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md).
 
 ### Current capability boundary
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic text replies; autonomous demo-slot lookup, create, reschedule, and cancellation; idempotent delivery; `.ics` calendar attachment for autonomous create/reschedule; action trace; Eval-to-Dream candidate workflow | Automatic voice reply after transcription; durable job retries; live external availability/EHR booking; phone/voice-call dispatch; user authentication; real-time UI push |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic text replies; automatic concise text-plus-voice replies after voice transcription; autonomous demo-slot lookup, create, reschedule, and cancellation; idempotent delivery; `.ics` calendar attachment for autonomous create/reschedule; action trace; Eval-to-Dream candidate workflow | Durable job retries; live external availability/EHR booking; phone/voice-call dispatch; user authentication; real-time UI push |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
 17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
@@ -383,8 +386,8 @@ and exact-send flow, and the full Chat to Eval to Dream flow with browser API fi
 
 The repository proves the local synthetic workflow, the same-origin judge contract, deterministic
 simulated-judge behavior, fixed-workspace CAS and reset behavior, the three-table PostgreSQL
-migration, responsive frontend contract, and automatic Telegram text-reply control flow under
-mocked provider tests. It does not prove broad agent/Eval quality or availability, real-patient
-operation, automatic voice or booking dispatch, calendar attachment delivery, dashboard
-authentication, clinical integration, durable background execution, or production capacity.
+migration, responsive frontend contract, and automatic Telegram text and transcribed-voice reply
+control flow under mocked provider tests. It does not prove broad agent/Eval quality or
+availability, real-patient operation, live provider delivery, dashboard authentication, clinical
+integration, durable background execution, or production capacity.
 `PROJECT.md` section 16 separates verified behavior, deferred TODOs, and post-POC gaps.

@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  completeTelegramSpeechManualTranscription,
   createCanonicalServerState,
   mergeTelegramInboundText,
 } from "../../src/domain";
@@ -145,6 +146,60 @@ function postWebhook(
   });
 }
 
+function readyVoiceSpeech(getRepository: () => WorkspaceRepository | null) {
+  const retry = vi.fn(async (messageId: string) => {
+    const repository = getRepository();
+    if (!repository) {
+      throw new Error("Workspace repository is unavailable");
+    }
+    const workspace = await repository.load("demo");
+    if (!workspace) {
+      throw new Error("Workspace is unavailable");
+    }
+    const saved = await repository.save(
+      "demo",
+      workspace.revision,
+      completeTelegramSpeechManualTranscription({
+        state: workspace.state,
+        messageId,
+        detectedLanguage: "Malay",
+        originalTranscript: "Saya mahu buat temujanji esok petang.",
+        englishGloss: "I would like an appointment tomorrow afternoon.",
+      }),
+    );
+    if (!saved.ok) {
+      throw new Error("Speech transcript could not be saved");
+    }
+    const artifact = saved.workspace.state.speechArtifacts.find(
+      (candidate) => candidate.messageId === messageId,
+    );
+    const conversation = saved.workspace.state.conversations.find((candidate) =>
+      candidate.messages.some((message) => message.id === messageId),
+    );
+    if (!artifact || artifact.status !== "ready" || !conversation) {
+      throw new Error("Speech transcript did not become ready");
+    }
+    return {
+      status: "ready" as const,
+      result: {
+        messageId,
+        workspaceRevision: saved.workspace.revision,
+        conversationRevision: conversation.revision,
+        artifact,
+      },
+    };
+  });
+  return {
+    retry,
+    service: {
+      transcribeNext: vi.fn(),
+      retry,
+      saveManualTranscript: vi.fn(),
+      downloadAudio: vi.fn(),
+    } satisfies InboundSpeechService,
+  };
+}
+
 describe("Telegram webhook", () => {
   it("automatically sends exactly one agent text reply for a newly persisted Telegram message", async () => {
     const run = vi.fn(async (): Promise<AgentRunResult> => ({
@@ -265,6 +320,162 @@ describe("Telegram webhook", () => {
       }),
     );
     info.mockRestore();
+  });
+
+  it("turns a voice booking into concise text and a TTS voice confirmation", async () => {
+    let workspaceRepository: WorkspaceRepository | null = null;
+    const speech = readyVoiceSpeech(() => workspaceRepository);
+    const prepareVoice = vi.fn().mockResolvedValue({
+      requestId: "agent-auto-voice-delivery",
+      source: "tts",
+      status: "ready",
+    });
+    const send = vi.fn().mockResolvedValue({
+      deliveryIds: ["agent-auto-voice-delivery"],
+      status: "sent",
+      text: {
+        acceptedAt: "2026-07-17T01:00:00.000Z",
+        providerMessageId: "text-voice-booking-1",
+      },
+      voice: {
+        acceptedAt: "2026-07-17T01:00:00.000Z",
+        providerMessageId: "voice-booking-1",
+      },
+    });
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice,
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const run = vi.fn(async (): Promise<AgentRunResult> => ({
+      draft: {
+        englishText: "Appointment confirmed with Dr Lim tomorrow at 3:30 PM.",
+        patientLanguage: "Malay",
+        patientText: "Temu janji dengan Dr Lim disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
+      },
+      evidence: [],
+      handoffReason: null,
+      latencyMs: 12,
+      proposedAction: "reply",
+      runId: "agent-auto-voice-booking",
+      stopReason: "completed",
+      toolCalls: [
+        {
+          callId: "call-create-voice-1",
+          name: "create_booking",
+          status: "completed",
+          summary: "Autonomous booking confirmed.",
+          conversationRevision: 2,
+        },
+      ],
+      usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+    }));
+    const configured = await configuredServer({
+      agent: { agentConfigVersion: "auto-agent-v1", liveEnabled: true, run },
+      autoReplyEnabled: true,
+      outbound,
+      speech: speech.service,
+    });
+    workspaceRepository = configured.workspaceRepository;
+
+    expect((await postWebhook(configured.baseUrl, voiceUpdate)).status).toBe(200);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+    expect(speech.retry).toHaveBeenCalledWith("telegram-message:-10042:89");
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversation: expect.objectContaining({
+          revision: 2,
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              text: "Saya mahu buat temujanji esok petang.",
+              gloss: "I would like an appointment tomorrow afternoon.",
+            }),
+          ]),
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(prepareVoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "telegram-conversation:-10042",
+        expectedConversationRevision: 2,
+        source: "tts",
+        targetLanguage: "Malay",
+      }),
+    );
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedPatientText: "Temu janji dengan Dr Lim disahkan esok, 3:30 petang. Balas ubah untuk tukar.",
+        conversationId: "telegram-conversation:-10042",
+        expectedConversationRevision: 2,
+        mode: "both",
+        voiceSource: "tts",
+      }),
+    );
+
+    expect((await postWebhook(configured.baseUrl, voiceUpdate)).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(speech.retry).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to concise text when automatic TTS preparation fails", async () => {
+    let workspaceRepository: WorkspaceRepository | null = null;
+    const speech = readyVoiceSpeech(() => workspaceRepository);
+    const prepareVoice = vi.fn().mockRejectedValue(new Error("TTS unavailable"));
+    const send = vi.fn().mockResolvedValue({
+      deliveryIds: ["agent-auto-text-fallback"],
+      status: "sent",
+      text: {
+        acceptedAt: "2026-07-17T01:00:00.000Z",
+        providerMessageId: "text-fallback-1",
+      },
+    });
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice,
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const configured = await configuredServer({
+      agent: {
+        agentConfigVersion: "auto-agent-v1",
+        liveEnabled: true,
+        run: vi.fn(async (): Promise<AgentRunResult> => ({
+          draft: {
+            englishText: "I can help with an appointment.",
+            patientLanguage: "Malay",
+            patientText: "Saya boleh bantu dengan temujanji.",
+          },
+          evidence: [],
+          handoffReason: null,
+          latencyMs: 12,
+          proposedAction: "reply",
+          runId: "agent-auto-voice-fallback",
+          stopReason: "completed",
+          toolCalls: [],
+          usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+        })),
+      },
+      autoReplyEnabled: true,
+      outbound,
+      speech: speech.service,
+    });
+    workspaceRepository = configured.workspaceRepository;
+
+    expect((await postWebhook(configured.baseUrl, voiceUpdate)).status).toBe(200);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+    expect(prepareVoice).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "text" }),
+    );
+    expect(send.mock.calls[0]?.[0]).not.toHaveProperty("voiceSource");
   });
 
   it("uses the booking mutation revision for autonomous calendar and Telegram delivery", async () => {
@@ -574,10 +785,10 @@ describe("Telegram webhook", () => {
     ]);
   });
 
-  it("starts background speech processing only after the voice webhook is persisted", async () => {
+  it("starts exact voice transcription only after the voice webhook is persisted", async () => {
     const speech: InboundSpeechService = {
-      transcribeNext: vi.fn().mockResolvedValue({ status: "idle" }),
-      retry: vi.fn(),
+      transcribeNext: vi.fn(),
+      retry: vi.fn().mockResolvedValue({ status: "idle" }),
       saveManualTranscript: vi.fn(),
       downloadAudio: vi.fn(),
     };
@@ -585,7 +796,7 @@ describe("Telegram webhook", () => {
 
     expect((await postWebhook(baseUrl, voiceUpdate)).status).toBe(200);
     await vi.waitFor(() => {
-      expect(speech.transcribeNext).toHaveBeenCalledTimes(1);
+      expect(speech.retry).toHaveBeenCalledWith("telegram-message:-10042:89");
     });
   });
 

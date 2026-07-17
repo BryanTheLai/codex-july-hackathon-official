@@ -181,6 +181,15 @@ describe("shared agent contracts", () => {
       }).success,
     ).toBe(false);
     expect(
+      providerAgentResultSchema.safeParse({
+        ...providerResult,
+        draft: {
+          ...providerResult.draft,
+          patientText: "x".repeat(281),
+        },
+      }).success,
+    ).toBe(false);
+    expect(
       providerAgentResultSchema.parse({
         ...providerResult,
         proposedAction: "staff_handoff",

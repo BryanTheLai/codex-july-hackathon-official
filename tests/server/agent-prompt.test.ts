@@ -68,6 +68,9 @@ describe("agent prompt assembly", () => {
     expect(AGENT_INSTRUCTIONS).toContain(
       "Do not use keyword or pattern matching as a trigger",
     );
+    expect(AGENT_INSTRUCTIONS).toContain(
+      "at most two short sentences and 280 characters",
+    );
     expect(prompt.instructions).toBe(AGENT_INSTRUCTIONS);
     expect(prompt.outputSchema).toBe(AGENT_JSON_SCHEMA);
     expect(playbookIndex).toBeGreaterThanOrEqual(0);
@@ -110,6 +113,7 @@ describe("agent prompt assembly", () => {
       "reply",
       "staff_handoff",
     ]);
+    expect(AGENT_JSON_SCHEMA.properties.draft.properties.patientText.maxLength).toBe(280);
     expect(
       AGENT_JSON_SCHEMA.properties.evidence.items.required,
     ).toEqual(["fileId", "versionId", "contentHash", "excerpt"]);

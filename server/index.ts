@@ -31,6 +31,7 @@ import {
 import {
   createCanonicalServerState,
   mergeSyntheticReset,
+  telegramInboundMessageId,
 } from "../src/domain";
 import { AGENT_PROMPT_VERSION } from "./agent-prompt";
 import {
@@ -414,14 +415,6 @@ async function runTelegramAutoReply(input: {
     });
     return;
   }
-  if (event.message.kind !== "text") {
-    log.info("telegram_auto_reply_skipped", {
-      ...logContext,
-      reason: "voice_pending_transcript",
-    });
-    return;
-  }
-
   try {
     const loaded = await workspace.repository.load(workspace.workspaceId);
     const conversation = loaded?.state.conversations.find(
@@ -448,6 +441,19 @@ async function runTelegramAutoReply(input: {
             : "agent_mode_disabled",
       });
       return;
+    }
+    if (event.message.kind === "voice") {
+      const artifact = loaded.state.speechArtifacts.find(
+        (candidate) => candidate.messageId === telegramInboundMessageId(event),
+      );
+      if (!artifact || artifact.status !== "ready") {
+        log.info("telegram_auto_reply_skipped", {
+          ...logContext,
+          conversationId: conversation.id,
+          reason: "voice_transcript_not_ready",
+        });
+        return;
+      }
     }
 
     const startedAt = performance.now();
@@ -509,20 +515,47 @@ async function runTelegramAutoReply(input: {
       }
     }
 
+    const requestId = automaticReplyRequestId(event);
+    let mode: "text" | "both" = "text";
+    if (event.message.kind === "voice") {
+      try {
+        await telegram.outbound.prepareVoice({
+          requestId,
+          conversationId: conversation.id,
+          expectedConversationRevision,
+          targetLanguage: result.draft.patientLanguage,
+          approvedPatientText: result.draft.patientText,
+          source: "tts",
+        });
+        mode = "both";
+      } catch (error) {
+        log.error("telegram_auto_reply_voice_prepare_failed", {
+          ...logContext,
+          conversationId: conversation.id,
+          requestId,
+          runId: result.runId,
+          ...errorLogFields(error),
+        });
+      }
+    }
+
     const delivery = await telegram.outbound.send({
-      requestId: automaticReplyRequestId(event),
+      requestId,
       conversationId: conversation.id,
       expectedConversationRevision,
       targetLanguage: result.draft.patientLanguage,
       approvedPatientText: result.draft.patientText,
-      mode: "text",
+      mode,
+      ...(mode === "both" ? { voiceSource: "tts" as const } : {}),
     });
     if (delivery.status === "sent") {
       log.info("telegram_auto_reply_sent", {
         ...logContext,
         conversationId: conversation.id,
         providerMessageId: delivery.text?.providerMessageId,
-        requestId: automaticReplyRequestId(event),
+        voiceProviderMessageId: delivery.voice?.providerMessageId,
+        mode,
+        requestId,
         runId: result.runId,
       });
       return;
@@ -531,13 +564,57 @@ async function runTelegramAutoReply(input: {
       ...logContext,
       conversationId: conversation.id,
       failedParts: delivery.failedParts.join(","),
-      requestId: automaticReplyRequestId(event),
+      requestId,
       runId: result.runId,
     });
   } catch (error) {
     log.error("telegram_auto_reply_failed", {
       ...logContext,
       workspaceId: workspace.workspaceId,
+      ...errorLogFields(error),
+    });
+  }
+}
+
+async function runTelegramVoiceAutoReply(input: {
+  agent: AgentRunner | null;
+  agentTimeoutMs: number;
+  event: NormalizedInboundEvent;
+  telegram: TelegramAppOptions;
+  webhookRequestId?: string;
+  workspace: WorkspaceAppOptions | null;
+}): Promise<void> {
+  const { event, telegram, webhookRequestId } = input;
+  if (event.message.kind !== "voice") {
+    return;
+  }
+  if (!telegram.speech) {
+    log.info("telegram_voice_auto_reply_skipped", {
+      externalEventId: event.externalEventId,
+      externalMessageId: event.externalMessageId,
+      webhookRequestId,
+      reason: "speech_unconfigured",
+    });
+    return;
+  }
+
+  const messageId = telegramInboundMessageId(event);
+  try {
+    const speech = await telegram.speech.retry(messageId);
+    log.info("telegram_speech_auto_transcription", {
+      externalEventId: event.externalEventId,
+      messageId,
+      status: speech.status,
+      webhookRequestId,
+    });
+    if (speech.status === "ready") {
+      await runTelegramAutoReply(input);
+    }
+  } catch (error) {
+    log.error("telegram_speech_auto_transcription_failed", {
+      externalEventId: event.externalEventId,
+      messageId,
+      webhookRequestId,
       ...errorLogFields(error),
     });
   }
@@ -1033,7 +1110,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         });
         if (result.status === "processed" && event) {
           const webhookRequestHeader = response.getHeader("x-request-id");
-          void runTelegramAutoReply({
+          const autoReplyInput = {
             agent,
             agentTimeoutMs,
             event,
@@ -1043,16 +1120,12 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
                 ? webhookRequestHeader
                 : undefined,
             workspace,
-          });
-        }
-        if (telegram.speech) {
-          void telegram.speech.transcribeNext().then((speechResult) => {
-            log.info("telegram_speech_auto_transcription", {
-              status: speechResult.status,
-            });
-          }).catch((error) => {
-            log.error("telegram_speech_auto_transcription_failed", errorLogFields(error));
-          });
+          };
+          if (event.message.kind === "voice") {
+            void runTelegramVoiceAutoReply(autoReplyInput);
+          } else {
+            void runTelegramAutoReply(autoReplyInput);
+          }
         }
       } catch (error) {
         log.error("telegram_webhook_failed", errorLogFields(error));
