@@ -40,6 +40,7 @@ import {
   createAgentProviderAdapter,
   readAgentProviderConfig,
   readJudgeProviderConfig,
+  type AgentProviderConfig,
 } from "./agent-provider";
 import { AgentServiceError, createAgentService } from "./agent-service";
 import {
@@ -101,11 +102,22 @@ import {
   InboundSpeechServiceError,
   type InboundSpeechService,
 } from "./inbound-speech-service";
-import { createOpenAiSpeechProvider } from "./openai-speech-provider";
+import {
+  createOpenAiSpeechProvider,
+  type SpeechProvider,
+} from "./openai-speech-provider";
 import {
   createOpenAiTtsProvider,
   TtsProviderError,
+  type TtsProvider,
 } from "./openai-tts-provider";
+import {
+  createElevenLabsSpeechProvider,
+  createElevenLabsTtsProvider,
+  readElevenLabsSpeechConfig,
+  readElevenLabsTtsConfig,
+  readVoiceProviderSelection,
+} from "./elevenlabs-voice-provider";
 import {
   createTranslationService,
   type TranslationService,
@@ -267,6 +279,36 @@ function configuredAgent(workspace: WorkspaceAppOptions | null): AgentRunner | n
   };
 }
 
+type ConfiguredVoiceProviders = {
+  speech: SpeechProvider;
+  speechModel: string;
+  tts: TtsProvider;
+};
+
+function configuredVoiceProviders(
+  agentConfig: AgentProviderConfig,
+): ConfiguredVoiceProviders {
+  const selection = readVoiceProviderSelection();
+  const speechConfig =
+    selection.speechProvider === "elevenlabs"
+      ? readElevenLabsSpeechConfig()
+      : null;
+  const ttsConfig =
+    selection.ttsProvider === "elevenlabs" ? readElevenLabsTtsConfig() : null;
+  return {
+    speech: speechConfig
+      ? createElevenLabsSpeechProvider({
+          config: speechConfig,
+          translation: createTranslationService(agentConfig),
+        })
+      : createOpenAiSpeechProvider(agentConfig),
+    speechModel: speechConfig?.model ?? "whisper-1",
+    tts: ttsConfig
+      ? createElevenLabsTtsProvider({ config: ttsConfig })
+      : createOpenAiTtsProvider(agentConfig),
+  };
+}
+
 function configuredTelegram(
   workspace: WorkspaceAppOptions | null,
   agent: AgentRunner | null,
@@ -299,13 +341,17 @@ function configuredTelegram(
     const agentConfig = process.env.LLM_API_KEY
       ? readAgentProviderConfig()
       : null;
+    const voiceProviders = agentConfig
+      ? configuredVoiceProviders(agentConfig)
+      : null;
     const speech = agentConfig
       ? createInboundSpeechService({
           workspaceId: workspace.workspaceId,
           workspaceRepository: workspace.repository,
           voiceDownloader: adapter,
           converter: createVoiceConverter(),
-          speechProvider: createOpenAiSpeechProvider(agentConfig),
+          speechProvider: voiceProviders!.speech,
+          speechProviderModel: voiceProviders!.speechModel,
         })
       : undefined;
     return {
@@ -329,11 +375,11 @@ function configuredTelegram(
         liveEnabled: telegram.liveEnabled,
         workspaceId: workspace.workspaceId,
         workspaceRepository: workspace.repository,
-        voice: agentConfig
+        voice: voiceProviders
           ? {
               artifactStore: createSupabaseVoiceArtifactStore(client),
               converter: createVoiceConverter(),
-              tts: createOpenAiTtsProvider(agentConfig),
+              tts: voiceProviders.tts,
             }
           : undefined,
       }),

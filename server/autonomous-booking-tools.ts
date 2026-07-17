@@ -304,8 +304,14 @@ export function createAutonomousBookingToolExecutor({
         parsed.value.date,
         now(),
       );
+      const summary =
+        slots.length === 0
+          ? parsed.value.date
+            ? `No slots are available for ${parsed.value.provider} on ${parsed.value.date}.`
+            : `No future slots are available for ${parsed.value.provider}.`
+          : `Found ${slots.length} available slot${slots.length === 1 ? "" : "s"} for ${parsed.value.provider}.`;
       return success(
-        `Found ${slots.length} available slot${slots.length === 1 ? "" : "s"} for ${parsed.value.provider}.`,
+        summary,
         {
           success: true,
           action: "availability_listed",

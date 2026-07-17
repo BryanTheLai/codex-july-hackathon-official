@@ -163,6 +163,7 @@ export const agentToolCallSchema = z
     status: z.enum(["completed", "failed"]),
     summary: z.string().trim().min(1).max(500),
     conversationRevision: revisionSchema.nullable(),
+    evalCaseId: idSchema.optional(),
   })
   .strict();
 

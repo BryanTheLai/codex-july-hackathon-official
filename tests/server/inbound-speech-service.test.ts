@@ -144,4 +144,27 @@ describe("inbound speech service", () => {
     );
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
+
+  it("records the selected provider model while a failed transcription is retryable", async () => {
+    const { cleanup, repository } = await setup();
+    const service = createInboundSpeechService({
+      workspaceId: "demo",
+      workspaceRepository: repository,
+      voiceDownloader: { downloadVoice: vi.fn().mockResolvedValue(new Uint8Array([1])) },
+      converter: {
+        convertToWebm: vi.fn().mockResolvedValue({
+          filePath: "C:/tmp/inbound.webm",
+          cleanup,
+        }),
+        convertToOgg: vi.fn(),
+      },
+      speechProviderModel: "scribe_v2",
+      speechProvider: { transcribe: vi.fn().mockRejectedValue(new Error("provider unavailable")) },
+    });
+
+    await expect(service.transcribeNext()).resolves.toEqual({ status: "failed" });
+    expect((await repository.load("demo"))?.state.speechArtifacts[0]).toEqual(
+      expect.objectContaining({ status: "failed", model: "scribe_v2" }),
+    );
+  });
 });

@@ -13,7 +13,7 @@ const speechResultSchema = z
     detectedLanguage: z.string().trim().min(1).max(64),
     originalTranscript: z.string().trim().min(1).max(4096),
     englishGloss: z.string().trim().min(1).max(4096).nullable(),
-    model: z.literal(whisperModel),
+    model: z.string().trim().min(1).max(256),
   })
   .strict();
 

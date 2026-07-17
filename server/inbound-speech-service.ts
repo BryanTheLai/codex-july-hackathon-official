@@ -49,6 +49,7 @@ type InboundSpeechServiceOptions = {
   voiceDownloader: TelegramVoiceDownloader;
   converter: VoiceConverter;
   speechProvider: SpeechProvider;
+  speechProviderModel?: string;
   maxCasAttempts?: number;
 };
 
@@ -74,6 +75,7 @@ export function createInboundSpeechService({
   voiceDownloader,
   converter,
   speechProvider,
+  speechProviderModel = "whisper-1",
   maxCasAttempts = 3,
 }: InboundSpeechServiceOptions): InboundSpeechService {
   const attempts = Math.max(1, Math.min(10, Math.floor(maxCasAttempts)));
@@ -100,7 +102,7 @@ export function createInboundSpeechService({
           "Speech artifact already has a transcript",
         );
       }
-      const model = "whisper-1";
+      const model = speechProviderModel;
       let next;
       try {
         next = beginTelegramSpeechTranscription({

@@ -10,7 +10,7 @@ candidate.**
 
 | Rank | Deliverable | Why it comes now | Status |
 | ---: | --- | --- | --- |
-| 1 | Complete Telegram voice booking: voice -> transcript/gloss -> availability -> booking -> concise text + TTS voice -> `.ics` -> action trace | This is the irreplaceable autonomous-agent moment. | Implemented and covered by deterministic server tests. |
+| 1 | Complete Telegram voice booking: voice -> transcript/gloss -> availability -> booking -> concise text + TTS voice -> `.ics` -> action trace | This is the irreplaceable autonomous-agent moment. | Implemented and covered by deterministic server tests; direct ElevenLabs STT/TTS is configurable. |
 | 2 | Remove Approve / Reject booking controls | A staff gate contradicts the story in the first five seconds. | Implemented. |
 | 3 | Visible booking timeline | Lets a judge understand the state transition at a glance. | Implemented. |
 | 4 | Agent-owned wrong-action feedback tool -> Eval candidate | Shows the agent can notice its own failure and make it measurable. | Implemented; a human must add the reference correction. |
@@ -32,7 +32,7 @@ to prove tool-using autonomy.
 | Eval progress | A suite shows `Replaying <case> / <n> of <total>`, marks the active row, disables competing actions, and exposes Cancel. | The output is deterministic in local tests; a live judge run is optional demo proof, not needed for the booking story. |
 | Feedback | The model can call `flag_autonomous_action_wrong`; the server creates an `autonomous_feedback` Eval case once. | A human must write the expected answer before Eval/Dream can use it. |
 | Delivery | Text and calendar sends use idempotency records. | The post-webhook agent work is background work, so a process crash can lose an in-flight reply. |
-| Voice | A persisted inbound voice note is transcribed, glossed for staff, run through the agent, and answered with concise text plus AI TTS voice. | Live provider quality and crash recovery need an owner-controlled smoke test. |
+| Voice | A persisted inbound voice note is transcribed, glossed for staff, run through the agent, and answered with concise text plus AI TTS voice. OpenAI remains the default; direct ElevenLabs Scribe v2/STT and TTS can be selected independently. | Live provider quality, credentials, and crash recovery need an owner-controlled smoke test. |
 
 ## Minimal architecture and data contract
 
@@ -40,7 +40,7 @@ to prove tool-using autonomy.
 flowchart LR
   P[Patient Telegram text] --> W[Webhook event idempotency]
   W --> S[Supabase workspace JSONB, CAS revision]
-  S --> A[OpenAI function-call loop]
+  S --> A[Configured OpenAI-compatible function-call loop]
   A --> T[Server-owned typed tools]
   T --> B[Booking + system audit]
   T --> F[Feedback Eval candidate]
@@ -74,16 +74,19 @@ Use the repository's existing dependencies only:
 
 | Layer | Existing dependency / API | MVP use |
 | --- | --- | --- |
-| Reasoning | `openai` Responses API (with compatible Chat Completions adapter) | Structured final reply and function calls. |
+| Reasoning | `openai` Responses API (with compatible Chat Completions adapter) | Structured final reply and function calls; can point at a proven OpenAI-compatible provider. |
 | Validation | `zod` | Strict model result and function argument schemas. |
 | State | `@supabase/supabase-js` / Postgres | Workspace CAS and Telegram delivery/event records. |
 | Telegram | Bot API `setWebhook`, inbound updates, `sendMessage`, `sendDocument` | Chat ingress, text reply, `.ics` delivery. |
 | Calendar file | `ical-generator` / RFC 5545 | Add-to-calendar attachment, not provider OAuth. |
+| Voice | Direct OpenAI or ElevenLabs REST API via native `fetch` | Provider-selected STT/TTS without an SDK or a second agent loop. |
 | App | Express 5, React 19, Vite | Webhook/API and demo UI. |
 
 The live demo needs the already-defined `LLM_*`, Supabase, and Telegram settings plus
-`LIVE_AGENT_ENABLED=true` and `LIVE_TELEGRAM_ENABLED=true`. Do not add Google Calendar or Outlook
-credentials for this MVP: the `.ics` file is enough to visibly prove the appointment outcome.
+`LIVE_AGENT_ENABLED=true` and `LIVE_TELEGRAM_ENABLED=true`. For ElevenLabs voice, set
+`SPEECH_PROVIDER=elevenlabs` and/or `TTS_PROVIDER=elevenlabs`, then provide the matching
+`ELEVENLABS_*` variables. Do not add Google Calendar or Outlook credentials for this MVP: the
+`.ics` file is enough to visibly prove the appointment outcome.
 
 ## Wrong-action feedback: 20 options and the selected combination
 

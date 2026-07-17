@@ -326,6 +326,7 @@ describe("Chat Control route", () => {
             status: "completed",
             summary: "Booking confirmed with Dr. Farah for 09:00 MYT.",
             conversationRevision: 5,
+            evalCaseId: "case-agent-feedback-1",
           },
         ],
         stopReason: "completed",
@@ -373,6 +374,10 @@ describe("Chat Control route", () => {
     expect(
       within(selected).getByText("Completed: Booking confirmed with Dr. Farah for 09:00 MYT."),
     ).toBeInTheDocument();
+    expect(within(selected).getByRole("link", { name: "Open Eval candidate" })).toHaveAttribute(
+      "href",
+      "/eval?case=case-agent-feedback-1",
+    );
     expect(
       within(selected).getByText("Malay", { selector: ".chat-badge" }),
     ).toBeInTheDocument();

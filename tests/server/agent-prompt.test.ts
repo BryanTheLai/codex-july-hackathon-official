@@ -69,6 +69,9 @@ describe("agent prompt assembly", () => {
       "Do not use keyword or pattern matching as a trigger",
     );
     expect(AGENT_INSTRUCTIONS).toContain(
+      "date-specific availability lookup returns no slots",
+    );
+    expect(AGENT_INSTRUCTIONS).toContain(
       "at most two short sentences and 280 characters",
     );
     expect(prompt.instructions).toBe(AGENT_INSTRUCTIONS);

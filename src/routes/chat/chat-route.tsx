@@ -201,7 +201,7 @@ export default function ChatRoute() {
       ? "attention"
       : "connected";
   const connectionLabel = connectionStatus === "connected"
-    ? "Telegram synced"
+    ? "Inbox synced"
     : connectionStatus === "offline"
       ? "Telegram offline"
       : "Attention needed";

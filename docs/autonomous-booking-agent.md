@@ -22,7 +22,7 @@ There is no staff approval step for those administrative actions. The agent is f
 flowchart LR
   T[Telegram text] --> I[Idempotent inbound event]
   I --> W[Workspace conversation revision]
-  W --> A[OpenAI Responses function-call loop]
+  W --> A[Configured OpenAI-compatible function-call loop]
   A --> S[list_available_slots]
   A --> B[create / reschedule / cancel]
   B --> C[Workspace CAS + audit message]
@@ -65,7 +65,7 @@ An autonomous mutation writes a deterministic audit message keyed by the model f
 
 ## Agent API reference
 
-The `openai` SDK's Responses API is the preferred path. The adapter also supports OpenAI-compatible Chat Completions, but Responses preserves the function-call context with `previous_response_id` and is the demo path to use.
+The `openai` SDK's Responses API is the preferred path. The adapter also supports OpenAI-compatible Chat Completions, but Responses preserves the function-call context with `previous_response_id` and is the demo path to use. This is the text/reasoning boundary only: inbound STT and outbound TTS can independently use OpenAI or ElevenLabs through direct provider adapters.
 
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |

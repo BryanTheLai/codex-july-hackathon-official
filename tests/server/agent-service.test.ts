@@ -236,6 +236,63 @@ describe("shared agent service", () => {
     );
   });
 
+  it("exposes a server-created feedback Eval candidate in the action trace", async () => {
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        responseId: "response-feedback-1",
+        outputText: "",
+        toolCalls: [
+          {
+            callId: "call-feedback-1",
+            name: "flag_autonomous_action_wrong",
+            argumentsJson: '{"reason":"Wrong date"}',
+          },
+        ],
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(providerResult),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      });
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      toolExecutor: vi.fn().mockResolvedValue({
+        status: "completed",
+        summary: "Autonomous agent flagged patient feedback as Eval candidate case-agent-feedback-1.",
+        conversationRevision: 3,
+        output: {
+          success: true,
+          action: "feedback_flagged",
+          evalCaseId: "case-agent-feedback-1",
+        },
+      }),
+      tools: [
+        {
+          type: "function",
+          name: "flag_autonomous_action_wrong",
+          description: "Flag feedback",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      createRunId: () => "agent-run-feedback",
+    });
+
+    await expect(
+      runAgentTurn({
+        ...request,
+        toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+      }),
+    ).resolves.toMatchObject({
+      toolCalls: [
+        expect.objectContaining({ evalCaseId: "case-agent-feedback-1" }),
+      ],
+    });
+  });
+
   it("rejects evidence not grounded in the pinned Dream bundle", async () => {
     const createResponse = vi.fn(async () => ({
       outputText: JSON.stringify({

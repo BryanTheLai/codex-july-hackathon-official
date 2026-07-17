@@ -142,6 +142,24 @@ describe("autonomous booking tools", () => {
     });
   });
 
+  it("makes a date with no remaining slots explicit for the agent recovery turn", async () => {
+    const { executor, request } = await configuredWorkspace();
+    await expect(
+      executor({
+        request,
+        call: {
+          callId: "call-no-slots-1",
+          name: "list_available_slots",
+          argumentsJson: '{"date":"2026-07-16","provider":"Dr. Farah"}',
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      summary: "No slots are available for Dr. Farah on 2026-07-16.",
+      output: { success: true, action: "availability_listed", slots: [] },
+    });
+  });
+
   it("turns agent-decided patient feedback into one pending Eval candidate", async () => {
     const { executor, repository, request } = await configuredWorkspace();
     const first = await executor({

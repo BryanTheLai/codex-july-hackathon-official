@@ -177,18 +177,22 @@ optional and inherits `LLM_MODEL` when empty. Any non-empty provider configurati
 during server startup, even while `LIVE_AGENT_ENABLED=false`. Keep the live switch off until one
 provider request succeeds. Full variable list: `.env.example`.
 
-Inbound Telegram voice additionally uses the same direct OpenAI credentials with `whisper-1`: its
-verbose transcription produces the original transcript and detected language, and the translation
-endpoint produces an English staff gloss for non-English speech. The host must provide `ffmpeg`
-with the Opus encoder; the adapter stores no audio file after the request completes.
+Voice can be selected independently with `SPEECH_PROVIDER` and `TTS_PROVIDER`. The default uses
+direct OpenAI (`whisper-1` for transcription and `gpt-4o-mini-tts` for delivery). Setting either
+provider to `elevenlabs` uses ElevenLabs' direct API: Scribe v2 returns the transcript and detected
+language, while text-to-speech streams the configured voice. `ELEVENLABS_TTS_*` keeps the optional
+voice controls in deployment configuration rather than requiring dashboard edits. The host must
+provide `ffmpeg` with the Opus encoder; the adapter stores no inbound audio file after processing.
 
 ### Voice and agent boundary
 
 The checked-in defaults are `gpt-5.5` for text generation and judging, `whisper-1` for inbound
-Telegram speech transcription, and `gpt-4o-mini-tts` with the `coral` voice for approved outbound
-speech. `TTS_MODEL` and `TTS_VOICE` can override the outbound voice settings. Production
-environment values are not stored in the repository, so the deployed text-model override must be
-checked in the deployment settings rather than inferred from this file.
+Telegram speech transcription, and `gpt-4o-mini-tts` with the `coral` voice for autonomous outbound
+speech. `TTS_MODEL` and `TTS_VOICE` override the OpenAI fallback; selecting ElevenLabs instead uses
+`ELEVENLABS_STT_MODEL=scribe_v2`, `ELEVENLABS_TTS_MODEL`, `ELEVENLABS_VOICE_ID`, and optional
+`ELEVENLABS_TTS_*` controls. Production environment values are not stored in the repository, so the
+deployed text-model and voice selection must be checked in the deployment settings rather than
+inferred from this file. See [the voice MVP plan](docs/elevenlabs-autonomy-mvp.md).
 
 The agent has two bounded paths. Staff can still explicitly generate and edit a grounded draft.
 For a newly persisted Telegram **text** message or successfully transcribed **voice** message in a

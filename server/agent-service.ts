@@ -182,12 +182,20 @@ function toolTrace(
   call: AgentProviderToolCall,
   execution: AgentToolExecution,
 ): AgentToolCall {
+  const evalCaseId =
+    typeof execution.output === "object" &&
+    execution.output !== null &&
+    "evalCaseId" in execution.output &&
+    typeof execution.output.evalCaseId === "string"
+      ? execution.output.evalCaseId
+      : undefined;
   return {
     callId: call.callId,
     name: call.name,
     status: execution.status,
     summary: execution.summary,
     conversationRevision: execution.conversationRevision,
+    ...(evalCaseId ? { evalCaseId } : {}),
   };
 }
 

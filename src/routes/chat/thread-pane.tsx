@@ -17,6 +17,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { Link } from "react-router";
 
 import {
   translateFixtureReply,
@@ -788,6 +789,11 @@ function Composer({
                 {agentRun.toolCalls.map((call) => (
                   <li key={call.callId}>
                     {call.status === "completed" ? "Completed" : "Blocked"}: {call.summary}
+                    {call.evalCaseId ? (
+                      <Link className="chat-text-button" to={`/eval?case=${encodeURIComponent(call.evalCaseId)}`}>
+                        Open Eval candidate
+                      </Link>
+                    ) : null}
                   </li>
                 ))}
               </ul>
