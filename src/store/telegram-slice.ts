@@ -312,7 +312,7 @@ export function createTelegramActions({
       mode: AgentMode,
       signal?: AbortSignal,
     ): Promise<MutationResult> {
-      if (!workspaceClient.save) {
+      if (!workspaceClient.setTelegramAgentMode) {
         const message = "Telegram autopilot settings are unavailable.";
         set({ lastFeedback: message });
         return failed(getState(), message);
@@ -365,27 +365,15 @@ export function createTelegramActions({
           return { ok: true, state: projected.state };
         }
 
-        const nextState = structuredClone(workspace.state);
-        nextState.conversations[index] = {
-          ...current,
-          agentMode: nextMode,
-          revision: current.revision + 1,
-          messages: [
-            ...current.messages,
-            {
-              id: `admin-telegram-autopilot-${current.id}-${current.revision + 1}`,
-              role: "system",
-              text: enabled
-                ? "Staff enabled Telegram autopilot. New messages may receive autonomous replies."
-                : "Staff paused Telegram autopilot. New messages remain staff-only.",
-              sentAt: new Date().toISOString(),
-            },
-          ],
-        };
-        const saved = await workspaceClient.save({
-          expectedRevision: workspace.revision,
-          state: nextState,
-        }, signal);
+        const saved = await workspaceClient.setTelegramAgentMode(
+          conversationId,
+          {
+            agentMode: nextMode,
+            expectedConversationRevision: current.revision,
+            expectedWorkspaceRevision: workspace.revision,
+          },
+          signal,
+        );
         const projected = mergeTelegramWorkspaceState(getState(), saved.workspace.state);
         const telegramWorkspace: TelegramWorkspaceState = {
           ...getTelegramWorkspace(),

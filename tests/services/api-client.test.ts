@@ -112,7 +112,7 @@ describe("HTTP workspace client", () => {
     );
   });
 
-  it("persists a revisioned workspace update for live Telegram controls", async () => {
+  it("posts a narrow revisioned Telegram autopilot update", async () => {
     const workspace = {
       workspaceId: "demo",
       revision: 4,
@@ -124,13 +124,21 @@ describe("HTTP workspace client", () => {
     const client = createHttpWorkspaceClient(fetcher);
 
     await expect(
-      client.save!({ expectedRevision: 3, state: workspace.state }),
+      client.setTelegramAgentMode!("telegram-conversation:-10042", {
+        agentMode: "staff_only",
+        expectedConversationRevision: 2,
+        expectedWorkspaceRevision: 3,
+      }),
     ).resolves.toEqual({ ok: true, workspace });
     expect(fetcher).toHaveBeenCalledWith(
-      "/api/workspace/state",
+      "/api/telegram/conversations/telegram-conversation%3A-10042/agent-mode",
       expect.objectContaining({
-        body: JSON.stringify({ expectedRevision: 3, state: workspace.state }),
-        method: "PUT",
+        body: JSON.stringify({
+          agentMode: "staff_only",
+          expectedConversationRevision: 2,
+          expectedWorkspaceRevision: 3,
+        }),
+        method: "POST",
       }),
     );
   });

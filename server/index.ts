@@ -74,6 +74,7 @@ import {
   bookingCommandRequestSchema,
   saveWorkspaceRequestSchema,
   saveWorkspaceResultSchema,
+  telegramAgentModeRequestSchema,
   translationRequestSchema,
 } from "./api-contract";
 import type { JudgeRequest, JudgeResponse } from "./judge-contract";
@@ -1755,6 +1756,101 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
           workspace.workspaceId,
           parsed.data.expectedRevision,
           parsed.data.state,
+        );
+        response.status(result.ok ? 200 : 409).json(result);
+      } catch (error) {
+        sendWorkspaceFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/telegram/conversations/:id/agent-mode",
+    async (request: Request, response: Response) => {
+      if (!requireWorkspace(workspace, response)) {
+        return;
+      }
+      const parsed = telegramAgentModeRequestSchema.safeParse(request.body);
+      const conversationId = Array.isArray(request.params.id)
+        ? ""
+        : (request.params.id ?? "");
+      if (!parsed.success || !conversationId) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Telegram autopilot request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const loaded = await workspace.repository.load(workspace.workspaceId);
+        if (!loaded) {
+          sendApiError(response, 404, {
+            code: "not_found",
+            error: "Workspace not found.",
+            retryable: false,
+          });
+          return;
+        }
+        const conversationIndex = loaded.state.conversations.findIndex(
+          (conversation) => conversation.id === conversationId,
+        );
+        const current = loaded.state.conversations[conversationIndex];
+        if (!current || current.source !== "telegram") {
+          sendApiError(response, 404, {
+            code: "not_found",
+            error: "Telegram conversation not found.",
+            retryable: false,
+          });
+          return;
+        }
+        if (
+          loaded.revision !== parsed.data.expectedWorkspaceRevision ||
+          current.revision !== parsed.data.expectedConversationRevision
+        ) {
+          response.status(409).json(saveWorkspaceResultSchema.parse({
+            ok: false,
+            code: "revision_conflict",
+            workspace: loaded,
+          }));
+          return;
+        }
+        if (current.workflowStatus === "resolved") {
+          sendApiError(response, 400, {
+            code: "invalid_request",
+            error: "Reopen the conversation before changing Telegram autopilot.",
+            retryable: false,
+          });
+          return;
+        }
+        if (current.agentMode === parsed.data.agentMode) {
+          response.status(200).json(saveWorkspaceResultSchema.parse({
+            ok: true,
+            workspace: loaded,
+          }));
+          return;
+        }
+        const enabled = parsed.data.agentMode === "live_agent";
+        const state = structuredClone(loaded.state);
+        state.conversations[conversationIndex] = {
+          ...current,
+          agentMode: parsed.data.agentMode,
+          revision: current.revision + 1,
+          messages: [
+            ...current.messages,
+            {
+              id: `admin-telegram-autopilot-${current.id}-${current.revision + 1}`,
+              role: "system",
+              text: enabled
+                ? "Staff enabled Telegram autopilot. New messages may receive autonomous replies."
+                : "Staff paused Telegram autopilot. New messages remain staff-only.",
+              sentAt: new Date(now()).toISOString(),
+            },
+          ],
+        };
+        const result = await workspace.repository.save(
+          workspace.workspaceId,
+          loaded.revision,
+          state,
         );
         response.status(result.ok ? 200 : 409).json(result);
       } catch (error) {

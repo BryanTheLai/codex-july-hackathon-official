@@ -41,6 +41,14 @@ export const saveWorkspaceRequestSchema = z
   })
   .strict();
 
+export const telegramAgentModeRequestSchema = z
+  .object({
+    agentMode: z.enum(["live_agent", "staff_only"]),
+    expectedConversationRevision: revisionSchema,
+    expectedWorkspaceRevision: revisionSchema,
+  })
+  .strict();
+
 export const resetDemoRequestSchema = z
   .object({
     expectedRevision: revisionSchema,
@@ -257,6 +265,7 @@ export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type WorkspaceEnvelope = z.infer<typeof workspaceEnvelopeSchema>;
 export type SaveWorkspaceRequest = z.infer<typeof saveWorkspaceRequestSchema>;
+export type TelegramAgentModeRequest = z.infer<typeof telegramAgentModeRequestSchema>;
 export type ResetDemoRequest = z.infer<typeof resetDemoRequestSchema>;
 export type OutboundSendRequest = z.infer<typeof outboundSendRequestSchema>;
 export type OutboundSendResult = z.infer<typeof outboundSendResultSchema>;

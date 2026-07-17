@@ -20,8 +20,8 @@ import {
   bookingCommandRequestSchema,
   bookingCommandResultSchema,
   manualSpeechTranscriptRequestSchema,
-  saveWorkspaceRequestSchema,
   saveWorkspaceResultSchema,
+  telegramAgentModeRequestSchema,
   workspaceEnvelopeSchema,
   type ApiErrorCode,
   type OutboundReconcileRequest,
@@ -37,7 +37,6 @@ import {
   type BookingCommandResult,
   type ManualSpeechTranscriptRequest,
   type SaveWorkspaceResult,
-  type SaveWorkspaceRequest,
   type WorkspaceEnvelope,
 } from "../contracts/api";
 import {
@@ -83,8 +82,13 @@ export class ApiClientError extends Error {
 
 export interface WorkspaceClient {
   load(signal?: AbortSignal): Promise<WorkspaceEnvelope>;
-  save?(
-    request: SaveWorkspaceRequest,
+  setTelegramAgentMode?(
+    conversationId: string,
+    request: {
+      agentMode: "live_agent" | "staff_only";
+      expectedConversationRevision: number;
+      expectedWorkspaceRevision: number;
+    },
     signal?: AbortSignal,
   ): Promise<SaveWorkspaceResult>;
   reset?(
@@ -261,13 +265,13 @@ export function createHttpWorkspaceClient(
         requestError: "The workspace request failed.",
       });
     },
-    save(input, signal) {
-      const request = saveWorkspaceRequestSchema.parse(input);
+    setTelegramAgentMode(conversationId, input, signal) {
+      const request = telegramAgentModeRequestSchema.parse(input);
       return requestJson({
         fetcher,
-        input: "/api/workspace/state",
+        input: `/api/telegram/conversations/${encodeURIComponent(conversationId)}/agent-mode`,
         init: {
-          method: "PUT",
+          method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(request),
           signal,

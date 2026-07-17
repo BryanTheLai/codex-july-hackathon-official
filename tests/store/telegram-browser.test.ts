@@ -116,12 +116,32 @@ describe("Telegram browser store", () => {
         revision: 4,
         state: server,
       }),
-      save: vi.fn(async (request) => ({
+      setTelegramAgentMode: vi.fn(async (_conversationId, request) => ({
         ok: true as const,
         workspace: {
           workspaceId: "demo",
           revision: 5,
-          state: request.state,
+          state: {
+            ...server,
+            conversations: server.conversations.map((item) =>
+              item.id === conversation.id
+                ? {
+                    ...item,
+                    agentMode: request.agentMode,
+                    revision: item.revision + 1,
+                    messages: [
+                      ...item.messages,
+                      {
+                        id: "admin-telegram-autopilot-test",
+                        role: "system" as const,
+                        text: "Staff paused Telegram autopilot. New messages remain staff-only.",
+                        sentAt: "2026-07-17T02:00:00.000Z",
+                      },
+                    ],
+                  }
+                : item,
+            ),
+          },
         },
       })),
     };
@@ -134,17 +154,12 @@ describe("Telegram browser store", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(workspaceClient.save).toHaveBeenCalledWith(
+    expect(workspaceClient.setTelegramAgentMode).toHaveBeenCalledWith(
+      conversation.id,
       expect.objectContaining({
-        expectedRevision: 4,
-        state: expect.objectContaining({
-          conversations: expect.arrayContaining([
-            expect.objectContaining({
-              agentMode: "staff_only",
-              id: conversation.id,
-            }),
-          ]),
-        }),
+        expectedWorkspaceRevision: 4,
+        expectedConversationRevision: conversation.revision,
+        agentMode: "staff_only",
       }),
       undefined,
     );
