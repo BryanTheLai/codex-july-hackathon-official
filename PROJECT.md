@@ -138,7 +138,9 @@ The primary artifact is the selected customer conversation.
 - queue, thread, and customer context stay visible together on desktop
 - mobile renders one working pane at a time
 - generated replies cite exact text from the active Knowledge bundle
-- every new booking visibly names its existing customer conversation and requires a service address
+- every new booking is conversation-owned: Schedule shows `Book for`, and the dialog shows customer name, channel, and phone/contact before create
+- every new booking requires a service address; calendar location prefers that address over `CALENDAR_LOCATION`
+- channel names in the thread header use Telegram/WhatsApp brand colors when applicable
 - booking claims require a successful booking tool result
 - unsupported scope or safety concerns use owner handoff
 - customer feedback can create an Eval candidate exactly once
@@ -157,6 +159,7 @@ The primary artifact is a raw Eval case and its evidence.
 - a suite freezes model, prompt, criteria, cases, and Knowledge hashes
 - retries append immutable attempts
 - train failures may propose Knowledge changes
+- Analyze failures stays disabled until at least one committed failed train case exists
 - holdout failures never generate training proposals
 - imported HITL cases inherit global criteria plus matching typed criteria
 
@@ -197,9 +200,10 @@ pending proposal
   -> prior active version becomes rollback target
 ```
 
-Activation stays disabled until validation passes. Rollback stays disabled
-until one activation creates a prior version. Disabled controls must explain
-the gate in their accessible name or title.
+Activation stays disabled until validation passes; the blocked control label
+reads `Validate first`. Rollback stays disabled until one activation creates a
+prior version. Disabled controls must explain the gate in their accessible name
+or title.
 
 “Check saved text” verifies exact accepted/rejected text locally. It is not an
 Eval score. Its lower dock is draggable, keyboard-resizable, collapsible by

@@ -280,7 +280,8 @@ These are identity maps. Exact geometry and behavior live in `PROJECT.md`.
 +------------------+--------------------------------+------------------+
 ```
 
-The queue is a list, not a table or card gallery. The conversation is the page's center of
+The queue is a list, not a table or card gallery. Channel names in the thread header use
+Telegram/WhatsApp brand colors when the channel matches. The conversation is the page's center of
 gravity. Customer context stays adjacent because booking decisions depend on it.
 
 Schedule is a view inside Chat Control, not a fourth route:
@@ -288,29 +289,33 @@ Schedule is a view inside Chat Control, not a fourth route:
 ```text
 +--------------------+--------------------------------------------------+
 | seven day index    | selected day                                     |
-| date + count       | time | customer | booking state                   |
-| compact list       | booking rows, not calendar cards                 |
+| date + count       | Book for | create | calendar sync                |
+| compact list       | time | customer | compact booking state          |
 +--------------------+--------------------------------------------------+
 ```
 
-It uses the same row density, customer names, status text, and selected edge as the queue. It is
-not a month calendar, KPI panel, or color-block planning dashboard.
+It uses the same row density, customer names, status text, and selected edge as the queue. Create
+booking always names an existing conversation (`Book for`) and shows customer, channel, and
+phone/contact in the dialog with a required service address. Status badges size to content; they
+do not stretch into empty green bars. It is not a month calendar, KPI panel, or color-block
+planning dashboard.
 
 ### 9.2 Knowledge
 
 ```text
 +--------------+--------------------------------------+------------------+
 | playbook     | editable file                        | changes          |
-| files        | line numbers and highlights          | old -> new       |
+| files        | gutter numbers for decided lines     | old -> new       |
 |              |                                      | evidence         |
-|              | test dock opens below editor         | decide in place  |
+|              | Check saved text dock below editor   | decide in place  |
 +--------------+--------------------------------------+------------------+
 ```
 
 Knowledge is an editor with a review rail. It is not a document dashboard. Pending corrections stay
 expanded. The review rail disappears when no pending decision remains. Approved or rejected candidate
-lines use gutter-number color only; activation clears the markers. Test results open in a draggable,
-keyboard-resizable lower dock, not another route or tab.
+lines use gutter-number color only; activation clears the markers. Release actions are
+`Validate candidate`, then `Activate` (or `Validate first` while blocked). Test results open in a
+draggable, keyboard-resizable lower dock, not another route or tab.
 
 ### 9.3 Evals
 
@@ -325,9 +330,10 @@ keyboard-resizable lower dock, not another route or tab.
 
 Evals is a lab bench, not an analytics homepage. Aggregate scores support the rows. They never
 replace them. The first viewport below the toolbar always shows at least one complete case row or
-case card. At middle widths, the summary and chart compress above the cases. On mobile, the compact
-summary stays visible and History opens the chart in a supporting drawer while cases become a
-single-column card list.
+case card. `Analyze failures` stays disabled as `Run train cases first` until a committed failed
+train case exists. At middle widths, the summary and chart compress above the cases. On mobile, the
+compact summary stays visible and History opens the chart in a supporting drawer while cases become
+a single-column card list.
 
 ## 10. Interaction philosophy
 

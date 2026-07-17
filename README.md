@@ -224,14 +224,19 @@ Key relationships and API boundaries are documented in `PROJECT.md`.
 
 ## Candidate release flow
 
-1. Run a failed train Eval case.
-2. Analyze the failure into one exact SOP replacement.
+1. Run a failed train Eval case until the failure is committed.
+2. `Analyze failures` becomes available only after that committed train failure;
+   it proposes one exact SOP replacement.
 3. Accept or reject pending line items.
 4. The accepted text becomes an inactive whole-playbook candidate.
 5. `Validate candidate` runs affected train cases, then the complete train and
    holdout suite.
-6. A full pass enables `Activate`.
+6. A full pass enables `Activate`; until then the control reads `Validate first`.
 7. Activation makes the previous active version available to `Roll back`.
+
+Schedule create is conversation-owned: pick `Book for` an existing customer,
+confirm name/channel/contact in the dialog, and enter a service address.
+Calendar location prefers that address over `CALENDAR_LOCATION`.
 
 Approved editor lines use gutter-number color only. Proposal cards disappear
 after decisions, and all correction colors disappear after activation.

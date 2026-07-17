@@ -39,7 +39,7 @@ flowchart LR
   A --> Q[flag_autonomous_action_wrong]
   Q --> E[Eval candidate: empty human reference]
   E --> H[Human writes correction]
-  H --> D[Eval, then Knowledge proposal and replay]
+  H --> D[Eval, then Knowledge Validate candidate and Activate]
 ```
 
 The model never writes the workspace directly. It selects a function, the server validates its arguments, and the function performs the committed action. A customer-facing confirmation is sent only after the booking function has reported success.
@@ -55,7 +55,7 @@ telegram_events (update id, payload hash, normalized event)
   -> workspace demo_state (one optimistic revision)
        -> conversations[] (one per Telegram chat, own revision)
             -> messages[] (customer, sent reply, autonomous audit)
-            -> booking? (slotIso, reason, status, booking revision)
+            -> booking? (slotIso, reason, serviceAddress?, status, booking revision)
        -> evalDatasets[] -> cases[] (autonomous_feedback source, human reference)
        -> playbookHistory (pinned agent evidence)
   -> telegram_deliveries (request id, provider receipt, sync status)
@@ -79,7 +79,7 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |
 | `list_available_slots` | local date or `null` | workspace and date are valid; live mode requires connected Google Calendar | Returns deterministic slots in demo mode or Google-filtered slots in live mode |
-| `create_booking` | returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking and enqueues Google Calendar sync |
+| `create_booking` | returned ISO slot, reason, service address | conversation is current; no confirmed booking; slot is still free; address is present | Saves an approved booking with `serviceAddress` and enqueues Google Calendar sync |
 | `reschedule_booking` | returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking and enqueues Google Calendar sync |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |
 | `flag_autonomous_action_wrong` | concise reason | conversation has customer input; server creates a bounded Eval candidate | Adds a `autonomous_feedback` candidate with no reference answer |

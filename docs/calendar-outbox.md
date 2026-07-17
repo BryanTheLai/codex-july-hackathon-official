@@ -28,7 +28,7 @@ ICS and Google Calendar use one service-visit core contract:
 - summary: `Aircon service visit`;
 - start: the saved booking `slotIso`, normalized to UTC;
 - end: start plus `CALENDAR_DEFAULT_DURATION_MINUTES`;
-- location: `CALENDAR_LOCATION`, or absent when it is blank.
+- location: booking `serviceAddress` when present, otherwise `CALENDAR_LOCATION`, or absent when both are blank.
 
 The projections differ only where the channels require it. ICS remains private and excludes customer
 identity, reason, and conversation content. Google uses a deterministic event ID and adds those
