@@ -6,7 +6,7 @@ services:
   - name: web
     github:
       repo: BryanTheLai/codex-july-hackathon-official
-      branch: codex/deploy-digitalocean
+      branch: main
       deploy_on_push: true
     source_dir: /
     dockerfile_path: Dockerfile
