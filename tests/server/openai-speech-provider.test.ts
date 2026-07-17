@@ -11,7 +11,7 @@ const config = {
   apiMode: "responses" as const,
   baseUrl: "https://api.openai.com/v1",
   liveEnabled: false,
-  model: "gpt-5.5",
+  model: "gpt-5.6-luna",
 };
 const fixtureFile = resolve(process.cwd(), "package.json");
 

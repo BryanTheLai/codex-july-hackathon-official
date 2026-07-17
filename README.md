@@ -186,7 +186,7 @@ provide `ffmpeg` with the Opus encoder; the adapter stores no inbound audio file
 
 ### Voice and agent boundary
 
-The checked-in defaults are `gpt-5.5` for text generation and judging, `whisper-1` for inbound
+The checked-in default is `gpt-5.6-luna` for text generation and judging, with `whisper-1` for inbound
 Telegram speech transcription, and `gpt-4o-mini-tts` with the `coral` voice for autonomous outbound
 speech. `TTS_MODEL` and `TTS_VOICE` override the OpenAI fallback; selecting ElevenLabs instead uses
 `ELEVENLABS_STT_MODEL=scribe_v2`, `ELEVENLABS_TTS_MODEL`, `ELEVENLABS_VOICE_ID`, and optional
