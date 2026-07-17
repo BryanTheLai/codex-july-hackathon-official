@@ -187,9 +187,9 @@ export default function ChatRoute() {
       ? "attention"
       : "connected";
   const connectionLabel = connectionStatus === "connected"
-    ? "Connected"
+    ? "Telegram synced"
     : connectionStatus === "offline"
-      ? "Offline"
+      ? "Telegram offline"
       : "Attention needed";
   const deliveryStatusLabel = telegramDeliveryNotice?.status === "partial_failure"
     ? "Partial failure"
@@ -213,8 +213,8 @@ export default function ChatRoute() {
           : telegramDeliveryNotice
             ? `${deliveryStatusLabel}: ${telegramDeliveryNotice.message}`
             : telegramWorkspaceRevision === null
-              ? "Waiting for the first successful Telegram inbox refresh."
-              : "Inbox synchronization is healthy.";
+            ? "Waiting for the first successful Telegram inbox refresh."
+              : "Inbox synchronization is healthy. Autopilot status is shown in the conversation.";
   const issueConversationId = failedDelivery
     ? telegramDeliveryNotice.conversationId
     : failedSpeechConversationId;

@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 
 test("visitor refreshes inbound Telegram text and sends exact approved text", async ({
   page,
-}) => {
+}, testInfo) => {
   const inboundResult = mergeTelegramInboundText(
     await createCanonicalServerState(),
     {
@@ -103,6 +103,10 @@ test("visitor refreshes inbound Telegram text and sends exact approved text", as
   await expect(
     page.getByRole("button", { name: "Auto-translate" }),
   ).toHaveCount(0);
+  await page.screenshot({
+    fullPage: true,
+    path: `test-results/screenshots/telegram-${testInfo.project.name}-autopilot.png`,
+  });
 
   await page
     .getByRole("textbox", { name: "Message" })

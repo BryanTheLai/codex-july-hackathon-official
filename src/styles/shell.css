@@ -189,6 +189,16 @@
   border-color: var(--kaunter-accent-pressed);
 }
 
+@media (min-width: 420px) {
+  .app-shell__brand-full {
+    display: inline;
+  }
+
+  .app-shell__brand-compact {
+    display: none;
+  }
+}
+
 @media (min-width: 760px) {
   .app-shell__brand-full {
     display: inline;

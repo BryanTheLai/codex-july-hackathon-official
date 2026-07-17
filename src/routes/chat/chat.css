@@ -26,6 +26,10 @@
   line-height: var(--kaunter-line-meta);
 }
 
+.chat-toolbar__title-mobile {
+  display: none;
+}
+
 .chat-toolbar__count {
   min-width: 22px;
   padding: 1px 6px;
@@ -570,6 +574,21 @@
   background: var(--kaunter-raised);
 }
 
+.thread-header__autopilot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--kaunter-info-fg) 24%, transparent);
+  border-radius: var(--kaunter-radius-md);
+  background: var(--kaunter-info-bg);
+  color: var(--kaunter-info-fg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .thread-messages {
   display: flex;
   flex-direction: column;
@@ -831,10 +850,12 @@
 }
 
 .chat-composer__agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
   color: var(--kaunter-muted);
   font-size: 11px;
-  text-transform: capitalize;
 }
 
 .chat-composer__agent-status--ready {
@@ -858,6 +879,10 @@
 .chat-composer__generate:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.chat-composer__generate--server-managed {
+  display: none !important;
 }
 
 .chat-composer__agent-review {
@@ -917,6 +942,24 @@
   align-items: end;
   gap: 5px;
   margin: 0 0 6px;
+}
+
+.chat-composer__delivery-options {
+  margin: 0 0 6px;
+  border-top: 1px solid var(--kaunter-hairline);
+}
+
+.chat-composer__delivery-options summary {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  color: var(--kaunter-muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.chat-composer__delivery-options[open] summary {
+  color: var(--kaunter-ink);
 }
 
 .chat-composer__live-controls .chat-composer__language {
@@ -1541,6 +1584,24 @@
   font-size: 11px;
 }
 
+.chat-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+  color: var(--kaunter-muted);
+}
+
+.chat-menu__search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--kaunter-ink);
+}
+
 .chat-menu__item {
   position: relative;
   min-height: 36px;
@@ -1587,6 +1648,15 @@
 }
 
 @media (max-width: 759px) {
+  .telegram-status-banner--connected {
+    min-height: 44px;
+    padding: 6px 8px;
+  }
+
+  .telegram-status-banner--connected .telegram-status-banner__copy span {
+    display: none;
+  }
+
   .telegram-status-banner {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -1612,21 +1682,15 @@
   }
 
   .chat-toolbar {
-    display: grid;
-    grid-template-areas:
-      "title action"
-      "views views"
-      "search filter";
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0 8px;
-    min-height: 132px;
+    display: flex;
+    min-height: 52px;
     padding: 0 8px;
   }
 
   .chat-toolbar__title {
-    grid-area: title;
+    flex: 1;
     min-width: 0;
-    height: 44px;
+    height: 52px;
   }
 
   .chat-toolbar__refresh {
@@ -1640,42 +1704,32 @@
     white-space: nowrap;
   }
 
-  .chat-toolbar__views {
-    grid-area: views;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 44px;
+  .chat-toolbar__title-desktop {
+    display: none;
   }
 
-  .chat-toolbar__view {
-    justify-content: center;
-    min-height: 44px;
+  .chat-toolbar__title-mobile {
+    display: inline;
+  }
+
+  .chat-toolbar__views {
+    display: none;
   }
 
   .chat-toolbar__search {
-    grid-area: search;
-    width: 100%;
-    min-width: 0;
-    height: 44px;
-    margin: 0;
-  }
-
-  .chat-toolbar__search input {
-    height: 44px;
+    display: none;
   }
 
   .chat-toolbar__filter {
-    grid-area: filter;
-    height: 44px;
-  }
-
-  .chat-toolbar__filter select {
-    min-height: 44px;
-    min-width: 104px;
+    display: none;
   }
 
   .chat-toolbar__simulate {
-    grid-area: action;
+    display: none;
+  }
+
+  .chat-toolbar__more {
+    display: inline-flex;
     min-height: 44px;
   }
 
@@ -1733,7 +1787,7 @@
   }
 
   .chat-composer {
-    min-height: 104px;
+    min-height: 96px;
     padding: 6px 8px;
   }
 
@@ -1761,6 +1815,10 @@
 
   .chat-composer textarea {
     min-height: 48px;
+  }
+
+  .chat-composer__delivery-options summary {
+    min-height: 36px;
   }
 
   .patient-rail .rail-label button {
@@ -1811,16 +1869,6 @@
 }
 
 @media (max-width: 339px) {
-  .chat-toolbar__simulate,
-  .chat-toolbar__filter {
-    display: none;
-  }
-
-  .chat-toolbar__more {
-    display: inline-flex;
-    min-height: 44px;
-  }
-
   .chat-composer__translate-toggle > span {
     display: none;
   }
@@ -1845,10 +1893,6 @@
     min-width: 44px;
     justify-content: center;
     padding: 0;
-  }
-
-  .chat-toolbar__search {
-    grid-column: 1 / -1;
   }
 
   .chat-composer {

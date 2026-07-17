@@ -145,10 +145,12 @@ function PatientIdentity({
             <dt>Phone</dt>
             <dd>{conversation.patient.phone || "Not provided by patient"}</dd>
           </div>
-          <div>
-            <dt>MRN</dt>
-            <dd>{conversation.patient.medicalRecordNumber || "Not assigned"}</dd>
-          </div>
+          {conversation.patient.medicalRecordNumber ? (
+            <div>
+              <dt>MRN</dt>
+              <dd>{conversation.patient.medicalRecordNumber}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Language</dt>
             <dd>{conversation.patient.preferredLanguage}</dd>
@@ -273,7 +275,7 @@ export function PatientRail({
       <header className="chat-pane__header">
         <div>
           <strong>Patient context</strong>
-          <span>Fixture record</span>
+          <span>{conversation.channel === "Telegram" ? "Telegram contact" : "Demo fixture"}</span>
         </div>
         {showClose ? (
           <button
@@ -300,7 +302,7 @@ export function PatientRail({
 
         <section className="rail-section">
           <header className="rail-section__header">
-            <h3>Synthetic triage guidance</h3>
+            <h3>{conversation.channel === "Telegram" ? "Triage guidance" : "Synthetic triage guidance"}</h3>
           </header>
           <p className={conversation.urgency === "emergency" ? "rail-guidance--risk" : ""}>
             {triageGuidance(conversation)}

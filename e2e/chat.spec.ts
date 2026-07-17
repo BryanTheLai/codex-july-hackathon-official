@@ -138,7 +138,12 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     ).toBeVisible();
   }
 
-  await page.getByRole("tab", { name: "Schedule" }).click();
+  if (mobile) {
+    await page.getByRole("button", { name: "More chat actions" }).click();
+    await page.getByRole("menuitemradio", { name: "Schedule" }).click();
+  } else {
+    await page.getByRole("tab", { name: "Schedule" }).click();
+  }
   await expect(page.getByRole("region", { name: "Synthetic schedule" })).toBeVisible();
   await expectNoDocumentOverflow(page);
   if (!mobile) {
@@ -151,7 +156,11 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     await page.getByRole("button", { name: "Cancel" }).click();
   }
   await page.getByRole("button", { name: "Open conversation with Nurul Aisyah" }).click();
-  await expect(page.getByRole("tab", { name: "Inbox" })).toHaveAttribute("aria-selected", "true");
+  if (mobile) {
+    await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
+  } else {
+    await expect(page.getByRole("tab", { name: "Inbox" })).toHaveAttribute("aria-selected", "true");
+  }
   expect(
     requestedUrls.filter((url) =>
       /\/src\/routes\/(?:dream|eval)\/|react-codemirror|recharts|tanstack/i.test(url),

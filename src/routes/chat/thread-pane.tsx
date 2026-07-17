@@ -204,20 +204,33 @@ function HandlerBadge({
   mode: AgentMode;
   live: boolean;
 }) {
-  const synthetic = !live && mode === "synthetic_agent";
-  const label = live
-    ? "Telegram inbox: autonomous agent can reply and manage bookings"
-    : synthetic
-      ? "Autonomous agent handling"
-      : "Staff only handling";
+  const autonomous = live || mode === "synthetic_agent";
+  const label = autonomous
+    ? live
+      ? "Telegram inbox: autonomous agent can reply and manage bookings"
+      : "Autonomous agent handling"
+    : "Staff only handling";
+  if (live) {
+    return (
+      <span
+        aria-label={label}
+        className="thread-header__autopilot"
+        role="img"
+        title="Telegram automation is managed by the server."
+      >
+        <Bot aria-hidden="true" size={14} />
+        <span aria-hidden="true">Autopilot</span>
+      </span>
+    );
+  }
   return (
     <span
       aria-label={label}
-      className={`thread-header__handler thread-header__handler--${synthetic ? "synthetic" : "staff"}`}
+      className={`thread-header__handler thread-header__handler--${autonomous ? "synthetic" : "staff"}`}
       role="img"
       title={label}
     >
-      {synthetic ? <Bot aria-hidden="true" size={14} /> : <UserRound aria-hidden="true" size={14} />}
+      {autonomous ? <Bot aria-hidden="true" size={14} /> : <UserRound aria-hidden="true" size={14} />}
     </span>
   );
 }
@@ -610,10 +623,17 @@ function Composer({
           aria-live="polite"
           className={`chat-composer__agent-status chat-composer__agent-status--${agentStatus}`}
         >
-          Agent {agentStatus}
+          {liveTelegram ? (
+            <>
+              <Bot aria-hidden="true" size={14} />
+              Telegram autopilot
+            </>
+          ) : (
+            <>Agent {agentStatus}</>
+          )}
         </span>
         <button
-          className="chat-composer__generate"
+          className={`chat-composer__generate${liveTelegram ? " chat-composer__generate--server-managed" : ""}`}
           disabled={generationBlocked}
           onClick={() => {
             void generate();
@@ -632,80 +652,83 @@ function Composer({
         </button>
       </div>
       {kind === "reply" && liveTelegram ? (
-        <div className="chat-composer__live-controls">
-          <label className="chat-composer__language">
-            <span>Translate to</span>
-            <select
-              aria-label="Translation language"
-              onChange={(event) => {
-                setTranslationLanguage(event.target.value as TranslationLanguage);
-                setLiveTranslation(null);
-              }}
-              value={translationLanguage}
+        <details className="chat-composer__delivery-options">
+          <summary>Manual delivery options</summary>
+          <div className="chat-composer__live-controls">
+            <label className="chat-composer__language">
+              <span>Translate to</span>
+              <select
+                aria-label="Translation language"
+                onChange={(event) => {
+                  setTranslationLanguage(event.target.value as TranslationLanguage);
+                  setLiveTranslation(null);
+                }}
+                value={translationLanguage}
+              >
+                <option value="English">English</option>
+                <option value="Malay">Malay</option>
+                <option value="Mandarin">Mandarin</option>
+              </select>
+            </label>
+            <button
+              className="chat-composer__translate-toggle"
+              disabled={empty || isSending || isTranslating || !onTranslate}
+              onClick={() => void translateLiveReply()}
+              type="button"
             >
-              <option value="English">English</option>
-              <option value="Malay">Malay</option>
-              <option value="Mandarin">Mandarin</option>
-            </select>
-          </label>
-          <button
-            className="chat-composer__translate-toggle"
-            disabled={empty || isSending || isTranslating || !onTranslate}
-            onClick={() => void translateLiveReply()}
-            type="button"
-          >
-            <Languages aria-hidden="true" size={14} />
-            {isTranslating ? "Translating" : "Translate"}
-          </button>
-          <label className="chat-composer__language">
-            <span>Deliver</span>
-            <select
-              aria-label="Telegram delivery mode"
-              onChange={(event) =>
-                setDeliveryMode(event.target.value as "text" | "voice" | "both")
-              }
-              value={deliveryMode}
-            >
-              <option value="text">Text</option>
-              <option value="voice">Voice</option>
-              <option value="both">Text + voice</option>
-            </select>
-          </label>
-          {deliveryMode !== "text" ? (
-            <>
-              <label className="chat-composer__language">
-                <span>Voice source</span>
-                <select
-                  aria-label="Telegram voice source"
-                  onChange={(event) =>
-                    setVoiceSource(event.target.value as "tts" | "recorded")
-                  }
-                  value={voiceSource}
-                >
-                  <option value="tts">AI TTS</option>
-                  <option value="recorded">Staff recording</option>
-                </select>
-              </label>
-              {voiceSource === "recorded" ? (
-                <>
-                  <button
-                    className="chat-composer__record"
-                    onClick={() => void toggleRecording()}
-                    type="button"
+              <Languages aria-hidden="true" size={14} />
+              {isTranslating ? "Translating" : "Translate"}
+            </button>
+            <label className="chat-composer__language">
+              <span>Deliver</span>
+              <select
+                aria-label="Telegram delivery mode"
+                onChange={(event) =>
+                  setDeliveryMode(event.target.value as "text" | "voice" | "both")
+                }
+                value={deliveryMode}
+              >
+                <option value="text">Text</option>
+                <option value="voice">Voice</option>
+                <option value="both">Text + voice</option>
+              </select>
+            </label>
+            {deliveryMode !== "text" ? (
+              <>
+                <label className="chat-composer__language">
+                  <span>Voice source</span>
+                  <select
+                    aria-label="Telegram voice source"
+                    onChange={(event) =>
+                      setVoiceSource(event.target.value as "tts" | "recorded")
+                    }
+                    value={voiceSource}
                   >
-                    <Mic aria-hidden="true" size={14} />
-                    {recordingStatus === "recording"
-                      ? "Stop recording"
-                      : "Record staff voice"}
-                  </button>
-                  {recordingUrl ? <audio controls src={recordingUrl} /> : null}
-                </>
-              ) : (
-                <span className="chat-composer__voice-disclosure">AI-generated voice from the approved preview</span>
-              )}
-            </>
-          ) : null}
-        </div>
+                    <option value="tts">AI TTS</option>
+                    <option value="recorded">Staff recording</option>
+                  </select>
+                </label>
+                {voiceSource === "recorded" ? (
+                  <>
+                    <button
+                      className="chat-composer__record"
+                      onClick={() => void toggleRecording()}
+                      type="button"
+                    >
+                      <Mic aria-hidden="true" size={14} />
+                      {recordingStatus === "recording"
+                        ? "Stop recording"
+                        : "Record staff voice"}
+                    </button>
+                    {recordingUrl ? <audio controls src={recordingUrl} /> : null}
+                  </>
+                ) : (
+                  <span className="chat-composer__voice-disclosure">AI-generated voice from the approved preview</span>
+                )}
+              </>
+            ) : null}
+          </div>
+        </details>
       ) : null}
       {liveTranslation ? (
         <section aria-label="Translated delivery preview" className="chat-composer__translation-preview">
@@ -1103,21 +1126,22 @@ export function ThreadPane({
           mode={conversation.agentMode}
         />
         <span className="thread-header__date">{formatFullTimestamp(conversation.messages[0]!.sentAt)}</span>
-        <label className="thread-header__mode">
-          <span className="visually-hidden">Agent mode</span>
-          <select
-            aria-label={serverControlledAgentMode ? "Agent mode, managed by server" : "Agent mode"}
-            disabled={resolved || serverControlledAgentMode}
-            onChange={(event) =>
-              onSetAgentMode(conversation.id, event.target.value as AgentMode)
-            }
-            title={serverControlledAgentMode ? "Telegram agent mode is managed by the server." : undefined}
-            value={conversation.agentMode}
-          >
-            <option value="synthetic_agent">Agent handling</option>
-            <option value="staff_only">Staff only</option>
-          </select>
-        </label>
+        {!serverControlledAgentMode ? (
+          <label className="thread-header__mode">
+            <span className="visually-hidden">Agent mode</span>
+            <select
+              aria-label="Agent mode"
+              disabled={resolved}
+              onChange={(event) =>
+                onSetAgentMode(conversation.id, event.target.value as AgentMode)
+              }
+              value={conversation.agentMode}
+            >
+              <option value="synthetic_agent">Agent handling</option>
+              <option value="staff_only">Staff only</option>
+            </select>
+          </label>
+        ) : null}
         {resolved ? (
           <button
             className="chat-button"

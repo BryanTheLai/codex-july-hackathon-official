@@ -46,7 +46,10 @@ export function ChatToolbar({
   return (
     <header className="chat-toolbar">
       <div className="chat-toolbar__title">
-        <h1 id="chat-route-title">Chat Control</h1>
+        <h1 aria-label="Chat Control" id="chat-route-title">
+          <span className="chat-toolbar__title-desktop">Chat Control</span>
+          <span aria-hidden="true" className="chat-toolbar__title-mobile">Inbox</span>
+        </h1>
         <span aria-label={`${count} visible conversations`} className="chat-toolbar__count">
           {count}
         </span>
@@ -135,6 +138,37 @@ export function ChatToolbar({
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content align="end" className="chat-menu" sideOffset={4}>
+            <label className="chat-menu__search">
+              <Search aria-hidden="true" size={15} />
+              <span className="visually-hidden">Search conversations</span>
+              <input
+                aria-label="Search conversations"
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder="Search conversations"
+                type="search"
+                value={query}
+              />
+            </label>
+            <DropdownMenu.Separator className="chat-menu__separator" />
+            <DropdownMenu.Label className="chat-menu__label">View</DropdownMenu.Label>
+            <DropdownMenu.RadioGroup
+              onValueChange={(value) => onViewChange(value as ChatView)}
+              value={view}
+            >
+              <DropdownMenu.RadioItem className="chat-menu__item" value="inbox">
+                <DropdownMenu.ItemIndicator className="chat-menu__indicator">
+                  *
+                </DropdownMenu.ItemIndicator>
+                Inbox
+              </DropdownMenu.RadioItem>
+              <DropdownMenu.RadioItem className="chat-menu__item" value="schedule">
+                <DropdownMenu.ItemIndicator className="chat-menu__indicator">
+                  *
+                </DropdownMenu.ItemIndicator>
+                Schedule
+              </DropdownMenu.RadioItem>
+            </DropdownMenu.RadioGroup>
+            <DropdownMenu.Separator className="chat-menu__separator" />
             <DropdownMenu.Label className="chat-menu__label">Filter</DropdownMenu.Label>
             <DropdownMenu.RadioGroup
               onValueChange={(value) => onFilterChange(value as ChatFilter)}
