@@ -122,6 +122,41 @@ describe("inbound speech service", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it("reuses an already-ready transcript when a voice reply is retried", async () => {
+    const { cleanup, repository } = await setup();
+    const downloadVoice = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const transcribe = vi.fn().mockResolvedValue({
+      detectedLanguage: "Malay",
+      originalTranscript: "Saya mahu buat temujanji.",
+      englishGloss: "I would like to make an appointment.",
+      model: "whisper-1",
+    });
+    const service = createInboundSpeechService({
+      workspaceId: "demo",
+      workspaceRepository: repository,
+      voiceDownloader: { downloadVoice },
+      converter: {
+        convertToWebm: vi.fn().mockResolvedValue({
+          filePath: "C:/tmp/inbound.webm",
+          cleanup,
+        }),
+        convertToOgg: vi.fn(),
+      },
+      speechProvider: { transcribe },
+    });
+
+    await expect(service.retry("telegram-message:-10042:89")).resolves.toMatchObject({
+      status: "ready",
+      result: { artifact: { status: "ready" } },
+    });
+    await expect(service.retry("telegram-message:-10042:89")).resolves.toMatchObject({
+      status: "ready",
+      result: { artifact: { status: "ready" } },
+    });
+    expect(downloadVoice).toHaveBeenCalledTimes(1);
+    expect(transcribe).toHaveBeenCalledTimes(1);
+  });
+
   it("persists a retryable failed artifact when speech processing fails", async () => {
     const { cleanup, repository } = await setup();
     const service = createInboundSpeechService({

@@ -59,6 +59,10 @@ type ClaimedSpeech = {
   telegramFileId: string;
 };
 
+type SpeechClaim =
+  | { kind: "claimed"; speech: ClaimedSpeech }
+  | { kind: "ready"; result: InboundTranscriptionResult };
+
 function pendingArtifact(
   state: Parameters<typeof beginTelegramSpeechTranscription>[0]["state"],
 ) {
@@ -82,7 +86,7 @@ export function createInboundSpeechService({
 
   async function claim(
     messageId?: string,
-  ): Promise<ClaimedSpeech | null> {
+  ): Promise<SpeechClaim | null> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const workspace = await workspaceRepository.load(workspaceId);
       if (!workspace) {
@@ -97,10 +101,24 @@ export function createInboundSpeechService({
         return null;
       }
       if (messageId && artifact.status === "ready") {
-        throw new InboundSpeechServiceError(
-          "revision_conflict",
-          "Speech artifact already has a transcript",
+        const conversation = workspace.state.conversations.find((candidate) =>
+          candidate.messages.some((message) => message.id === artifact.messageId),
         );
+        if (!conversation) {
+          throw new InboundSpeechServiceError(
+            "not_found",
+            "Speech conversation not found",
+          );
+        }
+        return {
+          kind: "ready",
+          result: {
+            messageId: artifact.messageId,
+            workspaceRevision: workspace.revision,
+            conversationRevision: conversation.revision,
+            artifact,
+          },
+        };
       }
       const model = speechProviderModel;
       let next;
@@ -123,9 +141,12 @@ export function createInboundSpeechService({
       );
       if (saved.ok) {
         return {
-          messageId: artifact.messageId,
-          model,
-          telegramFileId: artifact.telegramFileId,
+          kind: "claimed",
+          speech: {
+            messageId: artifact.messageId,
+            model,
+            telegramFileId: artifact.telegramFileId,
+          },
         };
       }
     }
@@ -182,10 +203,14 @@ export function createInboundSpeechService({
     messageId?: string,
     signal?: AbortSignal,
   ): Promise<InboundSpeechAttempt> {
-    const claimed = await claim(messageId);
-    if (!claimed) {
+    const claimResult = await claim(messageId);
+    if (!claimResult) {
       return { status: "idle" };
     }
+    if (claimResult.kind === "ready") {
+      return { status: "ready", result: claimResult.result };
+    }
+    const claimed = claimResult.speech;
     let converted: Awaited<ReturnType<VoiceConverter["convertToWebm"]>> | null = null;
     try {
       const input = await voiceDownloader.downloadVoice(
