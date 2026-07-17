@@ -5,7 +5,7 @@ import { createJudgeApp } from "../../server/index";
 function stubProviderEnvironment(apiKey: string, baseUrl: string): void {
   vi.stubEnv("LLM_API_KEY", apiKey);
   vi.stubEnv("LLM_BASE_URL", baseUrl);
-  vi.stubEnv("LLM_MODEL", "gpt-5.6");
+  vi.stubEnv("LLM_MODEL", "gpt-5.6-luna");
   vi.stubEnv("LLM_API_MODE", "responses");
   vi.stubEnv("JUDGE_MODEL", "");
   vi.stubEnv("LIVE_AGENT_ENABLED", "false");

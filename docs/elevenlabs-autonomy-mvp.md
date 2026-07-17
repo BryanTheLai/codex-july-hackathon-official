@@ -49,7 +49,7 @@ is deployment configuration rather than dashboard-only state.
 # Existing direct OpenAI text/reasoning provider. Leave the base URL empty for OpenAI.
 LLM_BASE_URL=
 LLM_API_KEY=replace-in-deployment-only
-LLM_MODEL=gpt-5.6
+LLM_MODEL=gpt-5.6-luna
 LLM_API_MODE=responses
 LIVE_AGENT_ENABLED=true
 

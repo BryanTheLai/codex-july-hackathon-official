@@ -65,7 +65,7 @@ OpenAI-compatible gateway.
 ```dotenv
 LLM_BASE_URL=
 LLM_API_KEY=
-LLM_MODEL=gpt-5.6
+LLM_MODEL=gpt-5.6-luna
 LLM_API_MODE=responses
 JUDGE_MODEL=
 LIVE_AGENT_ENABLED=false
@@ -73,7 +73,7 @@ LIVE_AGENT_ENABLED=false
 
 An empty `LLM_BASE_URL` uses `https://api.openai.com/v1`. A gateway may require
 its own model alias; deployment values override the checked-in documented
-OpenAI default. `JUDGE_MODEL` inherits `LLM_MODEL` when empty.
+Luna default. `JUDGE_MODEL` inherits `LLM_MODEL` when empty.
 
 Voice providers are selected independently:
 

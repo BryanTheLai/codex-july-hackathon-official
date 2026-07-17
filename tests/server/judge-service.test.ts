@@ -49,7 +49,7 @@ function providerResponse(
   }>,
 ) {
   return {
-    model: "gpt-5.6",
+    model: "gpt-5.6-luna",
     output_text: JSON.stringify({
       score: 0.9,
       rationale: "The reply gives an urgent and respectful next step.",
@@ -85,7 +85,7 @@ describe("judge service", () => {
     );
     const judge = createJudgeService({
       createResponse: create,
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
       now: () => 1_000,
     });
 
@@ -95,7 +95,7 @@ describe("judge service", () => {
     expect(result.criterionResults).toHaveLength(2);
     expect(result.metadata).toMatchObject({
       inputTokens: 200,
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
       outputTokens: 80,
       promptVersion: "2026-07-18.1",
       provider: "openai",
@@ -129,7 +129,7 @@ describe("judge service", () => {
           },
         ]),
       ),
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
     });
 
     const result = await judge(request());
@@ -149,7 +149,7 @@ describe("judge service", () => {
           },
         ]),
       ),
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
     });
     await expect(missing(request())).rejects.toThrow(/one result per rubric/i);
 
@@ -171,7 +171,7 @@ describe("judge service", () => {
           },
         ]),
       ),
-      model: "gpt-5.6",
+      model: "gpt-5.6-luna",
     });
     await expect(fabricated(request())).rejects.toThrow(/evidence quote/i);
   });
@@ -197,7 +197,7 @@ describe("judge service", () => {
         },
       ]),
     );
-    const judge = createJudgeService({ createResponse: create, model: "gpt-5.6" });
+    const judge = createJudgeService({ createResponse: create, model: "gpt-5.6-luna" });
 
     await judge(injected);
 
