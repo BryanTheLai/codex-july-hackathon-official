@@ -38,11 +38,17 @@ direction.
 Not claimed: equipment diagnosis, unsupported quotes, production capacity,
 multi-tenant authentication, or automatic SOP activation.
 
-## Local development
+## Quick start
 
-Requirements: Node.js 22.12+ and npm.
+Requirements:
+
+- Node.js 22.12 or newer
+- npm
+- `ffmpeg` only when testing voice messages
 
 ```bash
+git clone https://github.com/BryanTheLai/codex-july-hackathon-official.git
+cd codex-july-hackathon-official
 npm install
 cp .env.example .env
 npm run dev
@@ -50,7 +56,81 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-Production-style local start:
+The app opens without provider credentials. Live AI, Telegram, Supabase
+persistence, Google Calendar, and factory reset remain disabled until configured.
+
+## Configure the full demo
+
+### 1. Configure Supabase
+
+Create a Supabase project, then apply every SQL file in `supabase/migrations/`
+in filename order. Apply `supabase/seed.sql` last.
+
+Set these values in `.env`:
+
+```dotenv
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+KAUNTER_WORKSPACE_ID=demo
+```
+
+Compile the canonical seed and create the demo workspace:
+
+```bash
+npm run demo:seed
+npm run bootstrap:demo
+```
+
+Restart `npm run dev`. The server-backed workspace now replaces the local
+fallback state.
+
+### 2. Enable live AI
+
+Set an OpenAI or OpenAI-compatible provider in `.env`:
+
+```dotenv
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=gpt-5.6-luna
+LLM_API_MODE=responses
+JUDGE_MODEL=
+LIVE_AGENT_ENABLED=true
+```
+
+Leave `LLM_BASE_URL` empty for `https://api.openai.com/v1`.
+`JUDGE_MODEL` falls back to `LLM_MODEL`.
+
+### 3. Enable Telegram
+
+```dotenv
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+LIVE_TELEGRAM_ENABLED=true
+```
+
+Generate the secret with `openssl rand -hex 32`. Deploy the app behind public
+HTTPS, confirm `/healthz` and `/readyz`, then point the Telegram webhook to
+`/api/telegram/webhook`.
+
+Keep `LIVE_TELEGRAM_ENABLED=false` until you want the bot to send real replies.
+
+### 4. Optional providers
+
+Google Calendar, OpenAI voice, and ElevenLabs settings are documented directly
+in `.env.example`. Calendar-specific behavior is in `docs/calendar-outbox.md`.
+
+Never commit `.env`, API keys, bot tokens, Google credentials, or the Supabase
+service-role key.
+
+## Run commands
+
+Development:
+
+```bash
+npm run dev
+```
+
+Production-style local run:
 
 ```bash
 npm run build
@@ -59,227 +139,59 @@ npm start
 
 `npm start` serves the existing `dist/`; it does not build first.
 
-## Provider configuration
-
-Text generation and judging use the OpenAI SDK against either OpenAI or an
-OpenAI-compatible gateway.
-
-```dotenv
-LLM_BASE_URL=
-LLM_API_KEY=
-LLM_MODEL=gpt-5.6-luna
-LLM_API_MODE=responses
-JUDGE_MODEL=
-LIVE_AGENT_ENABLED=false
-```
-
-An empty `LLM_BASE_URL` uses `https://api.openai.com/v1`. A gateway may require
-its own model alias; deployment values override the checked-in documented
-Luna default. `JUDGE_MODEL` inherits `LLM_MODEL` when empty.
-
-Voice providers are selected independently:
-
-- OpenAI fallback: `whisper-1` and `gpt-4o-mini-tts`
-- ElevenLabs: Scribe v2 and Eleven v3
-
-The host needs `ffmpeg` with Opus support.
-
-## Supabase setup
-
-Supabase is the runtime source of truth. The aircon demo seed depends on
-migration `supabase/migrations/20260718010000_demo_seed_templates.sql`.
-
-### First-time apply (or after missing `demo_seed_templates`)
-
-Run these steps in order. Do not skip.
-
-1. Stop the app/worker and disable live Telegram.
-2. Apply `supabase/migrations/20260718010000_demo_seed_templates.sql`.
-3. Run `supabase/seed.sql`.
-4. Run `npm run demo:seed`.
-5. Run the guarded reset (next section).
-6. Restart the app.
-
-Copy-paste form:
-
-```bash
-# Stop the app/worker and set LIVE_TELEGRAM_ENABLED=false first.
-
-# Apply:
-# supabase/migrations/20260718010000_demo_seed_templates.sql
-
-# Then:
-# supabase/seed.sql
-npm run demo:seed
-
-KAUNTER_ALLOW_DEMO_RESET=1 \
-LIVE_TELEGRAM_ENABLED=false \
-npm run demo:reset -- \
-  --workspace demo \
-  --seed msme-aircon-v1 \
-  --confirm RESET_DEMO
-
-# Restart the app.
-```
-
-Optional local bootstrap after the template is compiled:
-
-```bash
-npm run bootstrap:demo
-```
-
-The canonical template is `msme-aircon-v1`.
-
-The browser can boot from a local fallback for tests, but a successful server
-load replaces demo conversations, SOPs, corrections, datasets, and release
-state with the Supabase aggregate.
-
-### Guarded factory reset
-
-The top-right **Reset** control is a destructive **factory reset**. It permanently
-deletes all demo activity in the fixed `demo` workspace and restores the compiled
-canonical seed (`msme-aircon-v1`). OAuth tokens, API keys, and environment
-credentials are preserved; everything else in the workspace aggregate is replaced.
-
-Factory reset deletes workspace conversations, Knowledge edits, candidates,
-corrections, Eval datasets and artifacts, Telegram events and deliveries,
-calendar deliveries and mappings, outbox jobs, generated voice artifacts, and
-tracked external Google Calendar events. It is irreversible.
-
-This differs from **per-chat reset** in Chat Control, which restores one synthetic
-fixture conversation only and never touches Telegram traffic, Knowledge, Eval, or
-calendar state.
-
-Stop the app and live Telegram processing before using the CLI path. Migration
-`20260718010000_demo_seed_templates.sql` and a compiled seed (`npm run demo:seed`)
-must already exist.
-
-```bash
-KAUNTER_ALLOW_DEMO_RESET=1 \
-LIVE_TELEGRAM_ENABLED=false \
-npm run demo:reset -- \
-  --workspace demo \
-  --seed msme-aircon-v1 \
-  --confirm RESET_DEMO
-```
-
-The browser path uses the same orchestration through `POST /api/demo/reset` and
-requires typing `RESET` in the confirmation dialog. The reset CLI and browser
-action remove mapped Google events, clear pending work, preserve the Google OAuth
-connection, and install the compiled aircon template.
-
-## Telegram
-
-Required values:
-
-```dotenv
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=
-LIVE_TELEGRAM_ENABLED=false
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-KAUNTER_WORKSPACE_ID=demo
-```
-
-Generate the webhook secret with `openssl rand -hex 32`. Register a public HTTPS
-webhook only after `/healthz` and `/readyz` pass. Keep live switches off for a
-test bot unless autonomous replies are intentional.
-
-Telegram delivery fails closed when a send outcome is unknown. Do not blindly
-retry a `sending` delivery because Telegram has no request idempotency key.
-
-## Optional Google Calendar
-
-Enable with:
-
-```dotenv
-GOOGLE_CALENDAR_ENABLED=true
-GOOGLE_CALENDAR_ADMIN_TOKEN=
-GOOGLE_CALENDAR_CLIENT_ID=
-GOOGLE_CALENDAR_CLIENT_SECRET=
-GOOGLE_CALENDAR_REDIRECT_URI=
-GOOGLE_CALENDAR_ID=primary
-GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY=
-GOOGLE_CALENDAR_TIME_ZONE=Asia/Kuala_Lumpur
-```
-
-One admin connects through the server OAuth endpoints. Refresh tokens are
-AES-256-GCM encrypted before Supabase storage. Live booking requires connected
-calendar availability; non-live demos can use the deterministic schedule.
-
-See `docs/calendar-outbox.md`.
-
-## Architecture
-
-```text
-React routes
-  -> typed Zustand actions
-  -> pure domain rules
-  -> same-origin Express API
-  -> validated Supabase workspace aggregate
-       -> OpenAI-compatible agent/judge
-       -> Telegram
-       -> Google Calendar
-       -> ElevenLabs/OpenAI voice
-```
-
-Key libraries:
-
-- React 19, React Router, Zustand
-- Zod
-- CodeMirror 6
-- Radix UI
-- TanStack Table and Recharts
-- Express
-- OpenAI SDK
-- Supabase JS
-- Google APIs
-- Vitest, Testing Library, Playwright, Axe
-
-Key relationships and API boundaries are documented in `PROJECT.md`.
-
-## Candidate release flow
-
-1. Run a failed train Eval case until the failure is committed.
-2. `Analyze failures` becomes available only after that committed train failure;
-   it proposes one exact SOP replacement.
-3. Accept or reject pending line items.
-4. The accepted text becomes an inactive whole-playbook candidate.
-5. `Validate candidate` runs affected train cases, then the complete train and
-   holdout suite.
-6. A full pass enables `Activate`; until then the control reads `Validate first`.
-7. Activation makes the previous active version available to `Roll back`.
-
-Schedule create is conversation-owned: pick `Book for` an existing customer,
-confirm name/channel/contact in the dialog, and enter a service address.
-Calendar location prefers that address over `CALENDAR_LOCATION`.
-
-Approved editor lines use gutter-number color only. Proposal cards disappear
-after decisions, and all correction colors disappear after activation.
-
-## Verification
+Full verification:
 
 ```bash
 npm run verify
-npm run test:e2e
 ```
 
-The verification gate covers lint, TypeScript, unit/integration tests, the
-production build, and browser behavior. Live provider quality, Telegram
-delivery, Google OAuth/event CRUD, and Supabase-side factory reset table cleanup
-still require owner-controlled smoke tests with deployment credentials. The
-Playwright harness exercises the factory reset UI and authoritative browser
-state replacement through an in-memory workspace; migration tests own
-transactional side-table deletion.
+This runs lint, unit and integration tests, TypeScript checks, the production
+build, and Playwright end-to-end tests. Individual commands are available in
+`package.json`.
 
-## Deployment
+## Demo walkthrough
 
-The checked-in `app.yaml` and `Dockerfile` target one DigitalOcean App Platform
-web service backed by Supabase. The server listens on the platform `PORT`,
-serves the Vite build, and exposes `/healthz` and `/readyz`.
+1. Open Chat Control and complete the seeded RM99 booking.
+2. Open the poor-cooling and musty-smell complaint.
+3. Mark the incorrect RM99 answer as wrong.
+4. Open the generated Eval case and run it.
+5. Analyze the failure and review the exact SOP diff in Knowledge.
+6. Accept, validate, and activate the candidate.
+7. Ask the same question again and confirm the RM160 answer.
 
-Never commit `.env`, provider keys, Telegram tokens, Google credentials, or the
-Supabase service-role key. Never expose server secrets through `VITE_*`.
+The full speaking flow is in `docs/kaunterai-youtube-demo-script.md`.
+
+## Reset the demo
+
+The top-right **Reset** action deletes all activity in the fixed `demo`
+workspace and restores `msme-aircon-v1`. It preserves credentials but removes
+conversations, Eval results, Knowledge changes, delivery records, generated
+voice files, and tracked Calendar events.
+
+For the CLI path, stop the app and keep live Telegram disabled:
+
+```bash
+KAUNTER_ALLOW_DEMO_RESET=1 \
+LIVE_TELEGRAM_ENABLED=false \
+npm run demo:reset -- \
+  --workspace demo \
+  --seed msme-aircon-v1 \
+  --confirm RESET_DEMO
+```
+
+Per-chat reset is different: it restores only one synthetic conversation.
+
+## Architecture and deployment
+
+The app is a React client backed by a same-origin Express API and a validated
+Supabase workspace. Optional integrations provide AI, Telegram, voice, and
+Google Calendar.
+
+`Dockerfile` and `app.yaml` target DigitalOcean App Platform. The production
+server listens on `PORT`, serves `dist/`, and exposes `/healthz` and `/readyz`.
+
+See `PROJECT.md` for behavior, data contracts, reset operations, and API
+boundaries.
 
 ## License
 
