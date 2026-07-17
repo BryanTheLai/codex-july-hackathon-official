@@ -118,33 +118,6 @@ async function configuredService(fetcher: typeof fetch) {
 }
 
 describe("Google Calendar service", () => {
-  it("uses FreeBusy to remove occupied demo slots", async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.includes("oauth2.googleapis.com")) {
-        return Response.json({ access_token: "access", token_type: "Bearer" });
-      }
-      return Response.json({
-        calendars: {
-          primary: {
-            busy: [{ start: "2026-07-17T02:30:00.000Z", end: "2026-07-17T03:00:00.000Z" }],
-          },
-        },
-      });
-    });
-    const { service } = await configuredService(fetcher);
-    const result = await service.filterAvailableSlots({
-      slots: [
-        { slotIso: "2026-07-17T10:30:00+08:00" },
-        { slotIso: "2026-07-17T14:00:00+08:00" },
-      ],
-    });
-    expect(result).toEqual({
-      source: "google",
-      slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],
-    });
-  });
-
   it("upserts the service visit and deletes it after a cancellation", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

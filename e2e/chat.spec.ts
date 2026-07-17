@@ -114,7 +114,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
     await expect(
       page
         .getByLabel("Conversation messages")
-        .getByText("That package is wrong. I said it is not cooling and smells musty.", {
+        .getByText("Are u sure? i thought this would cost RM160?", {
           exact: true,
         }),
     ).toBeVisible();

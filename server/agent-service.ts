@@ -198,6 +198,29 @@ function validateEvidence(
   }
 }
 
+function normalizeSandboxEvidencePins(
+  request: AgentRunRequest,
+  result: ProviderAgentResult,
+): ProviderAgentResult {
+  if (request.mode !== "sandbox") return result;
+  const pinnedByFileId = new Map(
+    request.playbookBundle.versions.map((version) => [version.fileId, version]),
+  );
+  return {
+    ...result,
+    evidence: result.evidence.map((item) => {
+      const pinned = pinnedByFileId.get(item.fileId);
+      return pinned?.content.includes(item.excerpt)
+        ? {
+            ...item,
+            versionId: pinned.versionId,
+            contentHash: pinned.contentHash,
+          }
+        : item;
+    }),
+  };
+}
+
 const MAX_TOOL_ROUNDS = 4;
 const MAX_TOOL_CALLS = 8;
 
@@ -411,7 +434,43 @@ Live availability is temporarily unavailable. Do not mention Calendar configurat
         );
       }
     }
-    validateEvidence(request, providerResult);
+    providerResult = normalizeSandboxEvidencePins(request, providerResult);
+    try {
+      validateEvidence(request, providerResult);
+    } catch (error) {
+      if (
+        request.mode !== "sandbox" ||
+        !(error instanceof AgentServiceError) ||
+        error.message !== "Agent evidence is not present in the pinned playbook."
+      ) {
+        throw error;
+      }
+      response = await createResponse(
+        {
+          ...baseInput,
+          instructions: `${baseInput.instructions}
+<evidence_recovery>
+Return the answer again using only exact evidence excerpts copied from the pinned playbook bundle. Use the exact fileId, versionId, and contentHash supplied with each excerpt.
+</evidence_recovery>`,
+          tools: [],
+          toolChoice: "none",
+        },
+        signal,
+      );
+      usage = addUsage(usage, response.usage);
+      if (response.toolCalls?.length) {
+        throw new AgentServiceError(
+          "provider_failed",
+          "Agent requested a tool during evidence recovery.",
+          false,
+        );
+      }
+      providerResult = normalizeSandboxEvidencePins(
+        request,
+        parseProviderResult(response.outputText),
+      );
+      validateEvidence(request, providerResult);
+    }
 
     const result = agentRunResultSchema.safeParse({
       runId: createRunId(),

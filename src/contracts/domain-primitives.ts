@@ -8,6 +8,7 @@ import {
 } from "./constants";
 
 export const revisionSchema = z.number().int().positive();
+export const instantSchema = z.iso.datetime({ offset: true });
 
 export const messageSchema = z.object({
   id: z.string(),
@@ -15,7 +16,7 @@ export const messageSchema = z.object({
   text: z.string(),
   gloss: z.string().optional(),
   language: z.string().optional(),
-  sentAt: z.string(),
+  sentAt: instantSchema,
   outboundVoice: z
     .object({
       deliveryId: z.string().min(1).max(128),
@@ -27,7 +28,7 @@ export const messageSchema = z.object({
 });
 
 export const bookingSchema = z.object({
-  slotIso: z.string(),
+  slotIso: instantSchema,
   reason: z.string(),
   serviceAddress: z.string().trim().min(1).max(256).optional(),
   status: z.enum(BOOKING_STATUSES),

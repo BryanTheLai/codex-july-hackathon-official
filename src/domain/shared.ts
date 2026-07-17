@@ -8,6 +8,7 @@ import type {
   EvalDatasetId,
   MutationResult,
 } from "./types";
+import { MALAYSIA_TIME_ZONE } from "./malaysia-time";
 
 export function cloneState(state: AppState): AppState {
   return structuredClone(state);
@@ -101,7 +102,7 @@ export function systemMessage(text: string, id: string, sentAt: string) {
 
 export function formatKualaLumpurSlot(slotIso: string): string {
   return new Intl.DateTimeFormat("en-MY", {
-    timeZone: "Asia/Kuala_Lumpur",
+    timeZone: MALAYSIA_TIME_ZONE,
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(slotIso));

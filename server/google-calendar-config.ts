@@ -2,6 +2,8 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEq
 
 import { z } from "zod";
 
+import { MALAYSIA_TIME_ZONE } from "../src/domain/malaysia-time";
+
 const disabledSchema = z.object({
   GOOGLE_CALENDAR_ENABLED: z.enum(["true", "false"]).default("false"),
 });
@@ -18,7 +20,9 @@ const enabledSchema = z.object({
   GOOGLE_CALENDAR_ID: z.string().trim().min(1).max(512).default("primary"),
   GOOGLE_CALENDAR_REDIRECT_URI: z.url(),
   GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: z.string().trim().min(1).max(512),
-  GOOGLE_CALENDAR_TIME_ZONE: z.string().trim().min(1).max(128).default("Asia/Kuala_Lumpur"),
+  GOOGLE_CALENDAR_TIME_ZONE: z
+    .literal(MALAYSIA_TIME_ZONE)
+    .default(MALAYSIA_TIME_ZONE),
   CALENDAR_DEFAULT_DURATION_MINUTES: z.coerce.number().int().min(5).max(480).default(30),
   CALENDAR_LOCATION: optionalLocationSchema,
 });

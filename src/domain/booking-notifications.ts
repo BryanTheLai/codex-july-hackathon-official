@@ -1,3 +1,4 @@
+import { MALAYSIA_TIME_ZONE, sameInstant } from "./malaysia-time";
 import { trimOrEmpty } from "./shared";
 import type {
   Booking,
@@ -16,7 +17,7 @@ function bookingSlot(slotIso: string, language: string): string {
       ? "ms-MY"
       : "en-MY";
   return new Intl.DateTimeFormat(locale, {
-    timeZone: "Asia/Kuala_Lumpur",
+    timeZone: MALAYSIA_TIME_ZONE,
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(slotIso));
@@ -112,7 +113,7 @@ function bookingUpdateEvent(
   booking: Booking,
   next: Pick<Booking, "slotIso" | "reason" | "serviceAddress">,
 ): BookingNotificationEvent | null {
-  const slotChanged = booking.slotIso !== next.slotIso;
+  const slotChanged = !sameInstant(booking.slotIso, next.slotIso);
   const detailsChanged =
     booking.reason !== next.reason ||
     booking.serviceAddress !== next.serviceAddress;

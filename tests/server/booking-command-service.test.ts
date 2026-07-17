@@ -5,13 +5,11 @@ import {
   mergeTelegramInboundText,
 } from "../../src/domain";
 import { createBookingCommandService } from "../../server/booking-command-service";
-import type { CalendarAvailability } from "../../server/google-calendar-service";
 import type { OutboxRepository } from "../../server/outbox-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
 async function configuredService(
-  calendarAvailability?: CalendarAvailability,
   outboxRepository?: Pick<OutboxRepository, "enqueue">,
   withBooking = true,
 ) {
@@ -46,7 +44,6 @@ async function configuredService(
     conversation: saved.workspace.state.conversations[0]!,
     repository,
     service: createBookingCommandService({
-      calendarAvailability,
       now: () => "2026-07-17T02:00:00.000Z",
       outboxRepository,
       workspaceId: "demo",
@@ -92,7 +89,7 @@ describe("booking command service", () => {
         await enqueue(input);
       },
     };
-    const { conversation, service } = await configuredService(undefined, outboxRepository);
+    const { conversation, service } = await configuredService(outboxRepository);
 
     await service.execute({
       action: "update",
@@ -119,7 +116,6 @@ describe("booking command service", () => {
       },
     };
     const { conversation, service } = await configuredService(
-      undefined,
       outboxRepository,
       false,
     );
@@ -160,26 +156,49 @@ describe("booking command service", () => {
     ).rejects.toMatchObject({ code: "revision_conflict" });
   });
 
-  it("refuses an admin edit when the connected calendar reports the slot busy", async () => {
-    const filterAvailableSlots = vi.fn(async () => ({ source: "google" as const, slots: [] }));
-    const { conversation, repository, service } = await configuredService({ filterAvailableSlots });
+  it("allows an admin edit when no app booking owns the slot", async () => {
+    const { conversation, service } = await configuredService();
 
-    await expect(
-      service.execute({
-        action: "update",
-        conversationId: conversation.id,
-        expectedBookingRevision: 1,
-        expectedConversationRevision: conversation.revision,
-        reason: "Follow-up",
-        slotIso: "2026-07-17T14:00:00+08:00",
-      }),
-    ).rejects.toMatchObject({
+    await expect(service.execute({
+      action: "update",
+      conversationId: conversation.id,
+      expectedBookingRevision: 1,
+      expectedConversationRevision: conversation.revision,
+      reason: "Follow-up",
+      slotIso: "2026-07-17T14:00:00+08:00",
+    })).resolves.toMatchObject({
+      booking: { slotIso: "2026-07-17T14:00:00+08:00" },
+    });
+  });
+
+  it("refuses an admin edit when another app booking owns the slot", async () => {
+    const { conversation, repository, service } = await configuredService();
+    const loaded = await repository.load("demo");
+    if (!loaded) throw new Error("Workspace is missing");
+    const state = structuredClone(loaded.state);
+    const blocker = state.conversations.find(
+      (candidate) => candidate.id !== conversation.id,
+    );
+    if (!blocker) throw new Error("Blocking conversation is missing");
+    blocker.booking = {
+      reason: "Existing booking",
+      revision: 1,
+      slotIso: "2026-07-17T06:00:00.000Z",
+      status: "approved",
+    };
+    const seeded = await repository.save("demo", loaded.revision, state);
+    if (!seeded.ok) throw new Error("Conflict seed failed");
+
+    await expect(service.execute({
+      action: "update",
+      conversationId: conversation.id,
+      expectedBookingRevision: 1,
+      expectedConversationRevision: conversation.revision,
+      reason: "Follow-up",
+      slotIso: "2026-07-17T14:00:00+08:00",
+    })).rejects.toMatchObject({
       code: "invalid_request",
-      message: "That service slot is no longer available. Choose another time.",
+      message: "That service slot is already booked. Choose another time.",
     });
-    expect(filterAvailableSlots).toHaveBeenCalledWith({
-      slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],
-    });
-    expect((await repository.load("demo"))?.revision).toBe(2);
   });
 });

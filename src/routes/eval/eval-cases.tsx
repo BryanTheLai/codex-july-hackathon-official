@@ -43,11 +43,26 @@ function SourceLabel({ evalCase }: { evalCase: EvalCase }) {
   return "Synthetic scenario";
 }
 
-function Result({ evalCase, running }: { evalCase: EvalCase; running: boolean }) {
+function Result({
+  evalCase,
+  queued,
+  running,
+}: {
+  evalCase: EvalCase;
+  queued: boolean;
+  running: boolean;
+}) {
   if (running) {
     return (
       <span aria-live="polite" className="eval-result eval-result--running">
         <LoaderCircle aria-hidden="true" size={14} /> Replaying...
+      </span>
+    );
+  }
+  if (queued) {
+    return (
+      <span aria-live="polite" className="eval-result eval-result--queued">
+        Queued...
       </span>
     );
   }
@@ -139,6 +154,7 @@ export type EvalCasesProps = {
   cases: EvalCase[];
   dataset: EvalDataset;
   mobile: boolean;
+  queuedCaseIds: ReadonlySet<EvalCaseId>;
   runBlocked: boolean;
   runningCaseId: EvalCaseId | null;
   selectedCaseId: EvalCaseId | null;
@@ -194,6 +210,7 @@ export function EvalCases(props: EvalCasesProps) {
         {table.getRowModel().rows.map((row) => {
           const evalCase = row.original;
           const running = props.runningCaseId === evalCase.id;
+          const queued = props.queuedCaseIds.has(evalCase.id);
           return (
             <article
               aria-label={evalCase.title}
@@ -216,7 +233,7 @@ export function EvalCases(props: EvalCasesProps) {
                     <SourceLabel evalCase={evalCase} /> · <SplitLabel split={evalCase.split} />
                   </span>
                 </div>
-                <Result evalCase={evalCase} running={running} />
+                <Result evalCase={evalCase} queued={queued} running={running} />
               </header>
               <div className="eval-card__context">
                 <CaseTypeLabel type={evalCase.type} /> · {evalCase.language}
@@ -266,6 +283,7 @@ export function EvalCases(props: EvalCasesProps) {
           {table.getRowModel().rows.map((row) => {
             const evalCase = row.original;
             const running = props.runningCaseId === evalCase.id;
+            const queued = props.queuedCaseIds.has(evalCase.id);
             return (
               <tr
                 className={[
@@ -289,7 +307,7 @@ export function EvalCases(props: EvalCasesProps) {
                   <CaseTypeLabel type={evalCase.type} />
                   <span className="eval-table__meta">{evalCase.language}</span>
                 </td>
-                <td><Result evalCase={evalCase} running={running} /></td>
+                <td><Result evalCase={evalCase} queued={queued} running={running} /></td>
                 <td>
                   <CaseActions
                     evalCase={evalCase}

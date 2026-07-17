@@ -231,7 +231,7 @@ describe("server-backed Eval browser orchestration", () => {
     });
   });
 
-  it("runs cases sequentially and keeps committed evidence after the first failure", async () => {
+  it("continues running later cases after one case fails", async () => {
     const { evalClient, store } = await setup({
       failCaseId: "case-aircon-rate-card-holdout",
     });
@@ -241,7 +241,10 @@ describe("server-backed Eval browser orchestration", () => {
       .runEvalSuite("dataset-aircon-ops");
 
     expect(result.ok).toBe(false);
-    expect(evalClient.runCase).toHaveBeenCalledTimes(4);
+    expect(result).toMatchObject({
+      error: expect.stringContaining("case-aircon-rate-card-holdout"),
+    });
+    expect(evalClient.runCase).toHaveBeenCalledTimes(5);
     expect(
       vi.mocked(evalClient.runCase).mock.calls.map(
         ([request]) => request.caseId,
@@ -251,9 +254,10 @@ describe("server-backed Eval browser orchestration", () => {
       "case-aircon-selection-train",
       "case-aircon-confirm-train",
       "case-aircon-rate-card-holdout",
+      "case-aircon-selection-holdout",
     ]);
     const dataset = store.getState().state.evalDatasets[0]!;
-    expect(dataset.runHistory).toHaveLength(3);
+    expect(dataset.runHistory).toHaveLength(4);
     expect(
       dataset.cases.find(
         (evalCase) => evalCase.id === "case-aircon-selection-train",
@@ -264,6 +268,21 @@ describe("server-backed Eval browser orchestration", () => {
         (evalCase) => evalCase.id === "case-aircon-rate-card-holdout",
       )?.actualSyntheticOutput,
     ).toBeUndefined();
+    expect(
+      dataset.cases.find(
+        (evalCase) => evalCase.id === "case-aircon-selection-holdout",
+      )?.actualSyntheticOutput,
+    ).toContain("Server candidate");
+  });
+
+  it("runs and commits all five seed cases", async () => {
+    const { evalClient, store } = await setup();
+
+    await expect(
+      store.getState().runEvalSuite("dataset-aircon-ops"),
+    ).resolves.toMatchObject({ ok: true });
+    expect(evalClient.runCase).toHaveBeenCalledTimes(5);
+    expect(store.getState().state.evalDatasets[0]!.runHistory).toHaveLength(5);
   });
 
   it("preserves newer Chat and Knowledge state when server evidence arrives", async () => {

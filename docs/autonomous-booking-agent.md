@@ -78,7 +78,7 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |
-| `list_available_slots` | local date or `null` | workspace and date are valid; live mode requires connected Google Calendar | Returns deterministic slots in demo mode or Google-filtered slots in live mode |
+| `list_available_slots` | local date or `null` | workspace and date are valid | Returns slots not owned by approved workspace bookings |
 | `create_booking` | returned ISO slot, reason, service address | conversation is current; no confirmed booking; slot is still free; address is present | Saves an approved booking with `serviceAddress` and enqueues Google Calendar sync |
 | `reschedule_booking` | returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking and enqueues Google Calendar sync |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |
@@ -96,7 +96,7 @@ No dependency was added for this feature. The MVP uses the repository's existing
 | Input and tool validation | `zod` 4.x | Strict request and booking arguments |
 | Webhook/API | Express 5 | Telegram ingress and delivery endpoints |
 | Durable state | Supabase Postgres | Workspace CAS, inbound-event/delivery records, outbox, and optional Google sync ledger |
-| Calendar | Native `fetch` + Google Calendar API | Optional single-admin FreeBusy plus event create/update/delete; `ical-generator` still makes the Telegram invite |
+| Calendar | Native `fetch` + Google Calendar API | Optional write-only event create/update/delete; `ical-generator` still makes the Telegram invite |
 | UI | React 19 | Shows the manual-run autonomous action trace |
 
 Required live path switches remain `LIVE_TELEGRAM_ENABLED=true` and `LIVE_AGENT_ENABLED=true`, plus the existing Supabase, Telegram, and `LLM_*` values. The local suite proves the complete contract with deterministic providers; a real inbound Telegram-to-model-to-receipt smoke still requires a user-controlled test chat.
@@ -129,7 +129,7 @@ These are the 20 candidate approaches considered for autonomous booking. The sel
 | 4 | One overloaded `manage_booking` tool | Rejected: unclear action semantics and weak evaluation. |
 | 5 | Four atomic booking tools | Selected: clear authority and exact test cases. |
 | 6 | Add a full field-service ERP integration now | Deferred: large and not needed for the demo. |
-| 7 | Add optional Google Calendar availability | Selected after the core demo: one admin OAuth connection filters the existing candidate slots without replacing the fallback scheduler. |
+| 7 | Use Google Calendar as the availability source | Rejected after testing: personal calendar events must not control app capacity; Google remains an outbound booking copy. |
 | 8 | Use a deterministic in-app availability grid | Selected: real state mutation without a new dependency. |
 | 9 | Let the model invent a slot | Rejected: causes false confirmations. |
 | 10 | Let the model choose only returned slots | Selected: server rechecks availability at commit time. |

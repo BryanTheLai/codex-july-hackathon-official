@@ -13,8 +13,8 @@ import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 const now = () => new Date("2026-07-17T01:00:00.000Z");
 
 async function configuredWorkspace(options: {
+  now?: () => Date;
   outboxRepository?: OutboxRepository;
-  requireConnectedCalendar?: boolean;
 } = {}) {
   const inbound = mergeTelegramInboundText(await createCanonicalServerState(), {
     channel: "telegram",
@@ -38,9 +38,8 @@ async function configuredWorkspace(options: {
   if (!conversation) throw new Error("Telegram conversation is missing");
   return {
     executor: createAutonomousBookingToolExecutor({
-      now,
+      now: options.now ?? now,
       outboxRepository: options.outboxRepository,
-      requireConnectedCalendar: options.requireConnectedCalendar,
       workspaceId: "demo",
       workspaceRepository: repository,
     }),
@@ -57,12 +56,10 @@ async function configuredWorkspace(options: {
 }
 
 describe("autonomous booking tools", () => {
-  it("never presents or confirms synthetic slots as live availability", async () => {
-    const { executor, request } = await configuredWorkspace({
-      requireConnectedCalendar: true,
-    });
+  it("uses workspace bookings instead of Google Calendar for availability", async () => {
+    const { executor, request } = await configuredWorkspace();
 
-    const unavailable = await executor({
+    const availability = await executor({
       request,
       call: {
         callId: "call-live-list-1",
@@ -70,36 +67,109 @@ describe("autonomous booking tools", () => {
         argumentsJson: '{"date":null}',
       },
     });
-    expect(unavailable).toMatchObject({
-      status: "failed",
+    expect(availability).toMatchObject({
+      status: "completed",
       output: {
-        error_type: "provider_failed",
-        message: "Live availability is temporarily unavailable.",
-        reason_code: "availability_unavailable",
-        success: false,
-        suggestion: expect.stringContaining("remain active"),
+        action: "availability_listed",
+        availabilitySource: "workspace",
+        success: true,
+        slots: expect.arrayContaining([
+          expect.objectContaining({ slotIso: expect.stringContaining("2026-07-18") }),
+        ]),
       },
     });
-    expect(JSON.stringify(unavailable.output)).not.toMatch(/Google Calendar|ask staff/i);
+  });
+
+  it("uses the workspace fixture clock when listing demo slots", async () => {
+    const { executor, request } = await configuredWorkspace({
+      now: () => new Date("2026-07-18T12:00:00.000Z"),
+    });
+
     await expect(
       executor({
         request,
         call: {
-          callId: "call-live-create-1",
+          callId: "call-fixture-time-1",
+          name: "list_available_slots",
+          argumentsJson: '{"date":"2026-07-18"}',
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      output: {
+        availabilitySource: "workspace",
+        slots: expect.arrayContaining([
+          expect.objectContaining({ slotIso: "2026-07-18T09:00:00+08:00" }),
+        ]),
+      },
+    });
+  });
+
+  it("treats equivalent ISO timestamps as the same reserved slot", async () => {
+    const { executor, repository, request } = await configuredWorkspace();
+    const workspace = await repository.load("demo");
+    if (!workspace) throw new Error("Workspace is missing");
+    const state = structuredClone(workspace.state);
+    const blocker = state.conversations.find(
+      (candidate) => candidate.id !== request.conversation.id,
+    );
+    if (!blocker) throw new Error("Blocking conversation is missing");
+    blocker.booking = {
+      reason: "Existing booking",
+      revision: 1,
+      slotIso: "2026-07-18T01:00:00.000Z",
+      status: "approved",
+    };
+    const seeded = await repository.save("demo", workspace.revision, state);
+    if (!seeded.ok) throw new Error("Conflict seed failed");
+
+    const availability = await executor({
+      request,
+      call: {
+        callId: "call-equivalent-slot-1",
+        name: "list_available_slots",
+        argumentsJson: '{"date":"2026-07-18"}',
+      },
+    });
+    expect(availability.status).toBe("completed");
+    expect(availability.output).toMatchObject({
+      slots: expect.not.arrayContaining([
+        expect.objectContaining({ slotIso: "2026-07-18T09:00:00+08:00" }),
+      ]),
+    });
+  });
+
+  it("accepts a returned Malaysian slot expressed as the equivalent UTC instant", async () => {
+    const { executor, request } = await configuredWorkspace();
+    const availability = await executor({
+      request,
+      call: {
+        callId: "call-equivalent-create-list",
+        name: "list_available_slots",
+        argumentsJson: '{"date":"2026-07-18"}',
+      },
+    });
+    const listedSlot = (
+      availability.output as { slots?: Array<{ slotIso: string }> }
+    ).slots?.[0]?.slotIso;
+    if (!listedSlot) throw new Error("No slot returned");
+
+    await expect(
+      executor({
+        request,
+        call: {
+          callId: "call-equivalent-create",
           name: "create_booking",
           argumentsJson: JSON.stringify({
-            slotIso: "2026-07-17T02:00:00.000Z",
-            reason: "Routine consultation",
+            reason: "General service",
             serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
+            slotIso: new Date(listedSlot).toISOString(),
           }),
         },
       }),
     ).resolves.toMatchObject({
-      status: "failed",
-      output: {
-        error_type: "provider_failed",
-        success: false,
-      },
+      status: "completed",
+      output: { action: "booking_created", success: true },
     });
   });
 
@@ -344,7 +414,7 @@ describe("autonomous booking tools", () => {
 
   it("reschedules and cancels a confirmed appointment autonomously", async () => {
     const { executor, repository, request } = await configuredWorkspace();
-    const firstSlot = "2026-07-17T10:30:00+08:00";
+    const firstSlot = "2026-07-18T10:30:00+08:00";
     await expect(
       executor({
         request,
@@ -379,7 +449,7 @@ describe("autonomous booking tools", () => {
           callId: "call-reschedule-1",
           name: "reschedule_booking",
           argumentsJson:
-            '{"slotIso":"2026-07-17T14:00:00+08:00","reason":"Routine consultation"}',
+            '{"slotIso":"2026-07-18T14:00:00+08:00","reason":"Routine consultation"}',
         },
       }),
     ).resolves.toMatchObject({

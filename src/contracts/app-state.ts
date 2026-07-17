@@ -15,6 +15,7 @@ import {
   bookingSchema,
   evalCaseSourceSchema,
   evalCaseTypeSchema,
+  instantSchema,
   messageSchema,
   revisionSchema,
 } from "./domain-primitives";
@@ -31,6 +32,7 @@ export {
   bookingSchema,
   evalCaseSourceSchema,
   evalCaseTypeSchema,
+  instantSchema,
   messageSchema,
   revisionSchema,
 } from "./domain-primitives";
@@ -50,7 +52,7 @@ export const conversationFields = {
   urgency: z.enum(URGENCY_LEVELS),
   agentMode: z.enum(AGENT_MODES),
   workflowStatus: z.enum(WORKFLOW_STATUSES),
-  resolvedAt: z.string().nullable(),
+  resolvedAt: instantSchema.nullable(),
   labels: z.array(z.string()),
   triageGuidance: z.string().optional(),
   messages: z.array(messageSchema),
@@ -82,7 +84,7 @@ export const playbookSchema = z.object({
   title: z.string(),
   savedContent: z.string(),
   draft: z.string().optional(),
-  updatedAt: z.string(),
+  updatedAt: instantSchema,
   protected: z.boolean(),
 });
 
@@ -187,7 +189,7 @@ export const evalCaseSchema = evalCaseObjectSchema
 
 export const suiteSnapshotSchema = z.object({
   id: z.string(),
-  createdAt: z.string(),
+  createdAt: instantSchema,
   overallPassPercent: z.number(),
   trainPassPercent: z.number(),
   holdoutPassPercent: z.number(),
@@ -198,7 +200,7 @@ export const runHistorySchema = z.object({
   id: z.string(),
   caseId: z.string(),
   datasetId: z.string(),
-  ranAt: z.string(),
+  ranAt: instantSchema,
   candidateVersion: z.number(),
   pass: z.boolean(),
   verdict: z.enum(EVAL_VERDICTS),
@@ -288,7 +290,7 @@ export const datasetSchema = z.object({
 
 const domainStateFields = {
   schemaVersion: z.literal(SCHEMA_VERSION),
-  fixtureTime: z.string(),
+  fixtureTime: instantSchema,
   conversations: z.array(conversationSchema),
   playbookFolders: z.array(z.string()).default(["playbooks", "playbooks/data"]),
   playbookFiles: z.array(playbookSchema),
@@ -409,8 +411,8 @@ export const playbookBundleVersionSchema = z
     files: z.array(playbookFileSnapshotSchema).min(1),
     bundleHash: z.string(),
     passingSuiteId: z.string().nullable(),
-    createdAt: z.string(),
-    activatedAt: z.string().nullable(),
+    createdAt: instantSchema,
+    activatedAt: instantSchema.nullable(),
   })
   .strict();
 
@@ -512,7 +514,7 @@ export function toDomainStatePayload(state: z.infer<typeof appStateSchema>) {
 
 export const persistedAppStateEnvelopeSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
-  serializedAt: z.string(),
+  serializedAt: instantSchema,
   state: appStateSchema,
 });
 

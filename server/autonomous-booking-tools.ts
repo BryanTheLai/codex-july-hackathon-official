@@ -7,18 +7,22 @@ import type {
   EvalCasePayload,
   ServerDomainStatePayload,
 } from "../src/contracts/app-state";
+import {
+  MALAYSIA_UTC_OFFSET,
+  malaysiaCalendarDate,
+  nextMalaysiaCalendarDate,
+} from "../src/domain/malaysia-time";
 import type {
   AgentProviderFunctionTool,
   AgentToolExecution,
   AgentToolExecutor,
 } from "./agent-service";
-import type { CalendarAvailability } from "./google-calendar-service";
+import { bookingSlotTimestamp } from "./booking-slot";
 import type { OutboxRepository } from "./outbox-repository";
 import type { WorkspaceRepository } from "./workspace-repository";
 
 const SLOT_TIMES = ["09:00", "10:30", "14:00", "15:30"] as const;
 const MAX_CAS_ATTEMPTS = 3;
-const KUALA_LUMPUR_TIME_ZONE = "Asia/Kuala_Lumpur";
 
 const listSlotsSchema = z
   .object({
@@ -150,7 +154,7 @@ type ToolSuccess = {
   booking?: BookingPayload;
   conversationRevision: number | null;
   evalCaseId?: string;
-  availabilitySource?: "demo" | "google";
+  availabilitySource?: "workspace";
   slots?: Array<{ slotIso: string }>;
 };
 
@@ -182,15 +186,6 @@ function failure(
   };
 }
 
-function availabilityUnavailable(): AgentToolExecution {
-  return failure(
-    "provider_failed",
-    "Live availability is temporarily unavailable.",
-    "Tell the customer a time cannot be confirmed yet, continue collecting service details, and remain active.",
-    "availability_unavailable",
-  );
-}
-
 function success(
   summary: string,
   output: ToolSuccess,
@@ -211,25 +206,8 @@ function feedbackCaseId(callId: string): string {
   return `case-agent-feedback-${createHash("sha256").update(callId).digest("hex").slice(0, 24)}`;
 }
 
-function localDate(now: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: KUALA_LUMPUR_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
-}
-
-function nextDate(date: string): string {
-  const value = new Date(`${date}T00:00:00.000Z`);
-  value.setUTCDate(value.getUTCDate() + 1);
-  return value.toISOString().slice(0, 10);
-}
-
 function slotIso(date: string, time: (typeof SLOT_TIMES)[number]): string {
-  return `${date}T${time}:00+08:00`;
+  return `${date}T${time}:00${MALAYSIA_UTC_OFFSET}`;
 }
 
 function availableSlots(
@@ -244,23 +222,23 @@ function availableSlots(
         (booking): booking is BookingPayload =>
           booking?.status === "approved",
       )
-      .map((booking) => booking.slotIso),
+      .map((booking) => bookingSlotTimestamp(booking.slotIso)),
   );
-  let date = requestedDate ?? localDate(now);
+  let date = requestedDate ?? malaysiaCalendarDate(now.toISOString());
   const slots: Array<{ slotIso: string }> = [];
   for (let offset = 0; offset < 8 && slots.length < 8; offset += 1) {
     for (const time of SLOT_TIMES) {
       const candidate = slotIso(date, time);
       if (
         new Date(candidate) > now &&
-        !reserved.has(candidate) &&
+        !reserved.has(bookingSlotTimestamp(candidate)) &&
         (requestedDate === null || date === requestedDate)
       ) {
         slots.push({ slotIso: candidate });
       }
     }
     if (requestedDate !== null) break;
-    date = nextDate(date);
+    date = nextMalaysiaCalendarDate(date);
   }
   return slots;
 }
@@ -281,19 +259,15 @@ function isBookingToolName(name: string): name is BookingToolName {
 }
 
 type AutonomousBookingToolOptions = {
-  calendarAvailability?: CalendarAvailability;
   now?: () => Date;
   outboxRepository?: OutboxRepository;
-  requireConnectedCalendar?: boolean;
   workspaceId: string;
   workspaceRepository: WorkspaceRepository;
 };
 
 export function createAutonomousBookingToolExecutor({
-  calendarAvailability,
   now = () => new Date(),
   outboxRepository,
-  requireConnectedCalendar = false,
   workspaceId,
   workspaceRepository,
 }: AutonomousBookingToolOptions): AgentToolExecutor {
@@ -334,20 +308,9 @@ export function createAutonomousBookingToolExecutor({
       const demoSlots = availableSlots(
         workspace.state,
         parsed.value.date,
-        now(),
+        new Date(workspace.state.fixtureTime),
       );
-      let availability: { source: "demo" | "google"; slots: typeof demoSlots };
-      try {
-        availability = calendarAvailability
-          ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
-          : { source: "demo", slots: demoSlots };
-      } catch {
-        return availabilityUnavailable();
-      }
-      if (requireConnectedCalendar && availability.source !== "google") {
-        return availabilityUnavailable();
-      }
-      const slots = availability.slots;
+      const slots = demoSlots;
       const summary =
         slots.length === 0
           ? parsed.value.date
@@ -360,7 +323,7 @@ export function createAutonomousBookingToolExecutor({
           success: true,
           action: "availability_listed",
           conversationRevision: null,
-          availabilitySource: availability.source,
+          availabilitySource: "workspace",
           slots,
         },
       );
@@ -552,22 +515,17 @@ export function createAutonomousBookingToolExecutor({
         const argumentsValue = parsed.value as z.infer<typeof bookingArgumentsSchema>;
         const demoSlots = availableSlots(
           workspace.state,
-          argumentsValue.slotIso.slice(0, 10),
-          now(),
+          malaysiaCalendarDate(argumentsValue.slotIso),
+          new Date(workspace.state.fixtureTime),
         );
-        let availability: { source: "demo" | "google"; slots: typeof demoSlots };
-        try {
-          availability = calendarAvailability
-            ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
-            : { source: "demo", slots: demoSlots };
-        } catch {
-          return availabilityUnavailable();
-        }
-        if (requireConnectedCalendar && availability.source !== "google") {
-          return availabilityUnavailable();
-        }
-        const slots = availability.slots;
-        if (!slots.some((slot) => slot.slotIso === argumentsValue.slotIso)) {
+        const slots = demoSlots;
+        if (
+          !slots.some(
+            (slot) =>
+              bookingSlotTimestamp(slot.slotIso) ===
+              bookingSlotTimestamp(argumentsValue.slotIso),
+          )
+        ) {
           return failure(
             "slot_unavailable",
             "That service slot is no longer available.",
@@ -597,7 +555,8 @@ export function createAutonomousBookingToolExecutor({
             revision: (conversation.booking?.revision ?? 0) + 1,
           };
           action = "booking_created";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed a service visit.`;
+          auditText =
+            "Autonomous agent checked workspace availability and confirmed a service visit.";
         } else {
           if (!conversation.booking || conversation.booking.status !== "approved") {
             return failure(
@@ -613,7 +572,8 @@ export function createAutonomousBookingToolExecutor({
             revision: conversation.booking.revision + 1,
           };
           action = "booking_rescheduled";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the service visit.`;
+          auditText =
+            "Autonomous agent checked workspace availability and rescheduled the service visit.";
         }
       }
 

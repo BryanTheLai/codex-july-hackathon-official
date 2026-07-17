@@ -362,13 +362,13 @@ export function createWorkspaceCommandService({
               })),
               failure: {
                 caseId: failedRun.caseId,
-                candidateResponse: "A staff draft failed the listed criteria.",
+                candidateResponse: failedRun.candidateResponse,
                 criteria: failedRun.judgeResult.criterionResults
                   .filter((criterion) => criterion.verdict !== "pass")
                   .map((criterion) => ({
                     id: criterion.criterionId,
                     reason: criterion.reason,
-                    evidence: null,
+                    evidence: criterion.evidence,
                   })),
               },
             },

@@ -6,7 +6,11 @@ import {
   googleCalendarStatusSchema,
   type GoogleCalendarStatus,
 } from "../../contracts/calendar";
-import type { Conversation, ConversationId } from "../../domain";
+import {
+  malaysiaCalendarDate,
+  type Conversation,
+  type ConversationId,
+} from "../../domain";
 import { formatBookingSlot, scheduleDays } from "./chat-model";
 
 export function SchedulePane({
@@ -39,7 +43,9 @@ export function SchedulePane({
       conversation.booking.status === "rejected" ||
       conversation.booking.status === "cancelled",
   );
-  const firstBookingDate = bookings[0]?.booking?.slotIso.slice(0, 10);
+  const firstBookingDate = bookings[0]?.booking
+    ? malaysiaCalendarDate(bookings[0].booking.slotIso)
+    : undefined;
   const [selectedDate, setSelectedDate] = useState(firstBookingDate ?? days[0]?.isoDate ?? "");
   const [bookingCandidateId, setBookingCandidateId] = useState(
     bookingCandidates[0]?.id ?? "",
@@ -132,7 +138,9 @@ export function SchedulePane({
   }, [bookingCandidateId, bookingCandidates]);
 
   const selectedBookings = bookings.filter(
-    (conversation) => conversation.booking?.slotIso.slice(0, 10) === selectedDate,
+    (conversation) =>
+      conversation.booking &&
+      malaysiaCalendarDate(conversation.booking.slotIso) === selectedDate,
   );
   const selectedDay = days.find((day) => day.isoDate === selectedDate);
   const calendarStatusControl = (
@@ -335,12 +343,14 @@ export function SchedulePane({
                 {
                   bookings.filter(
                     (conversation) =>
-                      conversation.booking?.slotIso.slice(0, 10) === day.isoDate,
+                      conversation.booking &&
+                      malaysiaCalendarDate(conversation.booking.slotIso) === day.isoDate,
                   ).length
                 }{" "}
                 {bookings.filter(
                   (conversation) =>
-                    conversation.booking?.slotIso.slice(0, 10) === day.isoDate,
+                    conversation.booking &&
+                    malaysiaCalendarDate(conversation.booking.slotIso) === day.isoDate,
                 ).length === 1
                   ? "booking"
                   : "bookings"}

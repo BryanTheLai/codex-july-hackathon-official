@@ -6,7 +6,7 @@ import {
   type BookingCommandRequest,
   type BookingCommandResult,
 } from "../src/contracts/api";
-import type { CalendarAvailability } from "./google-calendar-service";
+import { bookingSlotTimestamp } from "./booking-slot";
 import type { OutboxRepository } from "./outbox-repository";
 import type { WorkspaceRepository } from "./workspace-repository";
 
@@ -29,7 +29,6 @@ function auditMessageId(input: BookingCommandRequest): string {
 }
 
 export function createBookingCommandService(input: {
-  calendarAvailability?: CalendarAvailability;
   now?: () => string;
   outboxRepository?: Pick<OutboxRepository, "enqueue">;
   workspaceId: string;
@@ -104,16 +103,20 @@ export function createBookingCommandService(input: {
           "Only a confirmed booking can be updated or cancelled.",
         );
       }
-      if (request.action !== "cancel" && input.calendarAvailability) {
-        const availability = await input.calendarAvailability.filterAvailableSlots({
-          slots: [{ slotIso: request.slotIso }],
-        });
-        if (availability.slots.length === 0) {
+      if (
+        request.action !== "cancel" &&
+        workspace.state.conversations.some(
+          (candidate) =>
+            candidate.id !== conversation.id &&
+            candidate.booking?.status === "approved" &&
+            bookingSlotTimestamp(candidate.booking.slotIso) ===
+              bookingSlotTimestamp(request.slotIso),
+        )
+      ) {
           throw new BookingCommandServiceError(
             "invalid_request",
-            "That service slot is no longer available. Choose another time.",
+            "That service slot is already booked. Choose another time.",
           );
-        }
       }
       const booking = request.action === "create"
         ? {

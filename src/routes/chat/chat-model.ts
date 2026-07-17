@@ -1,4 +1,11 @@
-import type { Conversation, EvalDataset, Message } from "../../domain";
+import {
+  MALAYSIA_TIME_ZONE,
+  MALAYSIA_UTC_OFFSET,
+  malaysiaCalendarDate,
+  type Conversation,
+  type EvalDataset,
+  type Message,
+} from "../../domain";
 
 export type ChatFilter = "all" | "needs_review" | "ai_handling" | "resolved";
 export type ChatView = "inbox" | "schedule";
@@ -99,7 +106,7 @@ export function formatTimestamp(iso: string): string {
     hour12: false,
     minute: "2-digit",
     month: "short",
-    timeZone: "Asia/Kuala_Lumpur",
+    timeZone: MALAYSIA_TIME_ZONE,
     year: "numeric",
   }).format(new Date(iso)) + " MYT";
 }
@@ -111,7 +118,7 @@ export function formatFullTimestamp(iso: string): string {
     hour12: false,
     minute: "2-digit",
     month: "short",
-    timeZone: "Asia/Kuala_Lumpur",
+    timeZone: MALAYSIA_TIME_ZONE,
     year: "numeric",
   }).format(new Date(iso))} MYT`;
 }
@@ -123,7 +130,7 @@ export function formatBookingSlot(iso: string): string {
     hour12: false,
     minute: "2-digit",
     month: "short",
-    timeZone: "Asia/Kuala_Lumpur",
+    timeZone: MALAYSIA_TIME_ZONE,
     weekday: "short",
   }).format(new Date(iso));
 }
@@ -133,14 +140,16 @@ export function triageGuidance(conversation: Conversation): string {
 }
 
 export function scheduleDays(fixtureTime: string) {
-  const start = new Date(`${fixtureTime.slice(0, 10)}T12:00:00+08:00`);
+  const start = new Date(
+    `${malaysiaCalendarDate(fixtureTime)}T12:00:00${MALAYSIA_UTC_OFFSET}`,
+  );
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start.getTime() + index * 86_400_000);
-    const isoDate = date.toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+    const isoDate = malaysiaCalendarDate(date.toISOString());
     const label = new Intl.DateTimeFormat("en-MY", {
       day: "numeric",
       month: "short",
-      timeZone: "Asia/Kuala_Lumpur",
+      timeZone: MALAYSIA_TIME_ZONE,
       weekday: "short",
     }).format(date);
     return { isoDate, label };

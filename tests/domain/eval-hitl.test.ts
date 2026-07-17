@@ -76,12 +76,19 @@ describe("HITL import", () => {
       {
         kind: "hitl",
         conversationId: "convo-aircon-resolved",
-        messageIds: ["resolved-1", "resolved-2"],
+        messageIds: [
+          "resolved-1",
+          "resolved-2",
+          "resolved-3",
+          "resolved-4",
+          "resolved-5",
+          "resolved-6",
+        ],
       },
       {
         kind: "hitl",
         conversationId: "convo-aircon-booking",
-        messageIds: ["book-1", "book-2", bookingReviewId],
+        messageIds: ["book-1", "book-2", "book-3", "book-4", bookingReviewId],
       },
     ]);
   });

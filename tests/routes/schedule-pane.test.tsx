@@ -72,4 +72,44 @@ describe("Schedule pane calendar connection", () => {
     );
     expect(screen.getByLabelText("Calendar admin token")).toHaveValue("");
   });
+
+  it("groups UTC booking instants under their Malaysian calendar date", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse({
+          calendarId: null,
+          configured: false,
+          mode: "demo",
+          status: "disabled",
+        }),
+      ),
+    );
+    const state = createCanonicalSeed();
+    state.conversations[0] = {
+      ...state.conversations[0]!,
+      booking: {
+        reason: "Overnight service",
+        revision: 1,
+        slotIso: "2026-07-17T18:00:00.000Z",
+        status: "approved",
+      },
+    };
+
+    render(
+      <SchedulePane
+        compact={false}
+        conversations={state.conversations}
+        fixtureTime={state.fixtureTime}
+        onCreateBooking={vi.fn()}
+        onEditBooking={vi.fn()}
+        onOpenConversation={vi.fn()}
+        onSendCalendar={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /18 Jul.*1 booking/i }),
+    ).toBeInTheDocument();
+  });
 });

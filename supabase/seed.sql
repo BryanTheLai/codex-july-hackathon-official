@@ -30,12 +30,32 @@ insert into public.demo_seed_templates (
           "id": "book-1",
           "role": "patient",
           "text": "Saya nak servis biasa untuk satu aircond wall unit 1.5 HP di SS2.",
+          "gloss": "I want a general service for one 1.5 HP wall-mounted air conditioner in SS2.",
+          "language": "Malay",
           "sentAt": "2026-07-18T08:00:00+08:00"
         },
         {
           "id": "book-2",
           "role": "synthetic_agent",
-          "text": "General service is RM99 per unit. Which date and time do you prefer?",
+          "text": "Servis biasa ialah RM99 untuk setiap unit. Tarikh dan masa mana yang anda mahu?",
+          "gloss": "General service is RM99 per unit. Which date and time do you prefer?",
+          "language": "Malay",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "book-3",
+          "role": "patient",
+          "text": "Sabtu pukul 10 pagi boleh? Alamat saya di SS2.",
+          "gloss": "Would Saturday at 10 AM work? My address is in SS2.",
+          "language": "Malay",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "book-4",
+          "role": "synthetic_agent",
+          "text": "Boleh. Sila beri alamat penuh dan sahkan slot Sabtu pukul 10 pagi sebelum saya buat tempahan.",
+          "gloss": "Yes. Please provide the full address and confirm Saturday at 10 AM before I create the booking.",
+          "language": "Malay",
           "sentAt": "2026-07-18T08:00:00+08:00"
         }
       ]
@@ -59,18 +79,21 @@ insert into public.demo_seed_templates (
           "id": "complaint-1",
           "role": "patient",
           "text": "My 1.5 HP wall unit is not cooling and smells musty.",
+          "language": "English",
           "sentAt": "2026-07-18T08:00:00+08:00"
         },
         {
           "id": "complaint-2",
           "role": "synthetic_agent",
           "text": "General service is RM99 per unit.",
+          "language": "English",
           "sentAt": "2026-07-18T08:00:00+08:00"
         },
         {
           "id": "complaint-3",
           "role": "patient",
-          "text": "That package is wrong. I said it is not cooling and smells musty.",
+          "text": "Are u sure? i thought this would cost RM160?",
+          "language": "English",
           "sentAt": "2026-07-18T08:00:00+08:00"
         }
       ]
@@ -81,7 +104,7 @@ insert into public.demo_seed_templates (
         "name": "Mei Demo",
         "phone": "+601100000103",
         "medicalRecordNumber": "",
-        "preferredLanguage": "Malay"
+        "preferredLanguage": "Mandarin"
       },
       "channel": "Telegram",
       "urgency": "routine",
@@ -93,17 +116,53 @@ insert into public.demo_seed_templates (
         {
           "id": "resolved-1",
           "role": "patient",
-          "text": "Terima kasih, servis sudah selesai.",
+          "text": "你好，我想预约一台1.5匹壁挂式空调的普通清洗。",
+          "gloss": "Hello, I would like to book a general service for one 1.5 HP wall-mounted air conditioner.",
+          "language": "Mandarin",
           "sentAt": "2026-07-18T08:00:00+08:00"
         },
         {
           "id": "resolved-2",
           "role": "staff",
-          "text": "Sama-sama. Job ini ditutup.",
+          "text": "普通清洗每台RM99。请问您想预约哪一天？",
+          "gloss": "General service is RM99 per unit. Which day would you prefer?",
+          "language": "Mandarin",
           "sentAt": "2026-07-18T08:00:00+08:00"
         },
         {
           "id": "resolved-3",
+          "role": "patient",
+          "text": "这周六上午可以吗？地址在SS2。",
+          "gloss": "Would Saturday morning work? The address is in SS2.",
+          "language": "Mandarin",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "resolved-4",
+          "role": "staff",
+          "text": "可以，已经为您安排好了。",
+          "gloss": "Yes, it has been arranged for you.",
+          "language": "Mandarin",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "resolved-5",
+          "role": "patient",
+          "text": "谢谢，服务已经完成了。",
+          "gloss": "Thank you, the service has been completed.",
+          "language": "Mandarin",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "resolved-6",
+          "role": "staff",
+          "text": "不客气，这个工单已关闭。",
+          "gloss": "You are welcome. This job has been closed.",
+          "language": "Mandarin",
+          "sentAt": "2026-07-18T08:00:00+08:00"
+        },
+        {
+          "id": "resolved-7",
           "role": "system",
           "text": "Conversation resolved by staff.",
           "sentAt": "2026-07-18T08:00:00+08:00"

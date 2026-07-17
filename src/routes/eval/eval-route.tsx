@@ -239,7 +239,10 @@ export default function EvalRoute() {
       if (!current) {
         return;
       }
-      const next = { ...current, completed, total };
+      const next =
+        current.kind === "suite"
+          ? { ...current, completed, runningCaseId: null, total }
+          : { ...current, completed, total };
       activeOperation.current = next;
       setOperation(next);
     };
@@ -342,6 +345,14 @@ export default function EvalRoute() {
   const runningCase = runningCaseId
     ? dataset.cases.find((evalCase) => evalCase.id === runningCaseId)
     : null;
+  const queuedCaseIds = new Set<EvalCaseId>(
+    operation?.kind === "suite"
+      ? dataset.cases
+          .slice(operation.completed)
+          .map((evalCase) => evalCase.id)
+          .filter((caseId) => caseId !== operation.runningCaseId)
+      : [],
+  );
   const operationStatus: OperationStatus | null = operation
     ? {
         scope: "eval",
@@ -481,6 +492,7 @@ export default function EvalRoute() {
             onOpen={openCase}
             onRun={runCase}
             onSort={(column) => setSort((current) => nextSort(current, column))}
+            queuedCaseIds={queuedCaseIds}
             runningCaseId={runningCaseId}
             runBlocked={operation !== null || !executionCapability.enabled}
             selectedCaseId={selectedCaseId}
@@ -509,6 +521,7 @@ export default function EvalRoute() {
       ) : null}
       {drawer === "analyze" ? (
         <AnalyzeFailuresDrawer
+          candidateVersionId={store.knowledgeRelease?.candidateVersionId ?? null}
           corrections={store.state.corrections}
           dataset={dataset}
           key={dataset.id}

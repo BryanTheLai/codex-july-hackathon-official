@@ -76,6 +76,53 @@ describe("server state contract", () => {
     ).toBe(false);
   });
 
+  it("requires explicit offsets on persisted instants", () => {
+    const state = createServerStateFixture();
+    const conversation = state.conversations[0]!;
+
+    expect(
+      serverDomainStateSchema.safeParse({
+        ...state,
+        fixtureTime: "2026-07-18T08:00:00",
+      }).success,
+    ).toBe(false);
+    expect(
+      serverDomainStateSchema.safeParse({
+        ...state,
+        conversations: [
+          {
+            ...conversation,
+            booking: {
+              reason: "General service",
+              revision: 1,
+              slotIso: "2026-07-18T10:00:00",
+              status: "approved",
+            },
+          },
+          ...state.conversations.slice(1),
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      serverDomainStateSchema.safeParse({
+        ...state,
+        conversations: [
+          {
+            ...conversation,
+            messages: [
+              {
+                ...conversation.messages[0]!,
+                sentAt: "2026-07-18T08:00:00",
+              },
+              ...conversation.messages.slice(1),
+            ],
+          },
+          ...state.conversations.slice(1),
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   it("requires a positive conversation revision and accepts Telegram nullability", () => {
     const state = createServerStateFixture();
     const conversation = {

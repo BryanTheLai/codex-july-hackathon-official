@@ -96,7 +96,10 @@ function renderChat(options: { width?: number; store?: AppStore } = {}) {
   return { ...result, store };
 }
 
-function createStoreWithBooking(status: "pending" | "approved" = "pending") {
+function createStoreWithBooking(
+  status: "pending" | "approved" = "pending",
+  slotIso = "2026-07-19T10:00:00+08:00",
+) {
   const storage = new MemoryStorage();
   const state = createCanonicalSeed();
   state.conversations = state.conversations.map((conversation) =>
@@ -104,7 +107,7 @@ function createStoreWithBooking(status: "pending" | "approved" = "pending") {
       ? {
           ...conversation,
           booking: {
-            slotIso: "2026-07-19T10:00:00+08:00",
+            slotIso,
             reason: "General service",
             status,
             revision: 1,
@@ -234,15 +237,24 @@ describe("Chat Control route", () => {
     ).toHaveAttribute("data-message-side", "incoming");
     expect(
       within(selected).getByText(
-        "General service is RM99 per unit. Which date and time do you prefer?",
+        "Servis biasa ialah RM99 untuk setiap unit. Tarikh dan masa mana yang anda mahu?",
       ),
     ).toHaveAttribute("data-message-side", "outgoing");
-    expect(within(selected).getByText("Autonomous agent")).toBeInTheDocument();
+    expect(
+      within(selected).getByText("Sabtu pukul 10 pagi boleh? Alamat saya di SS2."),
+    ).toHaveAttribute("data-message-side", "incoming");
+    expect(within(selected).getAllByText("Autonomous agent")).toHaveLength(2);
     expect(
       within(selected).getByLabelText("Autonomous agent handling"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open conversation with Mei Demo" }));
+    expect(
+      within(selected).getByText("你好，我想预约一台1.5匹壁挂式空调的普通清洗。"),
+    ).toBeInTheDocument();
+    expect(within(selected).getByText("这周六上午可以吗？地址在SS2。")).toBeInTheDocument();
+    expect(within(selected).getByText("可以，已经为您安排好了。")).toBeInTheDocument();
+    expect(within(selected).getByText("谢谢，服务已经完成了。")).toBeInTheDocument();
     expect(within(selected).getByText("Conversation resolved by staff.")).toHaveAttribute(
       "data-message-side",
       "system",
@@ -254,7 +266,9 @@ describe("Chat Control route", () => {
       within(selected).getByText("My 1.5 HP wall unit is not cooling and smells musty."),
     ).toBeInTheDocument();
     expect(within(selected).getByText("General service is RM99 per unit.")).toBeInTheDocument();
-    expect(within(selected).getByText("That package is wrong. I said it is not cooling and smells musty.")).toBeInTheDocument();
+    expect(
+      within(selected).getByText("Are u sure? i thought this would cost RM160?"),
+    ).toBeInTheDocument();
   });
 
   it("shows clear English translations and previews auto-translated staff replies", async () => {
@@ -326,7 +340,7 @@ describe("Chat Control route", () => {
         draft: {
           englishText: "General service is RM99 per unit.",
           patientLanguage: "Malay",
-          patientText: "General service is RM99 per unit.",
+          patientText: "Servis biasa ialah RM99 untuk setiap unit.",
         },
         proposedAction: "reply",
         handoffReason: null,
@@ -387,8 +401,11 @@ describe("Chat Control route", () => {
       await within(selected).findByText("Agent ready"),
     ).toBeInTheDocument();
     expect(
-      within(selected).getAllByText("General service is RM99 per unit."),
-    ).toHaveLength(2);
+      within(selected).getByText("General service is RM99 per unit."),
+    ).toBeInTheDocument();
+    expect(
+      within(selected).getByText("Servis biasa ialah RM99 untuk setiap unit."),
+    ).toBeInTheDocument();
     expect(
       within(selected).getByText("Escalate urgent symptoms."),
     ).toBeInTheDocument();
@@ -405,7 +422,7 @@ describe("Chat Control route", () => {
     ).toBeInTheDocument();
     expect(
       within(selected).getByRole("textbox", { name: "Message" }),
-    ).toHaveValue("General service is RM99 per unit.");
+    ).toHaveValue("Servis biasa ialah RM99 untuk setiap unit.");
     expect(
       store.getState().state.conversations[0]?.messages.length,
     ).toBe(beforeMessages);
@@ -1405,6 +1422,28 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("region", { name: "Selected conversation" })).toHaveTextContent(
       "Booking request updated",
     );
+  });
+
+  it("edits a UTC booking using its Malaysia wall-clock time", async () => {
+    const user = userEvent.setup();
+    renderChat({
+      store: createStoreWithBooking(
+        "approved",
+        "2026-07-19T02:00:00.000Z",
+      ),
+    });
+
+    await user.click(screen.getByRole("button", { name: /Aina Demo/i }));
+    await user.click(screen.getByRole("button", { name: "Edit booking" }));
+
+    expect(
+      within(screen.getByRole("dialog", { name: "Edit booking" }))
+        .getByLabelText("Booking date and time"),
+    ).toHaveValue("2026-07-19T10:00");
+    expect(
+      within(screen.getByRole("dialog", { name: "Edit booking" }))
+        .getByRole("button", { name: "Save booking" }),
+    ).toBeDisabled();
   });
 
   it("cancels an approved service visit in the synthetic workspace and removes it from Schedule", async () => {

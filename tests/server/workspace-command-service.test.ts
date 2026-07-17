@@ -326,6 +326,14 @@ describe("workspace command service", () => {
     });
 
     expect(proposal).toHaveBeenCalledTimes(1);
+    expect(proposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failure: expect.objectContaining({
+          candidateResponse: "Staff review is required.",
+        }),
+      }),
+      undefined,
+    );
     expect(JSON.stringify(proposal.mock.calls[0]?.[0])).not.toContain("expectedStaffResponse");
     expect(proposed.workspace.state.corrections.at(-1)).toEqual(
       expect.objectContaining({ status: "pending", sourceCaseId: "case-aircon-selection-train" }),

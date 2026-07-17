@@ -27,7 +27,8 @@ direction.
 - RM99 general service and RM160 chemical wash rate card
 - conversation-owned booking with explicit customer, contact, and service address
 - autonomous availability, booking, reschedule, and cancellation tools
-- optional Google Calendar OAuth, availability, and event synchronization
+- optional Google Calendar OAuth and write-only event synchronization
+- fixed Malaysian customer and scheduling timezone (`Asia/Kuala_Lumpur`, MYT)
 - durable Telegram/calendar outbox processing
 - immutable Eval suites and run evidence
 - exact Knowledge proposals with human decision

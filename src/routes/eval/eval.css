@@ -715,6 +715,11 @@
   animation: eval-spin 0.8s linear infinite;
 }
 
+.eval-result--queued {
+  color: var(--kaunter-muted);
+  font-size: 11px;
+}
+
 @keyframes eval-spin {
   to { transform: rotate(360deg); }
 }

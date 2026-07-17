@@ -9,17 +9,11 @@ import type {
   UpdateBookingInput,
 } from "../../domain";
 import {
+  fromMalaysiaDateTimeLocal,
   previewBookingNotification,
   previewNewBookingNotification,
+  toMalaysiaDateTimeLocal,
 } from "../../domain";
-
-function toDateTimeLocal(slotIso: string): string {
-  return slotIso.slice(0, 16);
-}
-
-function toMalaysiaIso(value: string): string {
-  return `${value}:00+08:00`;
-}
 
 export function BookingDialog({
   conversation,
@@ -47,11 +41,11 @@ export function BookingDialog({
       return;
     }
     if (conversation.booking) {
-      setDateTime(toDateTimeLocal(conversation.booking.slotIso));
+      setDateTime(toMalaysiaDateTimeLocal(conversation.booking.slotIso));
       setReason(conversation.booking.reason);
       setServiceAddress(conversation.booking.serviceAddress ?? "");
     } else {
-      setDateTime(toDateTimeLocal(defaultSlotIso));
+      setDateTime(toMalaysiaDateTimeLocal(defaultSlotIso));
       setReason("");
       setServiceAddress("");
     }
@@ -65,9 +59,13 @@ export function BookingDialog({
           expectedRevision: conversation.booking.revision,
           reason,
           ...(serviceAddress.trim() ? { serviceAddress } : {}),
-          slotIso: toMalaysiaIso(dateTime),
+          slotIso: fromMalaysiaDateTimeLocal(dateTime),
         }
-      : { reason, serviceAddress, slotIso: toMalaysiaIso(dateTime) }
+      : {
+          reason,
+          serviceAddress,
+          slotIso: fromMalaysiaDateTimeLocal(dateTime),
+        }
     : null;
   const previewResult =
     conversation && input

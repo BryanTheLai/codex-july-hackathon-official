@@ -41,8 +41,8 @@ test("visitor generates an editable Knowledge-grounded draft without sending", a
         draft: {
           englishText:
             "Based on the playbook, general service is RM99 per unit.",
-          patientLanguage: "English",
-          patientText: "General service is RM99 per unit.",
+          patientLanguage: "Malay",
+          patientText: "Berdasarkan panduan, servis biasa ialah RM99 untuk setiap unit.",
         },
         proposedAction: "reply",
         handoffReason: null,
@@ -97,7 +97,9 @@ test("visitor generates an editable Knowledge-grounded draft without sending", a
     selected.getByText("Escalate urgent symptoms."),
   ).toBeVisible();
   const message = selected.getByRole("textbox", { name: "Message" });
-  await expect(message).toHaveValue("General service is RM99 per unit.");
+  await expect(message).toHaveValue(
+    "Berdasarkan panduan, servis biasa ialah RM99 untuk setiap unit.",
+  );
   await message.fill("Edited draft; still not sent.");
 
   expect(agentRequest).toEqual({

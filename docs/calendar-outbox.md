@@ -5,13 +5,11 @@ package: Node 22 `fetch` and `crypto`, Supabase Postgres, and the existing Expre
 
 ## Behavior
 
-- In non-live demo mode, no Google configuration or completed admin connection means booking tools
-  use the deterministic demo slots and make no Google request. Live-agent booking fails closed until
-  the admin Google connection is active.
-- With one completed Google connection, `list_available_slots` filters those same candidate slots
-  through Google Calendar FreeBusy. Booking create, reschedule, cancellation, and persisted
-  Telegram Schedule edits enqueue event synchronization. Synthetic fixture bookings never leave
-  the demo workspace.
+- Booking tools always use the app workspace's approved bookings as the availability and conflict
+  source. Personal Google Calendar events never block a KaunterAI slot.
+- With one completed Google connection, booking create, reschedule, cancellation, and persisted
+  Telegram Schedule edits enqueue event synchronization. Google Calendar is an outbound copy, not
+  the scheduling source of truth. Synthetic fixture bookings never leave the demo workspace.
 - An event ID is deterministic per conversation, so a retry updates the same Google event. The
   app writes the event on create/reschedule and deletes it on cancel. Telegram sends a private
   publish `.ics` on create/reschedule and a matching cancellation `.ics` on cancel.
@@ -125,13 +123,14 @@ that domain for new deployments and keep the chosen UID domain stable once real 
    worker synchronizes them. Verify the in-app Schedule badge reads **Google Calendar synced**.
 
 Google's web-server OAuth flow requires `access_type=offline` for a refresh token. The requested
-scopes are `calendar.events.owned` and `calendar.events.freebusy`; they are sufficient for this
-single-admin calendar use case. See Google’s [web-server OAuth guide](https://developers.google.com/identity/protocols/oauth2/web-server), [FreeBusy reference](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query), and [Events reference](https://developers.google.com/workspace/calendar/api/v3/reference/events).
+scope is `calendar.events.owned`, which is sufficient for this write-only synchronization use case.
+See Google’s [web-server OAuth guide](https://developers.google.com/identity/protocols/oauth2/web-server)
+and [Events reference](https://developers.google.com/workspace/calendar/api/v3/reference/events).
 
 ## Verification boundary
 
-Automated tests cover demo fallback, FreeBusy filtering (including Schedule edits), Google event
-create/delete, Telegram ICS publish/cancel, stale booking revisions, synthetic-fixture exclusion, migration access rules,
+Automated tests cover workspace booking conflicts, Google event create/delete, Telegram ICS
+publish/cancel, stale booking revisions, synthetic-fixture exclusion, migration access rules,
 reconnect requeue contract, and fenced outbox retry state with mocked providers. A real Google
 consent, calendar event, Telegram message, `.ics` document, and DigitalOcean deploy must still be
 smoke tested by the administrator because this repository cannot use their credentials.

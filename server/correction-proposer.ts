@@ -60,64 +60,83 @@ function prompt(input: CorrectionProposalInput): string {
 
 export function createCorrectionProposer(
   config: AgentProviderConfig,
+  clientOverride?: Pick<OpenAI, "chat" | "responses">,
 ): CorrectionProposer {
-  const client = new OpenAI({
-    apiKey: config.apiKey,
-    baseURL: config.baseUrl,
-    timeout: 45_000,
-    maxRetries: 1,
-  });
+  const client =
+    clientOverride ??
+    new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseUrl,
+      timeout: 45_000,
+      maxRetries: 1,
+    });
   return {
     async propose(input, signal) {
       try {
-        const output =
-          config.apiMode === "responses"
-            ? extractResponsesOutputText(
-                await createResponsesWithStability(
-                  (payload, options) =>
-                    client.responses.create(payload as never, options),
-                  {
-                    model: config.model,
-                    instructions: INSTRUCTIONS,
-                    input: prompt(input),
-                    text: {
-                      format: {
-                        type: "json_schema",
-                        name: "knowledge_sop_correction",
-                        strict: true,
-                        schema: CORRECTION_PROPOSAL_SCHEMA,
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const output =
+            config.apiMode === "responses"
+              ? extractResponsesOutputText(
+                  await createResponsesWithStability(
+                    (payload, options) =>
+                      client.responses.create(payload as never, options),
+                    {
+                      model: config.model,
+                      instructions: INSTRUCTIONS,
+                      input: prompt(input),
+                      text: {
+                        format: {
+                          type: "json_schema",
+                          name: "knowledge_sop_correction",
+                          strict: true,
+                          schema: CORRECTION_PROPOSAL_SCHEMA,
+                        },
                       },
                     },
-                  },
-                  signal,
-                ),
-              )
-            : (
-                await client.chat.completions.create(
-                  {
-                    model: config.model,
-                    messages: [
-                      { role: "system", content: INSTRUCTIONS },
-                      { role: "user", content: prompt(input) },
-                    ],
-                    response_format: {
-                      type: "json_schema",
-                      json_schema: {
-                        name: "knowledge_sop_correction",
-                        strict: true,
-                        schema: CORRECTION_PROPOSAL_SCHEMA,
-                      },
-                    },
-                  },
-                  { signal },
+                    signal,
+                  ),
                 )
-              ).choices[0]?.message.content;
-        return proposalSchema.parse(JSON.parse(output ?? ""));
+              : (
+                  await client.chat.completions.create(
+                    {
+                      model: config.model,
+                      messages: [
+                        { role: "system", content: INSTRUCTIONS },
+                        { role: "user", content: prompt(input) },
+                      ],
+                      response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                          name: "knowledge_sop_correction",
+                          strict: true,
+                          schema: CORRECTION_PROPOSAL_SCHEMA,
+                        },
+                      },
+                    },
+                    { signal },
+                  )
+                ).choices[0]?.message.content;
+          try {
+            return proposalSchema.parse(JSON.parse(output ?? ""));
+          } catch {
+            if (attempt === 1) {
+              throw new AgentProviderError(
+                "provider_failed",
+                "Correction proposer returned an invalid proposal twice.",
+              );
+            }
+          }
+        }
+        throw new AgentProviderError(
+          "provider_failed",
+          "Correction proposer returned an invalid proposal twice.",
+        );
       } catch (error) {
         if (isAbortError(error)) {
           throw new AgentProviderError("provider_timeout", "Correction proposer request timed out.");
         }
-        throw new AgentProviderError("provider_failed", "Correction proposer returned an invalid proposal.");
+        if (error instanceof AgentProviderError) throw error;
+        throw new AgentProviderError("provider_failed", "Correction proposer request failed.");
       }
     },
   };

@@ -45,13 +45,20 @@ the hackathon MVP.
 - Malay and English customer replies with an English operator view
 - fixed service scope and rates: RM99 general service, RM160 chemical wash
 - chemical-wash recommendation for poor cooling plus musty smell
-- deterministic demo availability and optional Google Calendar availability
+- workspace-owned availability with optional write-only Google Calendar synchronization
 - autonomous create, reschedule, and cancel booking tools
 - durable Telegram and calendar outbox behavior
 - customer-feedback capture into Eval
 - immutable Eval suites and run evidence
 - exact Knowledge proposals, candidate validation, activation, and rollback
 - database-owned versioned demo seed and transactional reset
+
+### Timezone contract
+
+- Customer, booking, Schedule, and Calendar times use `Asia/Kuala_Lumpur` (MYT, UTC+8).
+- Persisted operational timestamps may use UTC `Z`; they must be converted to MYT before display
+  or Malaysian calendar-day grouping.
+- `fixtureTime` is the deterministic demo clock and always includes an explicit offset.
 
 ### Explicitly not claimed
 

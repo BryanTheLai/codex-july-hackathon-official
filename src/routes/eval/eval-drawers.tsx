@@ -11,6 +11,7 @@ import {
 import { SuiteHistory } from "./eval-support";
 
 export function AnalyzeFailuresDrawer({
+  candidateVersionId,
   corrections,
   dataset,
   onAnalyze,
@@ -18,6 +19,7 @@ export function AnalyzeFailuresDrawer({
   onOpenKnowledge,
   operationBlocked,
 }: {
+  candidateVersionId: string | null;
   corrections: Correction[];
   dataset: EvalDataset;
   onAnalyze: () => MutationResult & { correctionId?: string | null } | Promise<MutationResult & { correctionId?: string | null }>;
@@ -37,6 +39,7 @@ export function AnalyzeFailuresDrawer({
       correction.sourceCaseId !== undefined &&
       failedCaseIds.has(correction.sourceCaseId),
   );
+  const proposalPending = proposedCorrections.length > 0;
   const criterionById = new Map(dataset.criteria.map((criterion) => [criterion.id, criterion]));
 
   return (
@@ -146,31 +149,43 @@ export function AnalyzeFailuresDrawer({
                 ? error
                 : ""}
         </span>
-        <button
-          className="eval-button eval-button--primary"
-          disabled={failedCases.length === 0 || operationBlocked || status === "running"}
-          onClick={() => {
-            void (async () => {
-              setStatus("running");
-              setProposalCorrectionId(null);
-              const result = await onAnalyze();
-              if (result.ok) {
-                setError("");
-                setStatus("complete");
-                if (typeof result.correctionId === "string") {
-                  setProposalCorrectionId(result.correctionId);
+        {candidateVersionId ? (
+          <Link className="eval-button eval-button--primary" to="/knowledge">
+            Open Knowledge candidate
+          </Link>
+        ) : (
+          <button
+            className="eval-button eval-button--primary"
+            disabled={
+              failedCases.length === 0 ||
+              operationBlocked ||
+              proposalPending ||
+              status === "running"
+            }
+            onClick={() => {
+              void (async () => {
+                setStatus("running");
+                setProposalCorrectionId(null);
+                const result = await onAnalyze();
+                if (result.ok) {
+                  setError("");
+                  setStatus("complete");
+                  if (typeof result.correctionId === "string") {
+                    setProposalCorrectionId(result.correctionId);
+                  }
+                  return;
                 }
-                return;
-              }
-              setError(result.error);
-              setStatus("error");
-            })();
-          }}
-          type="button"
-        >
-          <Search aria-hidden="true" size={14} />
-          {status === "running" ? "Analyzing..." : "Start analysis"}
-        </button>
+                setError(result.error);
+                setStatus("error");
+              })();
+            }}
+            title={proposalPending ? "Review the pending Knowledge correction first." : undefined}
+            type="button"
+          >
+            <Search aria-hidden="true" size={14} />
+            {status === "running" ? "Analyzing..." : "Start analysis"}
+          </button>
+        )}
       </footer>
     </aside>
   );

@@ -281,7 +281,7 @@ describe("Evaluation Lab route", () => {
     await user.click(screen.getByRole("button", { name: "Run all cases" }));
 
     expect(within(emergencyRow).getByText("Replaying...")).toBeInTheDocument();
-    expect(within(bookingRow).getByText("Not run")).toBeInTheDocument();
+    expect(within(bookingRow).getByText("Queued...")).toBeInTheDocument();
     await waitFor(() => expect(within(emergencyRow).getByText("Pass")).toBeInTheDocument());
     await waitFor(() => expect(within(bookingRow).getByText("Replaying...")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Cancel suite" }));
@@ -506,6 +506,55 @@ describe("Evaluation Lab route", () => {
         name: /Open pending correction for Analysis-only selection failure in Knowledge/,
       }),
     ).toBeInTheDocument();
+    expect(within(drawer).getByRole("button", { name: "Start analysis" })).toBeDisabled();
+  });
+
+  it("links an existing inactive candidate back to Knowledge", async () => {
+    const user = userEvent.setup();
+    const storage = new MemoryStorage();
+    const state = createCanonicalSeed();
+    state.corrections.push({
+      id: "corr-aircon-selection",
+      fileId: "file-aircon-service-selection",
+      oldText: "For poor cooling and a musty smell, quote the RM99 general service.",
+      newText:
+        "For poor cooling and a musty smell, recommend the RM160 chemical wash.",
+      evidence: "Combined symptoms need chemical wash.",
+      status: "approved",
+      sourceCaseId: "case-aircon-selection-train",
+    });
+    saveAppState(storage, state);
+    const store = createAppStore(storage, {
+      judgeClient: createFixtureJudgeClient({
+        verdictByCase: { "case-aircon-selection-train": "fail" },
+      }),
+    });
+    expect(
+      (await store.getState().runEvalCase("case-aircon-selection-train")).ok,
+    ).toBe(true);
+    store.setState({
+      knowledgeRelease: {
+        activeVersionId: "knowledge-v1",
+        activeVersionSequence: 1,
+        candidateVersionId: "knowledge-v2",
+        candidateVersionSequence: 2,
+        candidateReady: false,
+        rollbackTargetVersionId: null,
+        rollbackTargetVersionSequence: null,
+        workspaceRevision: 2,
+      },
+    });
+    renderEval({ store });
+
+    await user.click(screen.getByRole("button", { name: "Analyze failures" }));
+    const drawer = screen.getByRole("complementary", { name: "Analyze failures" });
+
+    expect(
+      within(drawer).getByRole("link", { name: "Open Knowledge candidate" }),
+    ).toHaveAttribute("href", "/knowledge");
+    expect(
+      within(drawer).queryByRole("button", { name: "Start analysis" }),
+    ).not.toBeInTheDocument();
   });
 
   it("explains when there are no committed failed train cases to analyze", async () => {

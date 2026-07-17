@@ -334,7 +334,6 @@ function configuredGoogleCalendar(
 
 function configuredAgent(
   workspace: WorkspaceAppOptions | null,
-  googleCalendar: GoogleCalendarService | null,
   outboxRepository: OutboxRepository | null,
 ): AgentRunner | null {
   if (!process.env.LLM_API_KEY) {
@@ -352,9 +351,7 @@ function configuredAgent(
       ...(workspace
         ? {
             toolExecutor: createAutonomousBookingToolExecutor({
-              calendarAvailability: googleCalendar ?? undefined,
               outboxRepository: outboxRepository ?? undefined,
-              requireConnectedCalendar: config.liveEnabled,
               workspaceId: workspace.workspaceId,
               workspaceRepository: workspace.repository,
             }),
@@ -1251,7 +1248,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       ? configuredGoogleCalendar(workspace, outboxRepository)
       : options.googleCalendar;
   const agent = options.agent === undefined
-    ? configuredAgent(workspace, googleCalendar, outboxRepository)
+    ? configuredAgent(workspace, outboxRepository)
     : options.agent;
   const telegram =
     options.telegram === undefined
@@ -1323,7 +1320,6 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       : options.workflow;
   const bookingCommands = workspace
     ? createBookingCommandService({
-        calendarAvailability: googleCalendar ?? undefined,
         outboxRepository: outboxRepository ?? undefined,
         workspaceId: workspace.workspaceId,
         workspaceRepository: workspace.repository,
@@ -1422,7 +1418,7 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         await googleCalendar.completeAuthorization({ code, state });
         outbox?.wake();
         response.status(200).type("html").send(
-          "<main><h1>Google Calendar connected</h1><p>KaunterAI will now use this calendar for availability and sync booking changes. You may close this tab.</p></main>",
+          "<main><h1>Google Calendar connected</h1><p>KaunterAI will sync confirmed booking changes to this calendar. Availability remains controlled by the app workspace. You may close this tab.</p></main>",
         );
       } catch (error) {
         log.error("google_calendar_callback_failed", errorLogFields(error));

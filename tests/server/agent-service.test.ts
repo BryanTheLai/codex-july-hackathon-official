@@ -69,6 +69,15 @@ const providerResult = {
 } as const;
 
 describe("shared agent service", () => {
+  it("requires the customer reply language to match the preferred language", () => {
+    expect(AGENT_INSTRUCTIONS).toContain(
+      "draft.patientLanguage must exactly equal patientContext.preferredLanguage",
+    );
+    expect(AGENT_INSTRUCTIONS).toContain(
+      "draft.patientText must be written in that preferred language",
+    );
+  });
+
   it("tells sandbox Eval runs to answer without requesting autonomous tools", async () => {
     const createResponse = vi.fn(async () => ({
       outputText: JSON.stringify(providerResult),
@@ -556,7 +565,7 @@ describe("shared agent service", () => {
     });
   });
 
-  it("rejects evidence with the wrong pinned identity", async () => {
+  it("normalizes stale evidence identity during sandbox candidate replay", async () => {
     const createResponse = vi.fn(async () => ({
       outputText: JSON.stringify({
         ...providerResult,
@@ -580,11 +589,61 @@ describe("shared agent service", () => {
       createRunId: () => "agent-run-identity",
     });
 
-    await expect(runAgentTurn(request)).rejects.toMatchObject({
-      code: "provider_failed",
-      retryable: true,
-      message: "Agent evidence is not present in the pinned playbook.",
+    await expect(runAgentTurn({
+      ...request,
+      mode: "sandbox",
+    })).resolves.toMatchObject({
+      evidence: [
+        expect.objectContaining({
+          fileId: "playbook-booking",
+          versionId: "playbook-version-1",
+          contentHash: hash,
+          excerpt: "Confirm the requested date before booking.",
+        }),
+      ],
     });
+  });
+
+  it("retries sandbox replay once when the evidence excerpt is not exact", async () => {
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify({
+          ...providerResult,
+          evidence: [
+            {
+              ...providerResult.evidence[0],
+              excerpt: "A paraphrase that is not in the pinned playbook.",
+            },
+          ],
+        }),
+        usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(providerResult),
+        usage: { inputTokens: 40, outputTokens: 15, totalTokens: 55 },
+      });
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-evidence-retry",
+    });
+
+    await expect(runAgentTurn({
+      ...request,
+      mode: "sandbox",
+    })).resolves.toMatchObject({
+      evidence: providerResult.evidence,
+      usage: { inputTokens: 90, outputTokens: 35, totalTokens: 125 },
+    });
+    expect(createResponse).toHaveBeenCalledTimes(2);
+    expect(createResponse).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining("exact evidence excerpts"),
+      }),
+      undefined,
+    );
   });
 
   it("blocks live runs when the live-agent kill switch is off", async () => {

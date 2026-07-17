@@ -23,21 +23,9 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GOOGLE_CALENDAR_BASE_URL = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events.owned",
-  "https://www.googleapis.com/auth/calendar.events.freebusy",
 ];
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-export type CalendarAvailabilityResult = {
-  source: "demo" | "google";
-  slots: Array<{ slotIso: string }>;
-};
-
-export type CalendarAvailability = {
-  filterAvailableSlots(input: {
-    slots: Array<{ slotIso: string }>;
-  }): Promise<CalendarAvailabilityResult>;
-};
 
 export type GoogleCalendarStatus = {
   calendarId: string | null;
@@ -46,7 +34,7 @@ export type GoogleCalendarStatus = {
   status: "disabled" | "disconnected" | "connected" | "error" | "revoked";
 };
 
-export interface GoogleCalendarService extends CalendarAvailability {
+export interface GoogleCalendarService {
   authorizationUrl(adminToken: string): string;
   completeAuthorization(input: { code: string; state: string }): Promise<void>;
   status(): Promise<GoogleCalendarStatus>;
@@ -85,16 +73,6 @@ const tokenResponseSchema = z.object({
   token_type: z.string().min(1),
 }).passthrough();
 
-const freeBusyResponseSchema = z.object({
-  calendars: z.record(
-    z.string(),
-    z.object({
-      busy: z.array(z.object({ start: z.string(), end: z.string() })).default([]),
-      errors: z.array(z.unknown()).optional(),
-    }).passthrough(),
-  ),
-}).passthrough();
-
 const eventResponseSchema = z.object({
   etag: z.string().optional(),
   id: z.string().min(5),
@@ -109,26 +87,6 @@ function secretsMatch(received: string, expected: string): boolean {
 function eventId(conversationId: string): string {
   // Google accepts only base32hex characters; the hash's hex alphabet is a subset.
   return `kau${createHash("sha256").update(conversationId).digest("hex").slice(0, 48)}`;
-}
-
-function addMinutes(slotIso: string, durationMinutes: number): string {
-  const value = new Date(slotIso);
-  if (Number.isNaN(value.valueOf())) throw new GoogleCalendarError("Booking time is invalid.", false);
-  return new Date(value.valueOf() + durationMinutes * 60_000).toISOString();
-}
-
-function busyOverlaps(
-  slotIso: string,
-  durationMinutes: number,
-  busy: Array<{ start: string; end: string }>,
-): boolean {
-  const start = new Date(slotIso).valueOf();
-  const end = start + durationMinutes * 60_000;
-  return busy.some((interval) => {
-    const busyStart = new Date(interval.start).valueOf();
-    const busyEnd = new Date(interval.end).valueOf();
-    return Number.isFinite(busyStart) && Number.isFinite(busyEnd) && start < busyEnd && end > busyStart;
-  });
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -273,46 +231,6 @@ export function createGoogleCalendarService({
   };
 
   return {
-    async filterAvailableSlots({ slots }) {
-      if (slots.length === 0) return { source: "demo", slots };
-      const credential = await accessToken();
-      if (!credential.connected || !config.enabled) return { source: "demo", slots };
-      const start = slots.reduce((earliest, slot) =>
-        new Date(slot.slotIso) < new Date(earliest) ? slot.slotIso : earliest,
-      slots[0]!.slotIso);
-      const end = slots.reduce((latest, slot) =>
-        new Date(slot.slotIso) > new Date(latest) ? slot.slotIso : latest,
-      slots[0]!.slotIso);
-      const result = await calendarRequest(credential.token, "/freeBusy", {
-        method: "POST",
-        body: JSON.stringify({
-          timeMin: start,
-          timeMax: addMinutes(end, config.defaultDurationMinutes),
-          timeZone: config.timeZone,
-          items: [{ id: config.calendarId }],
-        }),
-      });
-      if (!result.response.ok) {
-        throw googleFailure(
-          result.body,
-          "Google Calendar availability lookup failed.",
-          result.response.status >= 500 || result.response.status === 429,
-        );
-      }
-      const parsed = freeBusyResponseSchema.safeParse(result.body);
-      if (!parsed.success) throw new GoogleCalendarError("Google Calendar returned invalid availability.", true);
-      const calendar = parsed.data.calendars[config.calendarId];
-      if (!calendar || calendar.errors?.length) {
-        throw new GoogleCalendarError("Google Calendar availability is unavailable.", true);
-      }
-      return {
-        source: "google",
-        slots: slots.filter(
-          (slot) => !busyOverlaps(slot.slotIso, config.defaultDurationMinutes, calendar.busy),
-        ),
-      };
-    },
-
     authorizationUrl(adminToken) {
       if (!config.enabled) throw new GoogleCalendarError("Google Calendar is not configured.", false);
       if (!secretsMatch(adminToken, config.adminToken)) {

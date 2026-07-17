@@ -45,6 +45,7 @@ import type {
   WorkspaceCommandClient,
   WorkspaceClient,
 } from "../services/api-client";
+import { isAbortError } from "../shared/errors";
 import { applyMutation, rebaseAsyncMutationResult } from "./apply-mutation";
 import type { AppStateRepository } from "./repository";
 
@@ -130,44 +131,54 @@ export function createEvalActions({
       );
       let workspaceRevision = suite.workspaceRevision;
       let latestServerState = initial.state;
+      const caseFailures: string[] = [];
       for (const [index, caseId] of caseIds.entries()) {
         onCaseStart?.(caseId, index, caseIds.length);
-        const baseState = getState();
-        const result = await evalClient.runCase(
-          {
-            suiteId: suite.suiteId,
-            caseId,
-            expectedWorkspaceRevision: workspaceRevision,
-          },
-          signal,
-        );
-        if (result.status !== "committed") {
-          throw new Error("Evaluation case was not committed");
-        }
-        const workspace = await workspaceClient.load(signal);
-        if (workspace.revision < result.workspaceRevision) {
-          throw new Error(
-            "Workspace Eval evidence refresh is stale",
+        try {
+          const baseState = getState();
+          const result = await evalClient.runCase(
+            {
+              suiteId: suite.suiteId,
+              caseId,
+              expectedWorkspaceRevision: workspaceRevision,
+            },
+            signal,
           );
-        }
-        latestServerState = workspace.state;
-        workspaceRevision = workspace.revision;
-        const projected = projectEvalSuiteArtifacts(
-          baseState,
-          latestServerState,
-          suite.suiteId,
-          false,
-        );
-        const applied = run(
-          rebaseAsyncMutationResult(
+          if (result.status !== "committed") {
+            throw new Error("Evaluation case was not committed");
+          }
+          const workspace = await workspaceClient.load(signal);
+          if (workspace.revision < result.workspaceRevision) {
+            throw new Error(
+              "Workspace Eval evidence refresh is stale",
+            );
+          }
+          latestServerState = workspace.state;
+          workspaceRevision = workspace.revision;
+          const projected = projectEvalSuiteArtifacts(
             baseState,
-            getState(),
-            projected,
-          ),
-          null,
-        );
-        if (!applied.ok) {
-          throw new Error(applied.error);
+            latestServerState,
+            suite.suiteId,
+            false,
+          );
+          const applied = run(
+            rebaseAsyncMutationResult(
+              baseState,
+              getState(),
+              projected,
+            ),
+            null,
+          );
+          if (!applied.ok) {
+            throw new Error(applied.error);
+          }
+        } catch (failure) {
+          if (signal?.aborted || isAbortError(failure)) throw failure;
+          if (caseIds.length === 1) throw failure;
+          caseFailures.push(`${caseId}: ${failureMessage(failure)}`);
+          const workspace = await workspaceClient.load(signal);
+          latestServerState = workspace.state;
+          workspaceRevision = workspace.revision;
         }
         onProgress?.(index + 1, caseIds.length);
       }
@@ -176,7 +187,7 @@ export function createEvalActions({
         completionBase,
         latestServerState,
         suite.suiteId,
-        true,
+        caseFailures.length === 0,
       );
       if (!completed.ok) {
         throw new Error(completed.error);
@@ -191,6 +202,16 @@ export function createEvalActions({
       );
       if (!applied.ok) {
         throw new Error(applied.error);
+      }
+      if (caseFailures.length > 0) {
+        const error =
+          `Evaluation suite attempted all ${caseIds.length} cases; ${caseFailures.length} failed: ${caseFailures.join("; ")}`;
+        set({ lastFeedback: error });
+        return {
+          ok: false,
+          state: getState(),
+          error,
+        };
       }
       set({ lastFeedback: "Evaluation suite run completed." });
       return {
