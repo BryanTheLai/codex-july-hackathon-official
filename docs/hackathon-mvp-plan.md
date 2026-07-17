@@ -17,21 +17,21 @@ candidate.**
 | 5 | Real Telegram smoke with an owner-controlled chat | Converts local proof into a credible deployment proof. | Requires the owner to send the inbound message. |
 | 6 | Demo choreography and screenshots | Ensures a distinct proof point at least every 20 seconds. | Ready after live smoke. |
 
-Do not spend hackathon time on Google/Outlook OAuth, a clinic PMS, a new scheduler, a durable job
-queue or authentication. Those are useful production work but dilute the demo and are not needed
-to prove tool-using autonomy.
+The optional Google Calendar and narrow durable outbox now exist because they strengthen the live
+proof without adding a scheduler, Redis, or a second service. Do not expand this into Outlook,
+Calendly, a clinic PMS, multi-calendar routing, or authentication during the hackathon.
 
 ## What is true now
 
 | Area | Verified locally | Still not proven or intentionally deferred |
 | --- | --- | --- |
 | Agent reply | The agent service accepts structured output and bounded function-call rounds. | Real model quality, cost, and rate limits need a live owner test. |
-| Booking | The server lists deterministic demo slots, rechecks a chosen slot at mutation time, writes an audit message, and suppresses duplicate function calls. | It is not an external clinic, calendar, or PMS authority. |
-| Calendar | Create/reschedule constructs an RFC 5545 `.ics` attachment and the Telegram path has an idempotent document-delivery record. | It does not create a Google or Outlook event; a fresh real receipt needs a test chat. |
+| Booking | The server lists deterministic demo slots, rechecks a chosen slot at mutation time, writes an audit message, and suppresses duplicate function calls. An active admin Google connection filters candidates with FreeBusy. | It is not an EHR or clinic PMS authority. |
+| Calendar | Create/reschedule constructs an RFC 5545 `.ics` attachment and the Telegram path has an idempotent document-delivery record. With Google connected, create, reschedule, cancel, and persisted Schedule edits synchronize the admin calendar. | A fresh OAuth/event/Telegram receipt still needs an owner-controlled smoke. |
 | UI | The patient rail has no Approve/Reject gate and renders Requested -> Availability checked -> Confirmed/Rescheduled/Cancelled. Manual runs render the action trace. The inbox polls every 8 seconds and refreshes immediately when the browser regains focus or visibility. | Sub-second server push from Telegram remains deferred. |
 | Eval progress | A suite shows `Replaying <case> / <n> of <total>`, marks the active row, disables competing actions, and exposes Cancel. | The output is deterministic in local tests; a live judge run is optional demo proof, not needed for the booking story. |
 | Feedback | The model can call `flag_autonomous_action_wrong`; the server creates an `autonomous_feedback` Eval case once. | A human must write the expected answer before Eval/Dream can use it. |
-| Delivery | Text and calendar sends use idempotency records. | The post-webhook agent work is background work, so a process crash can lose an in-flight reply. |
+| Delivery | Text and calendar sends use idempotency records; a durable Postgres outbox recovers automatic reply and Google sync work after a restart. | Telegram provider acceptance remains an at-least-once external boundary; smoke it with the owner chat. |
 | Voice | A persisted inbound voice note is transcribed, glossed for staff, run through the agent, and answered with concise text plus AI TTS voice. OpenAI remains the default; direct ElevenLabs Scribe v2/STT and TTS can be selected independently. | Live provider quality, credentials, and crash recovery need an owner-controlled smoke test. |
 
 ## Minimal architecture and data contract
@@ -51,8 +51,8 @@ flowchart LR
   H --> E[Eval suite and Dream replay]
 ```
 
-No new table or package is needed. The existing Supabase workspace JSONB contains the user-facing
-domain state; side records make external Telegram operations idempotent.
+No npm package is needed. The existing Supabase workspace JSONB contains the user-facing domain
+state; side records make Telegram, outbox, and optional Google synchronization durable.
 
 | Record / field | Relationship | Why it exists |
 | --- | --- | --- |
@@ -85,8 +85,9 @@ Use the repository's existing dependencies only:
 The live demo needs the already-defined `LLM_*`, Supabase, and Telegram settings plus
 `LIVE_AGENT_ENABLED=true` and `LIVE_TELEGRAM_ENABLED=true`. For ElevenLabs voice, set
 `SPEECH_PROVIDER=elevenlabs` and/or `TTS_PROVIDER=elevenlabs`, then provide the matching
-`ELEVENLABS_*` variables. Do not add Google Calendar or Outlook credentials for this MVP: the
-`.ics` file is enough to visibly prove the appointment outcome.
+`ELEVENLABS_*` variables. Google Calendar is optional: leave it disabled for the deterministic
+fallback demo, or configure one admin connection using `docs/calendar-outbox.md` when real
+availability and event CRUD strengthen the live proof. Outlook remains deferred.
 
 ## Wrong-action feedback: 20 options and the selected combination
 
@@ -145,6 +146,6 @@ known chat so the audience and consequence are explicit.
 
 ## Post-hackathon backlog
 
-Only after the demo lands: durable outbox/worker, real scheduling authority, external calendar
-OAuth, tenant/auth boundaries, notification retry policy, and live UI updates. They
-are production concerns, not blockers for a truthful hackathon demo.
+Only after the demo lands: EHR/PMS scheduling authority, Outlook/Calendly alternatives,
+tenant/auth boundaries, notification retry policy, and live UI updates. They are production
+concerns, not blockers for a truthful hackathon demo.

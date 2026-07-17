@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import {
+  createSupabaseOutboxDataSource,
   createSupabaseTelegramDeliveryDataSource,
   createSupabaseTelegramEventDataSource,
 } from "../../server/supabase";
@@ -61,6 +62,7 @@ const event: TelegramEventRecord = {
   payloadHash: "a".repeat(64),
   status: "received",
   normalizedMessageId: "telegram-message:-10042:88",
+  normalizedEvent: {},
   error: null,
   createdAt: "2026-07-13T12:00:00.000Z",
   updatedAt: "2026-07-13T12:00:00.000Z",
@@ -112,7 +114,7 @@ describe("Supabase Telegram data sources", () => {
       {
         method: "select",
         args: [
-          "update_id,workspace_id,payload_hash,status,normalized_message_id,error,created_at,updated_at",
+          "update_id,workspace_id,payload_hash,status,normalized_message_id,normalized_event,error,created_at,updated_at",
         ],
       },
       { method: "eq", args: ["update_id", event.updateId] },
@@ -191,5 +193,55 @@ describe("Supabase Telegram data sources", () => {
         },
       ],
     });
+  });
+
+  it("fences outbox finalization with the lease returned by the claim", async () => {
+    const query = new FakeSupabaseQuery({ data: null, error: null });
+    const source = createSupabaseOutboxDataSource(
+      fakeClient(query),
+      () => "2026-07-17T01:01:00.000Z",
+    );
+
+    await source.complete({
+      id: 17,
+      lockedAt: "2026-07-17T01:00:00.123456+00:00",
+    });
+
+    expect(query.calls).toContainEqual({ method: "eq", args: ["id", 17] });
+    expect(query.calls).toContainEqual({ method: "eq", args: ["status", "running"] });
+    expect(query.calls).toContainEqual({
+      method: "eq",
+      args: ["locked_at", "2026-07-17T01:00:00.123456+00:00"],
+    });
+  });
+
+  it("uses the database enqueue function so a reconnect can revive only failed jobs", async () => {
+    const calls: Array<{ name: string; args: unknown }> = [];
+    const client = {
+      rpc: async (name: string, args: unknown) => {
+        calls.push({ name, args });
+        return { data: null, error: null };
+      },
+    } as unknown as SupabaseClient;
+    const source = createSupabaseOutboxDataSource(client);
+
+    await source.enqueue({
+      workspaceId: "demo",
+      kind: "google_calendar_sync",
+      dedupeKey: "google:conversation:2",
+      payload: { bookingRevision: 2, conversationId: "conversation" },
+    });
+
+    expect(calls).toEqual([
+      {
+        name: "enqueue_outbox_job",
+        args: {
+          p_workspace_id: "demo",
+          p_kind: "google_calendar_sync",
+          p_dedupe_key: "google:conversation:2",
+          p_payload: { bookingRevision: 2, conversationId: "conversation" },
+        },
+      },
+    ]);
   });
 });

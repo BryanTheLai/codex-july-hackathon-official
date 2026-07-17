@@ -27,6 +27,20 @@ import type {
 } from "./calendar-repository";
 import { calendarDeliveryRecordSchema } from "./calendar-repository";
 import type {
+  EnqueueOutboxJob,
+  OutboxDataSource,
+  OutboxJob,
+} from "./outbox-repository";
+import { outboxJobSchema } from "./outbox-repository";
+import type {
+  GoogleCalendarConnection,
+  GoogleCalendarConnectionDataSource,
+  GoogleCalendarEventDataSource,
+} from "./google-calendar-repository";
+import {
+  googleCalendarConnectionSchema,
+} from "./google-calendar-repository";
+import type {
   WorkspaceDataSource,
   WorkspaceRecord,
 } from "./workspace-repository";
@@ -53,6 +67,7 @@ const telegramEventRowSchema = z
     payload_hash: z.string(),
     status: z.string(),
     normalized_message_id: z.string(),
+    normalized_event: z.record(z.string(), z.unknown()).default({}),
     error: z.unknown().nullable(),
     created_at: z.string(),
     updated_at: z.string(),
@@ -98,6 +113,36 @@ const calendarDeliveryRowSchema = z
     provider_accepted_at: z.string().nullable(),
     error: z.unknown().nullable(),
     created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
+
+const outboxJobRowSchema = z
+  .object({
+    id: z.number().int().positive(),
+    workspace_id: workspaceIdSchema,
+    kind: z.string(),
+    dedupe_key: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    status: z.string(),
+    attempts: z.number().int().nonnegative(),
+    available_at: z.string(),
+    locked_at: z.string().nullable(),
+    last_error: z.string().nullable(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
+
+const googleCalendarConnectionRowSchema = z
+  .object({
+    workspace_id: workspaceIdSchema,
+    calendar_id: z.string(),
+    refresh_token_ciphertext: z.string(),
+    granted_scope: z.string(),
+    status: z.string(),
+    last_error: z.string().nullable(),
+    connected_at: z.string(),
     updated_at: z.string(),
   })
   .strict();
@@ -173,6 +218,7 @@ function toTelegramEventRecord(row: unknown): TelegramEventRecord {
     payloadHash: parsed.payload_hash,
     status: parsed.status,
     normalizedMessageId: parsed.normalized_message_id,
+    normalizedEvent: parsed.normalized_event,
     error: parsed.error,
     createdAt: parsed.created_at,
     updatedAt: parsed.updated_at,
@@ -186,6 +232,7 @@ function toTelegramEventRow(record: TelegramEventRecord) {
     payload_hash: record.payloadHash,
     status: record.status,
     normalized_message_id: record.normalizedMessageId,
+    normalized_event: record.normalizedEvent,
     error: record.error,
     created_at: record.createdAt,
     updated_at: record.updatedAt,
@@ -280,6 +327,38 @@ function toCalendarDeliveryRow(record: CalendarDeliveryRecord) {
   };
 }
 
+function toOutboxJob(row: unknown): OutboxJob {
+  const parsed = outboxJobRowSchema.parse(row);
+  return outboxJobSchema.parse({
+    id: parsed.id,
+    workspaceId: parsed.workspace_id,
+    kind: parsed.kind,
+    dedupeKey: parsed.dedupe_key,
+    payload: parsed.payload,
+    status: parsed.status,
+    attempts: parsed.attempts,
+    availableAt: parsed.available_at,
+    lockedAt: parsed.locked_at,
+    lastError: parsed.last_error,
+    createdAt: parsed.created_at,
+    updatedAt: parsed.updated_at,
+  });
+}
+
+function toGoogleCalendarConnection(row: unknown): GoogleCalendarConnection {
+  const parsed = googleCalendarConnectionRowSchema.parse(row);
+  return googleCalendarConnectionSchema.parse({
+    workspaceId: parsed.workspace_id,
+    calendarId: parsed.calendar_id,
+    refreshTokenCiphertext: parsed.refresh_token_ciphertext,
+    grantedScope: parsed.granted_scope,
+    status: parsed.status,
+    lastError: parsed.last_error,
+    connectedAt: parsed.connected_at,
+    updatedAt: parsed.updated_at,
+  });
+}
+
 function throwDataSourceError(
   operation: SupabaseDataSourceOperation,
 ): never {
@@ -291,11 +370,13 @@ function throwDataSourceError(
 
 const workspaceColumns = "workspace_id,schema_version,revision,state";
 const telegramEventColumns =
-  "update_id,workspace_id,payload_hash,status,normalized_message_id,error,created_at,updated_at";
+  "update_id,workspace_id,payload_hash,status,normalized_message_id,normalized_event,error,created_at,updated_at";
 const telegramDeliveryColumns =
   "request_id,part,workspace_id,conversation_id,target_language,approved_text,approved_text_hash,voice_source,audio_object_path,audio_content_type,audio_sha256,tts_model,tts_voice,status,workspace_sync_status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
 const calendarDeliveryColumns =
   "request_id,workspace_id,conversation_id,calendar_uid,calendar_sequence,kind,content_hash,status,provider_message_id,provider_accepted_at,error,created_at,updated_at";
+const googleCalendarConnectionColumns =
+  "workspace_id,calendar_id,refresh_token_ciphertext,granted_scope,status,last_error,connected_at,updated_at";
 
 export function createSupabaseWorkspaceDataSource(
   client: SupabaseClient,
@@ -524,6 +605,111 @@ export function createSupabaseCalendarDeliveryDataSource(
 
     updateIfStatus(record, expectedStatus) {
       return update(record, expectedStatus);
+    },
+  };
+}
+
+export function createSupabaseOutboxDataSource(
+  client: SupabaseClient,
+  now: () => string = () => new Date().toISOString(),
+): OutboxDataSource {
+  return {
+    async claim(workspaceId, limit) {
+      const { data, error } = await client.rpc("claim_outbox_jobs", {
+        p_workspace_id: workspaceId,
+        p_limit: limit,
+      });
+      if (error) return throwDataSourceError("update");
+      return z.array(outboxJobRowSchema).parse(data ?? []).map(toOutboxJob);
+    },
+
+    async enqueue(input: EnqueueOutboxJob) {
+      const { error } = await client.rpc("enqueue_outbox_job", {
+        p_workspace_id: input.workspaceId,
+        p_kind: input.kind,
+        p_dedupe_key: input.dedupeKey,
+        p_payload: input.payload,
+      });
+      if (error) return throwDataSourceError("insert");
+    },
+
+    async complete(input) {
+      const { error } = await client
+        .from("outbox_jobs")
+        .update({
+          status: "completed",
+          locked_at: null,
+          last_error: null,
+          updated_at: now(),
+        })
+        .eq("id", input.id)
+        .eq("status", "running")
+        .eq("locked_at", input.lockedAt);
+      if (error) return throwDataSourceError("update");
+    },
+
+    async retry(input) {
+      const { error } = await client
+        .from("outbox_jobs")
+        .update({
+          status: input.final ? "failed" : "pending",
+          available_at: input.availableAt,
+          locked_at: null,
+          last_error: input.error,
+          updated_at: now(),
+        })
+        .eq("id", input.id)
+        .eq("status", "running")
+        .eq("locked_at", input.lockedAt);
+      if (error) return throwDataSourceError("update");
+    },
+  };
+}
+
+export function createSupabaseGoogleCalendarConnectionDataSource(
+  client: SupabaseClient,
+): GoogleCalendarConnectionDataSource {
+  return {
+    async read(workspaceId) {
+      const { data, error } = await client
+        .from("google_calendar_connections")
+        .select(googleCalendarConnectionColumns)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (error) return throwDataSourceError("read");
+      return data ? toGoogleCalendarConnection(data) : null;
+    },
+    async upsert(record) {
+      const { error } = await client.from("google_calendar_connections").upsert({
+        workspace_id: record.workspaceId,
+        calendar_id: record.calendarId,
+        refresh_token_ciphertext: record.refreshTokenCiphertext,
+        granted_scope: record.grantedScope,
+        status: record.status,
+        last_error: record.lastError,
+        connected_at: record.connectedAt,
+        updated_at: record.updatedAt,
+      });
+      if (error) return throwDataSourceError("update");
+    },
+  };
+}
+
+export function createSupabaseGoogleCalendarEventDataSource(
+  client: SupabaseClient,
+): GoogleCalendarEventDataSource {
+  return {
+    async upsert(record) {
+      const { error } = await client.from("google_calendar_events").upsert({
+        workspace_id: record.workspaceId,
+        conversation_id: record.conversationId,
+        event_id: record.eventId,
+        booking_revision: record.bookingRevision,
+        status: record.status,
+        event_etag: record.eventEtag,
+        last_synced_at: record.lastSyncedAt,
+      });
+      if (error) return throwDataSourceError("update");
     },
   };
 }

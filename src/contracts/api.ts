@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { revisionSchema, serverDomainStateSchema } from "./app-state";
+import { bookingSchema, revisionSchema, serverDomainStateSchema } from "./app-state";
 import { deliveryReceiptSchema, telegramVoiceSourceSchema } from "./channel";
 
 export const API_ERROR_CODES = [
@@ -204,6 +204,29 @@ export const calendarDispatchResultSchema = z
   })
   .strict();
 
+const bookingCommandBaseSchema = z.object({
+  conversationId: z.string().min(1).max(256),
+  expectedBookingRevision: revisionSchema,
+  expectedConversationRevision: revisionSchema,
+});
+
+export const bookingCommandRequestSchema = z.discriminatedUnion("action", [
+  bookingCommandBaseSchema.extend({
+    action: z.literal("update"),
+    provider: z.string().trim().min(1).max(256),
+    reason: z.string().trim().min(1).max(500),
+    slotIso: z.iso.datetime({ offset: true }),
+  }).strict(),
+  bookingCommandBaseSchema.extend({
+    action: z.literal("cancel"),
+  }).strict(),
+]);
+
+export const bookingCommandResultSchema = z.object({
+  booking: bookingSchema,
+  workspace: workspaceEnvelopeSchema,
+}).strict();
+
 export const saveWorkspaceResultSchema = z.discriminatedUnion("ok", [
   z
     .object({
@@ -249,4 +272,6 @@ export type OutboundReconcileResult = z.infer<
 >;
 export type CalendarDispatchRequest = z.infer<typeof calendarDispatchRequestSchema>;
 export type CalendarDispatchResult = z.infer<typeof calendarDispatchResultSchema>;
+export type BookingCommandRequest = z.infer<typeof bookingCommandRequestSchema>;
+export type BookingCommandResult = z.infer<typeof bookingCommandResultSchema>;
 export type SaveWorkspaceResult = z.infer<typeof saveWorkspaceResultSchema>;

@@ -7,11 +7,13 @@ import {
 import { mergeTelegramWorkspaceState } from "../domain/telegram-workspace";
 import {
   ApiClientError,
+  type BookingClient,
   type TelegramOutboundClient,
   type WorkspaceClient,
 } from "../services/api-client";
 import type { TelegramVoiceSource } from "../contracts/channel";
 import type { OutboundSendResult } from "../contracts/api";
+import type { BookingCommandRequest } from "../contracts/api";
 import { isAbortError } from "../shared/errors";
 import { applyMutation } from "./apply-mutation";
 import type { AppStateRepository } from "./repository";
@@ -34,6 +36,7 @@ type TelegramSliceDeps = {
   getState: () => AppState;
   getTelegramWorkspace: () => TelegramWorkspaceState;
   outboundClient: TelegramOutboundClient;
+  bookingClient: BookingClient;
   repository: AppStateRepository;
   set: (partial: {
     state?: AppState;
@@ -95,6 +98,7 @@ export function createTelegramActions({
   getState,
   getTelegramWorkspace,
   outboundClient,
+  bookingClient,
   repository,
   set,
   telegramWorkspaceRepository,
@@ -301,6 +305,42 @@ export function createTelegramActions({
 
   return {
     refreshTelegramWorkspace,
+
+    async executeTelegramBookingCommand(
+      request: BookingCommandRequest,
+      signal?: AbortSignal,
+    ): Promise<MutationResult> {
+      try {
+        const result = await bookingClient.execute(request, signal);
+        const projected = mergeTelegramWorkspaceState(getState(), result.workspace.state);
+        const telegramWorkspace: TelegramWorkspaceState = {
+          ...getTelegramWorkspace(),
+          status: "ready",
+          workspaceRevision: result.workspace.revision,
+          conversationRevisions: projected.conversationRevisions,
+          speechArtifacts: projected.speechArtifacts,
+        };
+        set({
+          state: projected.state,
+          lastFeedback: request.action === "cancel"
+            ? "Booking cancelled. Google Calendar synchronization runs when connected."
+            : "Booking updated. Google Calendar synchronization runs when connected.",
+        });
+        setTelegramWorkspace(telegramWorkspace);
+        repository.save(projected.state);
+        return { ok: true, state: projected.state };
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        if (error instanceof ApiClientError && error.code === "revision_conflict") {
+          await refreshTelegramWorkspace(signal);
+        }
+        const message = error instanceof ApiClientError
+          ? error.message
+          : "The booking could not be synchronized.";
+        set({ lastFeedback: message });
+        return failed(getState(), message);
+      }
+    },
 
     async sendCalendarInvitation(
       conversationId: string,

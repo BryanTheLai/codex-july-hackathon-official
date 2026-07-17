@@ -17,6 +17,8 @@ import {
   outboundVoiceRecordingResultSchema,
   calendarDispatchRequestSchema,
   calendarDispatchResultSchema,
+  bookingCommandRequestSchema,
+  bookingCommandResultSchema,
   manualSpeechTranscriptRequestSchema,
   saveWorkspaceResultSchema,
   workspaceEnvelopeSchema,
@@ -30,6 +32,8 @@ import {
   type OutboundVoiceRecordingResult,
   type CalendarDispatchRequest,
   type CalendarDispatchResult,
+  type BookingCommandRequest,
+  type BookingCommandResult,
   type ManualSpeechTranscriptRequest,
   type SaveWorkspaceResult,
   type WorkspaceEnvelope,
@@ -88,6 +92,13 @@ export interface WorkspaceCommandClient {
     request: WorkspaceCommandRequest,
     signal?: AbortSignal,
   ): Promise<WorkspaceCommandResult>;
+}
+
+export interface BookingClient {
+  execute(
+    request: BookingCommandRequest,
+    signal?: AbortSignal,
+  ): Promise<BookingCommandResult>;
 }
 
 export interface AgentClient {
@@ -281,6 +292,30 @@ export function createHttpWorkspaceCommandClient(
         networkError: "The Dream release server could not be reached.",
         invalidResponseError: "The Dream release server returned invalid state.",
         requestError: "The Dream release request failed.",
+      });
+    },
+  };
+}
+
+export function createHttpBookingClient(
+  fetcher: Fetcher = fetch,
+): BookingClient {
+  return {
+    execute(input, signal) {
+      const request = bookingCommandRequestSchema.parse(input);
+      return requestJson({
+        fetcher,
+        input: "/api/bookings/commands",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+          signal,
+        },
+        schema: bookingCommandResultSchema,
+        networkError: "The booking server could not be reached.",
+        invalidResponseError: "The booking server returned an invalid response.",
+        requestError: "The booking update failed.",
       });
     },
   };

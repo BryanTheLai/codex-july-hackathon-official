@@ -25,13 +25,14 @@ export function BookingDialog({
 }: {
   conversation: Conversation | null;
   onOpenChange: (open: boolean) => void;
-  onSave: (input: UpdateBookingInput) => MutationResult;
+  onSave: (input: UpdateBookingInput) => MutationResult | Promise<MutationResult>;
   open: boolean;
 }) {
   const [dateTime, setDateTime] = useState("");
   const [provider, setProvider] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !conversation?.booking) {
@@ -54,13 +55,18 @@ export function BookingDialog({
   const previewResult =
     conversation && input ? previewBookingNotification(conversation, input) : null;
   const preview = previewResult?.ok ? previewResult.preview : null;
+  const isPersistedTelegramBooking =
+    conversation?.channel === "Telegram" &&
+    conversation.id.startsWith("telegram-conversation:");
 
-  const submit = () => {
+  const submit = async () => {
     if (!input) {
       setError("Booking not found");
       return;
     }
-    const result = onSave(input);
+    setSaving(true);
+    const result = await onSave(input);
+    setSaving(false);
     if (result.ok) {
       onOpenChange(false);
       return;
@@ -78,8 +84,9 @@ export function BookingDialog({
             Edit booking
           </Dialog.Title>
           <Dialog.Description className="chat-dialog__description">
-            Update this synthetic booking and preview the patient message. Nothing is sent to
-            Telegram. Times use Malaysia Time (MYT).
+            {isPersistedTelegramBooking
+              ? "Update the booking and preview the patient message. Google Calendar synchronization is queued when it is connected. Times use Malaysia Time (MYT)."
+              : "Update this synthetic booking and preview the patient message. Nothing is sent to Telegram. Times use Malaysia Time (MYT)."}
           </Dialog.Description>
           <label className="chat-dialog__field">
             Date and time
@@ -139,11 +146,11 @@ export function BookingDialog({
             </Dialog.Close>
             <button
               className="chat-button chat-button--primary"
-              disabled={!preview}
-              onClick={submit}
+              disabled={!preview || saving}
+              onClick={() => void submit()}
               type="button"
             >
-              Save booking
+              {saving ? "Saving…" : "Save booking"}
             </button>
           </div>
         </Dialog.Content>

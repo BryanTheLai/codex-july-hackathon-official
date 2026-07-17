@@ -9,7 +9,7 @@ import express, {
   type Response,
 } from "express";
 import { createServer as createViteServer } from "vite";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import {
   agentRunCreateRequestSchema,
@@ -71,6 +71,7 @@ import {
   outboundSendRequestSchema,
   outboundVoicePrepareRequestSchema,
   resetDemoRequestSchema,
+  bookingCommandRequestSchema,
   saveWorkspaceRequestSchema,
   saveWorkspaceResultSchema,
   translationRequestSchema,
@@ -83,11 +84,26 @@ import { JUDGE_PROMPT_VERSION } from "./judge-prompt";
 import {
   createSupabaseServerClient,
   createSupabaseCalendarDeliveryDataSource,
+  createSupabaseGoogleCalendarConnectionDataSource,
+  createSupabaseGoogleCalendarEventDataSource,
+  createSupabaseOutboxDataSource,
   createSupabaseTelegramDeliveryDataSource,
   createSupabaseTelegramEventDataSource,
   createSupabaseWorkspaceDataSource,
   readSupabaseConfig,
 } from "./supabase";
+import { readGoogleCalendarConfig } from "./google-calendar-config";
+import {
+  createGoogleCalendarConnectionRepository,
+  createGoogleCalendarEventRepository,
+} from "./google-calendar-repository";
+import {
+  createGoogleCalendarService,
+  GoogleCalendarError,
+  type GoogleCalendarService,
+} from "./google-calendar-service";
+import { createOutboxRepository, type OutboxRepository } from "./outbox-repository";
+import { createOutboxWorker } from "./outbox-worker";
 import {
   createSupabaseVoiceArtifactStore,
   VoiceArtifactStoreError,
@@ -97,6 +113,7 @@ import {
   readTelegramConfig,
 } from "./telegram-adapter";
 import type { NormalizedInboundEvent } from "../src/contracts/channel";
+import { normalizedInboundEventSchema } from "../src/contracts/channel";
 import {
   createInboundSpeechService,
   InboundSpeechServiceError,
@@ -150,6 +167,10 @@ import {
   WorkspaceRepositoryError,
   type WorkspaceRepository,
 } from "./workspace-repository";
+import {
+  BookingCommandServiceError,
+  createBookingCommandService,
+} from "./booking-command-service";
 
 if (process.env.NODE_ENV !== "test") {
   try {
@@ -195,6 +216,7 @@ type JudgeAppOptions = {
   now?: () => number;
   workspace?: WorkspaceAppOptions | null;
   telegram?: TelegramAppOptions | null;
+  googleCalendar?: GoogleCalendarService | null;
   translation?: TranslationService | null;
 };
 
@@ -251,7 +273,57 @@ function configuredWorkspace(): WorkspaceAppOptions | null {
   };
 }
 
-function configuredAgent(workspace: WorkspaceAppOptions | null): AgentRunner | null {
+function configuredOutbox(
+  workspace: WorkspaceAppOptions | null,
+): OutboxRepository | null {
+  if (!workspace) return null;
+  if (
+    process.env.SUPABASE_URL === undefined &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY === undefined
+  ) {
+    return null;
+  }
+  try {
+    const client = createSupabaseServerClient(readSupabaseConfig());
+    return createOutboxRepository(createSupabaseOutboxDataSource(client));
+  } catch (error) {
+    log.error("outbox_configuration_failed", errorLogFields(error));
+    return null;
+  }
+}
+
+function configuredGoogleCalendar(
+  workspace: WorkspaceAppOptions | null,
+  outboxRepository: OutboxRepository | null,
+): GoogleCalendarService | null {
+  if (!workspace || !outboxRepository) return null;
+  try {
+    const calendarConfig = readGoogleCalendarConfig();
+    if (!calendarConfig.enabled) return null;
+    const supabase = readSupabaseConfig();
+    const client = createSupabaseServerClient(supabase);
+    return createGoogleCalendarService({
+      config: calendarConfig,
+      connectionRepository: createGoogleCalendarConnectionRepository(
+        createSupabaseGoogleCalendarConnectionDataSource(client),
+      ),
+      eventRepository: createGoogleCalendarEventRepository(
+        createSupabaseGoogleCalendarEventDataSource(client),
+      ),
+      outboxRepository,
+      workspaceId: workspace.workspaceId,
+      workspaceRepository: workspace.repository,
+    });
+  } catch (error) {
+    log.error("google_calendar_configuration_failed", errorLogFields(error));
+    return null;
+  }
+}
+
+function configuredAgent(
+  workspace: WorkspaceAppOptions | null,
+  googleCalendar: GoogleCalendarService | null,
+): AgentRunner | null {
   if (!process.env.LLM_API_KEY) {
     return null;
   }
@@ -267,6 +339,7 @@ function configuredAgent(workspace: WorkspaceAppOptions | null): AgentRunner | n
       ...(workspace
         ? {
             toolExecutor: createAutonomousBookingToolExecutor({
+              calendarAvailability: googleCalendar ?? undefined,
               workspaceId: workspace.workspaceId,
               workspaceRepository: workspace.repository,
             }),
@@ -461,7 +534,6 @@ async function runTelegramAutoReply(input: {
     });
     return;
   }
-  try {
     const loaded = await workspace.repository.load(workspace.workspaceId);
     const conversation = loaded?.state.conversations.find(
       (candidate) =>
@@ -607,20 +679,11 @@ async function runTelegramAutoReply(input: {
       });
       return;
     }
-    log.error("telegram_auto_reply_delivery_failed", {
-      ...logContext,
-      conversationId: conversation.id,
-      failedParts: delivery.failedParts.join(","),
-      requestId,
-      runId: result.runId,
-    });
-  } catch (error) {
-    log.error("telegram_auto_reply_failed", {
-      ...logContext,
-      workspaceId: workspace.workspaceId,
-      ...errorLogFields(error),
-    });
-  }
+    throw new TelegramOutboundError(
+      "provider_failed",
+      "Telegram auto-reply delivery failed.",
+      true,
+    );
 }
 
 async function runTelegramVoiceAutoReply(input: {
@@ -646,24 +709,15 @@ async function runTelegramVoiceAutoReply(input: {
   }
 
   const messageId = telegramInboundMessageId(event);
-  try {
-    const speech = await telegram.speech.retry(messageId);
-    log.info("telegram_speech_auto_transcription", {
-      externalEventId: event.externalEventId,
-      messageId,
-      status: speech.status,
-      webhookRequestId,
-    });
-    if (speech.status === "ready") {
-      await runTelegramAutoReply(input);
-    }
-  } catch (error) {
-    log.error("telegram_speech_auto_transcription_failed", {
-      externalEventId: event.externalEventId,
-      messageId,
-      webhookRequestId,
-      ...errorLogFields(error),
-    });
+  const speech = await telegram.speech.retry(messageId);
+  log.info("telegram_speech_auto_transcription", {
+    externalEventId: event.externalEventId,
+    messageId,
+    status: speech.status,
+    webhookRequestId,
+  });
+  if (speech.status === "ready") {
+    await runTelegramAutoReply(input);
   }
 }
 
@@ -1059,11 +1113,70 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
     now = Date.now,
   } = options;
   const workspace = options.workspace ?? configuredWorkspace();
-  const agent = options.agent === undefined ? configuredAgent(workspace) : options.agent;
+  const outboxRepository = configuredOutbox(workspace);
+  const googleCalendar =
+    options.googleCalendar === undefined
+      ? configuredGoogleCalendar(workspace, outboxRepository)
+      : options.googleCalendar;
+  const agent = options.agent === undefined
+    ? configuredAgent(workspace, googleCalendar)
+    : options.agent;
   const telegram =
     options.telegram === undefined
       ? configuredTelegram(workspace, agent)
       : options.telegram;
+  const outbox = outboxRepository && workspace
+    ? createOutboxWorker({
+        execute: async (job) => {
+          if (job.kind === "telegram_auto_reply") {
+            if (!telegram) {
+              throw new Error("Telegram is not configured for this outbox job.");
+            }
+            const parsed = normalizedInboundEventSchema.parse(job.payload.event);
+            const input = {
+              agent,
+              agentTimeoutMs,
+              event: parsed,
+              telegram,
+              workspace,
+            };
+            if (parsed.message.kind === "voice") {
+              await runTelegramVoiceAutoReply(input);
+            } else {
+              await runTelegramAutoReply(input);
+            }
+            return;
+          }
+          if (job.kind === "google_calendar_sync") {
+            const payload = z.object({
+              bookingRevision: z.number().int().positive(),
+              conversationId: z.string().min(1).max(256),
+            }).strict().parse(job.payload);
+            if (!googleCalendar) {
+              throw new GoogleCalendarError(
+                "Google Calendar is unavailable. Reconnect it to resume the queued booking sync.",
+                false,
+              );
+            }
+            await googleCalendar.syncBooking(payload);
+          }
+        },
+        onError: (job, error, outcome) => {
+          log.error("outbox_job_failed", {
+            jobId: String(job.id),
+            kind: job.kind,
+            outcome,
+            ...errorLogFields(error),
+          });
+        },
+        onDrainError: (error) => {
+          log.error("outbox_drain_failed", errorLogFields(error));
+        },
+        repository: outboxRepository,
+        workspaceId: workspace.workspaceId,
+      })
+    : null;
+  outbox?.start();
   const translation =
     options.translation === undefined
       ? configuredTranslation()
@@ -1076,6 +1189,13 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
     options.workflow === undefined
       ? configuredWorkspaceCommands(workspace, evalService)
       : options.workflow;
+  const bookingCommands = workspace
+    ? createBookingCommandService({
+        calendarAvailability: googleCalendar ?? undefined,
+        workspaceId: workspace.workspaceId,
+        workspaceRepository: workspace.repository,
+      })
+    : null;
   const app = express();
   app.disable("x-powered-by");
   app.use(requestLogging);
@@ -1087,6 +1207,8 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
         telegram: Boolean(telegram),
         telegramAutoReply: telegram?.autoReplyEnabled ?? false,
         telegramCalendar: Boolean(telegram?.calendar),
+        googleCalendar: Boolean(googleCalendar),
+        outbox: Boolean(outbox),
         telegramLiveDelivery: telegram?.liveEnabled ?? false,
         telegramSpeech: Boolean(telegram?.speech),
         translation: Boolean(translation),
@@ -1094,6 +1216,88 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
       },
     });
   });
+  app.get(
+    "/api/calendar/google/status",
+    async (_request: Request, response: Response) => {
+      if (!googleCalendar) {
+        response.status(200).json({
+          calendarId: null,
+          configured: false,
+          mode: "demo",
+          status: "disabled",
+        });
+        return;
+      }
+      try {
+        response.status(200).json(await googleCalendar.status());
+      } catch (error) {
+        log.error("google_calendar_status_failed", errorLogFields(error));
+        response.status(200).json({
+          calendarId: null,
+          configured: true,
+          mode: "demo",
+          status: "error",
+        });
+      }
+    },
+  );
+  app.post(
+    "/api/admin/calendar/google/connect",
+    (_request: Request, response: Response) => {
+      if (!googleCalendar) {
+        sendApiError(response, 503, {
+          code: "feature_disabled",
+          error: "Google Calendar is not configured.",
+          retryable: false,
+        });
+        return;
+      }
+      const token = _request.headers["x-kaunter-admin-token"];
+      try {
+        response.status(200).json({
+          authorizationUrl: googleCalendar.authorizationUrl(
+            typeof token === "string" ? token : "",
+          ),
+        });
+      } catch (error) {
+        const message = error instanceof GoogleCalendarError
+          ? error.message
+          : "Google Calendar connection could not be started.";
+        sendApiError(response, 403, {
+          code: "invalid_request",
+          error: message,
+          retryable: false,
+        });
+      }
+    },
+  );
+  app.get(
+    "/api/admin/calendar/google/callback",
+    async (request: Request, response: Response) => {
+      if (!googleCalendar) {
+        response.status(503).type("html").send("<p>Google Calendar is not configured.</p>");
+        return;
+      }
+      const code = typeof request.query.code === "string" ? request.query.code : "";
+      const state = typeof request.query.state === "string" ? request.query.state : "";
+      if (!code || !state) {
+        response.status(400).type("html").send("<p>Google Calendar authorization was missing its code or state.</p>");
+        return;
+      }
+      try {
+        await googleCalendar.completeAuthorization({ code, state });
+        outbox?.wake();
+        response.status(200).type("html").send(
+          "<main><h1>Google Calendar connected</h1><p>KaunterAI will now use this calendar for availability and sync booking changes. You may close this tab.</p></main>",
+        );
+      } catch (error) {
+        log.error("google_calendar_callback_failed", errorLogFields(error));
+        response.status(400).type("html").send(
+          "<main><h1>Google Calendar connection failed</h1><p>Return to KaunterAI and start the connection again.</p></main>",
+        );
+      }
+    },
+  );
   app.get("/readyz", async (_request: Request, response: Response) => {
     if (!workspace) {
       sendApiError(response, 503, {
@@ -1168,10 +1372,16 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
                 : undefined,
             workspace,
           };
-          if (event.message.kind === "voice") {
-            void runTelegramVoiceAutoReply(autoReplyInput);
+          if (outbox) {
+            outbox.wake();
+          } else if (event.message.kind === "voice") {
+            void runTelegramVoiceAutoReply(autoReplyInput).catch((error) =>
+              log.error("telegram_voice_auto_reply_failed", errorLogFields(error)),
+            );
           } else {
-            void runTelegramAutoReply(autoReplyInput);
+            void runTelegramAutoReply(autoReplyInput).catch((error) =>
+              log.error("telegram_auto_reply_failed", errorLogFields(error)),
+            );
           }
         }
       } catch (error) {
@@ -1605,6 +1815,42 @@ export function createJudgeApp(options: JudgeAppOptions = {}) {
           return;
         }
         sendWorkspaceCommandFailure(response, error);
+      }
+    },
+  );
+  app.post(
+    "/api/bookings/commands",
+    async (request: Request, response: Response) => {
+      if (!requireWorkspace(workspace, response) || !bookingCommands) {
+        return;
+      }
+      const parsed = bookingCommandRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendApiError(response, 400, {
+          code: "invalid_request",
+          error: "Booking update request is invalid.",
+          retryable: false,
+        });
+        return;
+      }
+      try {
+        const result = await bookingCommands.execute(parsed.data);
+        outbox?.wake();
+        response.status(200).json(result);
+      } catch (error) {
+        if (error instanceof BookingCommandServiceError) {
+          sendApiError(response, error.code === "not_found" ? 404 : error.code === "revision_conflict" ? 409 : 400, {
+            code: error.code,
+            error: error.message,
+            retryable: error.code === "revision_conflict",
+          });
+          return;
+        }
+        sendApiError(response, 503, {
+          code: "provider_failed",
+          error: "Booking update could not be saved.",
+          retryable: true,
+        });
       }
     },
   );

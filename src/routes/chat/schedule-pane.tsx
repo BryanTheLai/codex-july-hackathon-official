@@ -1,4 +1,4 @@
-import { CalendarPlus, Pencil } from "lucide-react";
+import { CalendarPlus, Link2, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { Conversation, ConversationId } from "../../domain";
@@ -28,6 +28,28 @@ export function SchedulePane({
   );
   const firstBookingDate = bookings[0]?.booking?.slotIso.slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(firstBookingDate ?? days[0]?.isoDate ?? "");
+  const [calendarMode, setCalendarMode] = useState<"demo" | "google">("demo");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/calendar/google/status", { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((status: unknown) => {
+        if (
+          status &&
+          typeof status === "object" &&
+          "mode" in status &&
+          status.mode === "google"
+        ) {
+          setCalendarMode("google");
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+  const calendarLabel = calendarMode === "google"
+    ? "Google Calendar synced"
+    : "Demo schedule fallback";
 
   useEffect(() => {
     if (!days.some((day) => day.isoDate === selectedDate)) {
@@ -120,7 +142,7 @@ export function SchedulePane({
               ))}
             </select>
           </label>
-          <strong>Synthetic schedule</strong>
+          <strong>{calendarLabel}</strong>
         </header>
         {bookingList}
       </section>
@@ -128,7 +150,7 @@ export function SchedulePane({
   }
 
   return (
-    <section aria-label="Synthetic schedule" className="schedule-pane" role="region">
+    <section aria-label="Appointment schedule" className="schedule-pane" role="region">
       <div className="schedule-board">
         <nav
           aria-label="Schedule day index"
@@ -174,7 +196,10 @@ export function SchedulePane({
                 scheduled
               </span>
             </div>
-            <span className="chat-badge chat-badge--info">Synthetic schedule</span>
+            <span className="chat-badge chat-badge--info">
+              <Link2 aria-hidden="true" size={13} />
+              {calendarLabel}
+            </span>
           </header>
           {bookingList}
         </section>

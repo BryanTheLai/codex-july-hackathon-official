@@ -21,7 +21,8 @@ There is no staff approval step for those administrative actions. The agent is f
 ```mermaid
 flowchart LR
   T[Telegram text] --> I[Idempotent inbound event]
-  I --> W[Workspace conversation revision]
+  I --> O[Durable Postgres outbox]
+  O --> W[Workspace conversation revision]
   W --> A[Configured OpenAI-compatible function-call loop]
   A --> S[list_available_slots]
   A --> B[create / reschedule / cancel]
@@ -29,6 +30,8 @@ flowchart LR
   C --> R[Patient-facing model reply]
   R --> D[Idempotent Telegram text delivery]
   C --> K[Optional .ics calendar delivery]
+  C --> G[Optional Google Calendar sync job]
+  G --> X[Google event CRUD]
   T --> F[Patient correction]
   F --> A
   A --> G[flag_autonomous_action_wrong]
@@ -41,10 +44,12 @@ The model never writes the workspace directly. It selects a function, the server
 
 ## Data and relationships
 
-The MVP deliberately adds no package or database table. Supabase stores the existing fixed-workspace state as JSONB and owns the existing Telegram event, delivery, and calendar-delivery records.
+The MVP adds no npm package. Supabase keeps the fixed workspace JSONB and adds a durable outbox,
+one encrypted single-admin Google connection, and a Google event synchronization ledger.
 
 ```text
-telegram_events (update id, payload hash)
+telegram_events (update id, payload hash, normalized event)
+  -> outbox_jobs (one durable auto-reply job)
   -> workspace demo_state (one optimistic revision)
        -> conversations[] (one per Telegram chat, own revision)
             -> messages[] (patient, sent reply, autonomous audit)
@@ -53,6 +58,8 @@ telegram_events (update id, payload hash)
        -> playbookHistory (pinned agent evidence)
   -> telegram_deliveries (request id, provider receipt, sync status)
   -> calendar_deliveries (calendar UID, sequence, provider receipt)
+  -> google_calendar_connections (one admin OAuth refresh token, encrypted)
+  -> google_calendar_events (conversation -> deterministic Google event)
 ```
 
 The two revisions have separate jobs:
@@ -69,7 +76,7 @@ The `openai` SDK's Responses API is the preferred path. The adapter also support
 
 | Function | Input | Server assertion | Effect |
 | --- | --- | --- | --- |
-| `list_available_slots` | provider, local date or `null` | provider is `Dr. Farah`, `Dr. Lim`, or `Dr. Siti Rahman` | Returns up to eight future unreserved demo slots |
+| `list_available_slots` | provider, local date or `null` | provider is `Dr. Farah`, `Dr. Lim`, or `Dr. Siti Rahman` | Returns deterministic demo slots, filtered through Google FreeBusy only when the admin connection is active |
 | `create_booking` | provider, returned ISO slot, reason | conversation is current; no confirmed booking; slot is still free | Saves an approved booking |
 | `reschedule_booking` | provider, returned ISO slot, reason | conversation is current; booking is approved; slot is still free | Changes the approved booking |
 | `cancel_booking` | no arguments | conversation is current; booking is approved | Cancels the booking |
@@ -86,8 +93,8 @@ No dependency was added for this feature. The MVP uses the repository's existing
 | Agent reasoning and tools | `openai` 6.x | Structured final output and function-call loop |
 | Input and tool validation | `zod` 4.x | Strict request, provider, and booking arguments |
 | Webhook/API | Express 5 | Telegram ingress and delivery endpoints |
-| Durable state | Supabase Postgres | Workspace CAS, inbound-event and delivery records |
-| Calendar | `ical-generator` | `.ics` invitation after a confirmed autonomous booking |
+| Durable state | Supabase Postgres | Workspace CAS, inbound-event/delivery records, outbox, and optional Google sync ledger |
+| Calendar | Native `fetch` + Google Calendar API | Optional single-admin FreeBusy plus event create/update/delete; `ical-generator` still makes the Telegram invite |
 | UI | React 19 | Shows the manual-run autonomous action trace |
 
 Required live path switches remain `LIVE_TELEGRAM_ENABLED=true` and `LIVE_AGENT_ENABLED=true`, plus the existing Supabase, Telegram, and `LLM_*` values. The local suite proves the complete contract with deterministic providers; a real inbound Telegram-to-model-to-receipt smoke still requires a user-controlled test chat.
@@ -120,7 +127,7 @@ These are the 20 candidate approaches considered for autonomous booking. The sel
 | 4 | One overloaded `manage_booking` tool | Rejected: unclear action semantics and weak evaluation. |
 | 5 | Four atomic booking tools | Selected: clear authority and exact test cases. |
 | 6 | Add a full EHR integration now | Deferred: large, clinic-specific, not needed for the demo. |
-| 7 | Add Google Calendar availability now | Deferred: OAuth and external state would dominate scope. |
+| 7 | Add optional Google Calendar availability | Selected after the core demo: one admin OAuth connection filters the existing candidate slots without replacing the fallback scheduler. |
 | 8 | Use a deterministic in-app availability grid | Selected: real state mutation without a new dependency. |
 | 9 | Let the model invent a slot | Rejected: causes false confirmations. |
 | 10 | Let the model choose only returned slots | Selected: server rechecks availability at commit time. |
@@ -130,11 +137,11 @@ These are the 20 candidate approaches considered for autonomous booking. The sel
 | 14 | Server-owned Telegram delivery after the final reply | Selected: preserves delivery idempotency and message sync. |
 | 15 | Retry a timed-out external send blindly | Rejected: can duplicate a real patient message. |
 | 16 | Retry workspace CAS conflicts from fresh state | Selected: safe, bounded, and preserves patient recency. |
-| 17 | Persist a full job queue now | Deferred: important for production, not required to prove the tool loop. |
+| 17 | Persist a narrow job outbox | Selected: two typed jobs make automatic replies and calendar synchronization recoverable without Redis or a second service. |
 | 18 | Let feedback mutate the prompt automatically | Rejected: feedback can be malicious or unrepresentative. |
 | 19 | Send feedback through Eval and Dream | Selected: learns from evidence while retaining agent release control. |
 | 20 | Add multi-agent orchestration | Deferred: one reliable autonomous agent is more persuasive than simulated complexity. |
 
 ## Known boundary
 
-This is a working autonomous booking MVP, not authorization, tenancy, consent management, durable background jobs, live provider inventory, or a real-clinic safety certification. Those items remain required before public use with patient data.
+This is a working autonomous booking MVP, not authorization, tenancy, consent management, EHR/PMS authority, multi-calendar scheduling, or a real-clinic safety certification. A real owner-controlled provider smoke remains required before public use with patient data.

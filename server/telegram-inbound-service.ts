@@ -95,6 +95,7 @@ export function createTelegramInboundService({
         workspaceId,
         payloadHash: hash,
         normalizedMessageId: telegramInboundMessageId(event),
+        normalizedEvent: event,
       });
       if (registered.record.payloadHash !== hash) {
         throw new TelegramInboundError(

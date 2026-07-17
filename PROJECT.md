@@ -5,12 +5,12 @@ audience: "A product designer, engineer, or coding agent rebuilding the experien
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text and transcribed-voice control flow are implemented. A newly persisted live-agent Telegram text message or successfully transcribed voice note runs an autonomous function-calling agent that can check demo availability, create, reschedule, or cancel a booking, then sends one idempotent reply; voice-originated replies deliver concise text plus provider-selected TTS voice, with text-only fallback. OpenAI remains the default speech provider and ElevenLabs direct STT/TTS can be selected independently. Dashboard authentication, durable jobs, live external availability, and broader provider-quality validation remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM transcription with a provider-selected OpenAI Whisper or ElevenLabs Scribe v2 adapter, English glossing, browser transcription recovery, real outbound translation, provider-selected TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic text replies, automatic concise text-plus-TTS-voice replies after inbound voice transcription, and autonomous server-owned booking tools. It retains the existing no-provider deterministic Analyze fallback. Durable job retry, authentication, multi-user authorization, and live external availability remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text and transcribed-voice control flow are implemented. A newly persisted live-agent Telegram message creates a durable Postgres outbox job for the function-calling agent and reply. Optional single-admin Google Calendar OAuth filters candidate slots with FreeBusy and synchronizes booking create, reschedule, cancel, and persisted Schedule edits; without a connection the deterministic demo schedule remains active. OpenAI remains the default speech provider and ElevenLabs direct STT/TTS can be selected independently. Dashboard authentication, EHR/PMS authority, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM transcription with a provider-selected OpenAI Whisper or ElevenLabs Scribe v2 adapter, English glossing, browser transcription recovery, real outbound translation, provider-selected TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic replies through a durable Postgres outbox, and autonomous server-owned booking tools. It optionally connects one admin Google Calendar with OAuth refresh-token encryption, FreeBusy candidate filtering, and event CRUD while retaining deterministic demo availability as the no-connection fallback. It retains the existing no-provider deterministic Analyze fallback. Authentication, multi-user authorization, EHR/PMS authority, and live provider validation remain deferred."
 created: "2026-07-08"
 last_updated: "2026-07-17"
 last_verified: "2026-07-17"
-last_verified_scope: "Lint, typecheck, 476 automated tests, production build, 20 passing Playwright executions with seven intentional skips, focused autonomous booking, direct ElevenLabs voice-provider, and Telegram webhook regression tests, and an interactive local browser smoke. These prove the automatic inbound text control flow with mocked model and Telegram providers, including duplicate suppression, booking revision handoff, correct persisted speech model, and automatic clinical acknowledgement; they do not prove live provider quality or durable background execution."
+last_verified_scope: "Lint, typecheck, automated unit/component tests, production build, and Playwright verification. Focused tests cover booking revisions, Google FreeBusy filtering, Google event create/delete, migration access rules, and outbox retry state with mocked providers. They do not prove a real Google consent, Google event, Telegram receipt, or live provider quality."
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, provider-selected OpenAI/ElevenLabs speech, Eval, and release-workflow tests"
@@ -33,7 +33,7 @@ contract_priority:
   - "Replaceable implementation details"
 stack_policy: "No framework, language, storage engine, editor, table, chart, or component library is required by this document."
 synthetic_boundary: "All patients, messages, playbooks, and candidate outputs are synthetic. Tests use a simulated judge; configured local runs may use OpenAI and record that result as live LLM evidence."
-production_gap: "The fixed demo workspace has live Supabase persistence and protected Telegram inbound delivery, but no dashboard authentication, authorization, tenancy, durable job store, multi-user coordination, clinical system integration, or real-patient operating model. Authentication and durable jobs remain post-POC complete-target work."
+production_gap: "The fixed demo workspace has live Supabase persistence, protected Telegram inbound delivery, a durable outbox, and optional one-admin Google Calendar synchronization, but no dashboard authentication, authorization, tenancy, multi-user coordination, EHR/PMS authority, or real-patient operating model. A real owner-controlled provider smoke remains required."
 ---
 
 # KaunterAI Product and Rebuild Contract
@@ -642,14 +642,14 @@ relies on accidental wrapping.
 ```text
 1440px
 +----------------------+---------------------------------------------------------+
-| day index 220px      | selected day + Synthetic schedule                       |
+| day index 220px      | selected day + schedule-source badge                     |
 | 7 rows, date + count | 44px row: time | patient | provider | state             |
 | index scrolls        | booking rows scroll; selecting patient returns to Inbox |
 +----------------------+---------------------------------------------------------+
 
 390px
 +------------------------------------------+
-| 44px day selector | Synthetic schedule    |
+| 44px day selector | schedule-source badge |
 | booking row: time + patient              |
 | provider + state                         |
 | one list scrolls                         |
@@ -657,7 +657,7 @@ relies on accidental wrapping.
 
 320px
 +----------------------------------+
-| 44px Day select | Synthetic      |
+| 44px Day select | source badge   |
 | booking row: time + patient      |
 | provider                         |
 | state on its own metadata line   |
@@ -992,12 +992,13 @@ review. It is demo guidance, not a clinical protocol.
 
 ### 7.12 Schedule
 
-Schedule is a seven-day synthetic board.
+Schedule is a seven-day demo board. Google Calendar may filter its candidate slots and receive
+persisted Telegram booking changes when an admin has connected it.
 
 It:
 
 - starts from the fixed demo week;
-- keeps `Synthetic schedule` visible beside the selected day;
+- shows either `Demo schedule fallback` or `Google Calendar synced` beside the selected day;
 - groups visible bookings by day;
 - shows time, patient, provider, and status;
 - labels empty days honestly;
@@ -2797,7 +2798,7 @@ candidate's immutable full-suite evidence is Ready.
 | Area | Current state | Required demo state |
 |---|---|---|
 | Chat, Dream, Eval routes | `BUILT` synthetic workbenches | Preserve layouts; connect real data and states |
-| Booking changes and in-thread patient copy | `BUILT` synthetic controls plus autonomous Telegram create/reschedule/cancel tools | Demo availability and mocked proof are complete; live external scheduling remains deferred |
+| Booking changes and in-thread patient copy | `BUILT` synthetic controls plus autonomous Telegram create/reschedule/cancel tools and server-persisted Telegram Schedule edit/cancel | Deterministic fallback is always available; one admin may enable Google FreeBusy and event CRUD |
 | Natural-language rubric editor and judge boundary | `BUILT` | Live judge needs API key; automated tests use simulated judge |
 | Shared platform contracts | `BUILT` | API error body, aggregate CAS, Telegram voice/speech contracts, playbook pins |
 | Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
@@ -2805,10 +2806,10 @@ candidate's immutable full-suite evidence is Ready.
 | Translation | `BUILT` adapter, automated proof, and controlled live Malay translation | Output quality still requires human review by clinic staff |
 | Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text or transcribed voice when both live switches are enabled | Deploy and smoke the automatic path; partial provider failure remains deterministic-test-only |
 | Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text and transcribed-voice replies with autonomous booking tools under mocked proof | Broader live-provider quality validation remains unproven |
-| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text/voice reply and function-call orchestration | Broader live-provider quality validation and durable job execution remain |
+| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus durable automatic text/voice reply and function-call orchestration | Broader live-provider quality validation remains |
 | Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
-| Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |
+| Persistence | `BUILT` workspace CAS, delivery records, narrow outbox, and optional Google sync ledger | Live Supabase migration and owner credentials still require deployment smoke |
 | Shared server data | `BUILT` fixed-workspace APIs with live Supabase persistence | Authentication, tenancy, and broader aggregate design remain deferred |
 | Test Changes | `PARTIAL` local saved-text check | Candidate behavioral replay is available through the release controls |
 | Dream changes | `BUILT` server-authoritative candidates, replay, activation, rollback | Live provider and shared-user authorization proof remain |
@@ -2820,14 +2821,14 @@ candidate's immutable full-suite evidence is Ready.
 | Deferred item | Reason |
 |---|---|
 | WhatsApp and Twilio | Telegram must prove the channel-neutral flow first |
-| Live calendar provider integration | The MVP sends an `.ics` file; external calendar OAuth is not needed for the demo |
+| Outlook/Calendly provider alternatives | Google is intentionally the single optional provider; do not add a second scheduler in the hackathon window |
 | Additional booking tools | Four typed tools cover availability, create, reschedule, and cancellation without a broad scheduler |
 | Human judge calibration dataset | Manual review is enough for the hackathon claim |
 | Fully normalized conversations and Eval definitions | A revisioned workspace aggregate is faster and replaceable |
 | Authentication, onboarding, and role management | One visitor opens the fixed demo workspace |
 | Patient accounts | Messaging identity is enough for the first slice |
 | EHR or clinic-management-system integration | Communication supervision first, not clinical-system replacement |
-| Live slot inventory or full scheduling engine | The MVP uses server-owned demo availability and booking state; an external system is post-demo |
+| EHR/PMS or multi-calendar scheduling engine | The MVP uses deterministic fallback plus one optional Google Calendar; clinic authority is post-demo |
 | Vector database | Two to twenty playbook files fit deterministic routing and full-text search |
 | Multi-agent orchestration | One autonomous agent with clear tool traces is easier to inspect |
 | Fine-tuning | Playbooks, prompts, traces, and evals must work first |
@@ -3236,8 +3237,9 @@ the server. The endpoint:
 - records model, prompt, rubric, latency, and token metadata for successful runs;
 - does not expose provider credentials or the full server prompt.
 
-Authentication, authorization, tenant access, durable jobs, and provider-failure records remain
-production gaps. The UI owns judging, complete, needs-review, error, retry, and cancelled states.
+Authentication, authorization, and tenant access remain production gaps. Telegram automatic replies
+and Google Calendar synchronization now use durable, fenced Postgres jobs with provider-failure
+records. The UI owns judging, complete, needs-review, error, retry, and cancelled states.
 Cancellation prevents a late result from committing. A successful rerun appends a new immutable
 history row while replacing the case's latest evidence.
 

@@ -66,6 +66,12 @@ export default function ChatRoute() {
   const telegramWorkspaceRevision = useAppStore(
     (store) => store.telegramWorkspace.workspaceRevision,
   );
+  const telegramConversationRevisions = useAppStore(
+    (store) => store.telegramWorkspace.conversationRevisions,
+  );
+  const executeTelegramBookingCommand = useAppStore(
+    (store) => store.executeTelegramBookingCommand,
+  );
   const telegramSpeechArtifacts = useAppStore(
     (store) => store.telegramWorkspace.speechArtifacts,
   );
@@ -236,6 +242,30 @@ export default function ChatRoute() {
     ? `Retry failed ${telegramDeliveryNotice.failedParts.join(" and ")}`
     : "Retry original delivery";
 
+  const cancelBookingFor = (conversationId: ConversationId) => {
+    const conversation = state.conversations.find((item) => item.id === conversationId);
+    const serverRevision = telegramConversationRevisions[conversationId];
+    if (
+      conversation?.channel === "Telegram" &&
+      conversation.booking
+    ) {
+      if (serverRevision === undefined) {
+        return {
+          error: "Telegram booking is still syncing. Refresh the inbox before changing it.",
+          ok: false as const,
+          state,
+        };
+      }
+      return executeTelegramBookingCommand({
+        action: "cancel",
+        conversationId,
+        expectedBookingRevision: conversation.booking.revision,
+        expectedConversationRevision: serverRevision,
+      });
+    }
+    return cancelBooking(conversationId);
+  };
+
   useEffect(() => {
     if (
       selectedConversation &&
@@ -292,7 +322,7 @@ export default function ChatRoute() {
       <PatientRail
         conversation={selectedConversation}
         onAddLabel={(label) => addLabel(selectedConversation.id, label)}
-        onCancelBooking={() => cancelBooking(selectedConversation.id)}
+        onCancelBooking={() => cancelBookingFor(selectedConversation.id)}
         onClose={() => {
           setRailOpen(false);
           setMobilePane("thread");
@@ -471,15 +501,41 @@ export default function ChatRoute() {
             setBookingEditId(null);
           }
         }}
-        onSave={(input: UpdateBookingInput) =>
-          bookingEditId
-            ? updateBooking(bookingEditId, input)
-            : {
-                error: "Booking not found",
+        onSave={(input: UpdateBookingInput) => {
+          if (!bookingEditId) {
+            return {
+              error: "Booking not found",
+              ok: false as const,
+              state,
+            };
+          }
+          const conversation = state.conversations.find(
+            (item) => item.id === bookingEditId,
+          );
+          const serverRevision = telegramConversationRevisions[bookingEditId];
+          if (
+            conversation?.channel === "Telegram" &&
+            conversation.booking
+          ) {
+            if (serverRevision === undefined) {
+              return {
+                error: "Telegram booking is still syncing. Refresh the inbox before changing it.",
                 ok: false as const,
                 state,
-              }
-        }
+              };
+            }
+            return executeTelegramBookingCommand({
+              action: "update",
+              conversationId: bookingEditId,
+              expectedBookingRevision: input.expectedRevision,
+              expectedConversationRevision: serverRevision,
+              provider: input.provider,
+              reason: input.reason,
+              slotIso: input.slotIso,
+            });
+          }
+          return updateBooking(bookingEditId, input);
+        }}
         open={bookingEditId !== null}
       />
     </section>

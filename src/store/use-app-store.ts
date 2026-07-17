@@ -13,12 +13,14 @@ import { mergeTelegramWorkspaceState } from "../domain/telegram-workspace";
 import { createHttpJudgeClient } from "../services/judge-client";
 import {
   ApiClientError,
+  createHttpBookingClient,
   createHttpAgentClient,
   createHttpEvalClient,
   createHttpTelegramOutboundClient,
   createHttpWorkspaceCommandClient,
   createHttpWorkspaceClient,
   type AgentClient,
+  type BookingClient,
   type EvalClient,
   type TelegramOutboundClient,
   type WorkspaceCommandClient,
@@ -80,6 +82,7 @@ export type AppStore = StoreApi<AppStoreState>;
 
 export type AppStoreOptions = {
   agentClient?: AgentClient;
+  bookingClient?: BookingClient;
   evalClient?: EvalClient;
   judgeClient?: JudgeClient;
   outboundClient?: TelegramOutboundClient;
@@ -96,6 +99,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
     repository.save(loaded.state);
   }
   const agentClient = options.agentClient ?? createHttpAgentClient();
+  const bookingClient = options.bookingClient ?? createHttpBookingClient();
   const judgeClient = options.judgeClient ?? createHttpJudgeClient();
   const outboundClient =
     options.outboundClient ?? createHttpTelegramOutboundClient();
@@ -129,6 +133,7 @@ export function createAppStore(storage: Storage, options: AppStoreOptions = {}):
     const telegram = createTelegramActions({
       ...deps,
       getTelegramWorkspace: () => get().telegramWorkspace,
+      bookingClient,
       outboundClient,
       telegramWorkspaceRepository,
       workspaceClient,

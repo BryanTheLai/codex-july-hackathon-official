@@ -261,7 +261,7 @@ export default function DreamRoute() {
     progressTimer.current = window.setInterval(() => {
       completed = Math.min(completed + 1, total);
       setTestDock({ completed, status: "running", total });
-    }, 200);
+    }, 500);
     testTimer.current = window.setTimeout(() => {
       if (token !== testToken.current) {
         return;
@@ -273,7 +273,7 @@ export default function DreamRoute() {
         return;
       }
       setTestDock({ result: result.result, stale: false, status: "complete" });
-    }, 220 + total * 200);
+    }, 520 + total * 200);
   };
 
   const save = () => {

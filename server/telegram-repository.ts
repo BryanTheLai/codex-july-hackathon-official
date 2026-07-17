@@ -21,6 +21,7 @@ const storedErrorSchema = z
   .strict();
 const audioObjectPathSchema = z.string().trim().min(1).max(1024);
 const audioContentTypeSchema = z.literal("audio/ogg");
+const normalizedEventSchema = z.record(z.string(), z.unknown());
 
 export const TELEGRAM_EVENT_STATUSES = [
   "received",
@@ -51,6 +52,7 @@ export const telegramEventRecordSchema = z
     payloadHash: hashSchema,
     status: telegramEventStatusSchema,
     normalizedMessageId: z.string().min(1).max(256),
+    normalizedEvent: normalizedEventSchema.default({}),
     error: storedErrorSchema.nullable(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
@@ -117,6 +119,7 @@ const registerEventInputSchema = z
     workspaceId: workspaceIdSchema,
     payloadHash: hashSchema,
     normalizedMessageId: z.string().min(1).max(256),
+    normalizedEvent: normalizedEventSchema.optional(),
   })
   .strict();
 
@@ -278,7 +281,8 @@ export function createTelegramEventRepository(
       const parsed = registerEventInputSchema.parse(input);
       const timestamp = timestampSchema.parse(now());
       const record = telegramEventRecordSchema.parse({
-        ...parsed,
+      ...parsed,
+        normalizedEvent: parsed.normalizedEvent ?? {},
         status: "received",
         error: null,
         createdAt: timestamp,

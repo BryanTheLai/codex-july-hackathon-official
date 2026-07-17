@@ -6,7 +6,7 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message or successfully transcribed voice note runs an autonomous agent that can reply, check slots, create, reschedule, or cancel a booking, then sends one idempotent reply. Voice-note replies send concise text plus AI TTS voice, with text-only fallback if TTS preparation fails. Dashboard authentication, durable background jobs, live external availability, and broader provider-quality validation remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. A durable Postgres outbox resumes autonomous replies after a process restart. When configured and connected by one admin, Google Calendar supplies availability and receives create, update, and cancel synchronization; without that connection, the deterministic demo schedule remains the truthful fallback. Dashboard authentication, EHR integration, and live provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
@@ -15,8 +15,8 @@ last_verified: "2026-07-17"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "457 automated tests, 20 passing Playwright executions with seven intentional scenario/viewport skips, production build, and local browser smoke verification"
-  - "Controlled owner-chat smoke: direct-OpenAI agent drafting, five-case Eval judging, exact SOP proposal, translation, Telegram text, TTS voice, and recorded-voice provider acceptance"
+  - "490 automated tests, 20 passing Playwright executions with seven intentional scenario/viewport skips, production build, and local browser smoke verification"
+  - "Owner-controlled live smoke remains required for Telegram receipt, Google consent/event CRUD, and live provider quality because this repository cannot use those credentials"
   - "Focused autonomous-tool and Telegram webhook tests prove atomic booking actions, duplicate suppression, calendar/delivery revision handoff, and automatic handoff acknowledgement"
 sources_consulted:
   - "PROJECT.md"
@@ -28,6 +28,7 @@ related_docs:
   - "SOUL.md"
   - "PROJECT.md"
   - "docs/autonomous-booking-agent.md"
+  - "docs/calendar-outbox.md"
 ---
 
 # KaunterAI
@@ -85,7 +86,7 @@ git history only.
 
 ## Approved hackathon POC
 
-Current code: a live three-table Supabase workspace, protected Telegram text plus automatic inbound
+Current code: a live Supabase workspace with protected Telegram text plus automatic inbound
 voice download, OGG/Opus-to-WebM conversion, direct-OpenAI transcription and English gloss, shared
 Chat and Eval runner, immutable server Eval evidence, and a server-authoritative Dream release loop.
 Markdown import, an accepted correction, or a Dream draft creates an inactive whole-playbook
@@ -101,8 +102,7 @@ switches are on. The agent can call server-owned availability, create, reschedul
 tools without staff approval. A duplicate update does not rerun the model or resend; a clinical
 handoff acknowledgement is also delivered automatically. A successfully transcribed voice note
 runs the same agent and receives concise text plus AI TTS voice; a TTS failure falls back to text.
-Authentication, durable background jobs, live external availability, and broader
-provider-quality validation remain pending.
+Authentication, EHR integration, and broader provider-quality validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
@@ -127,8 +127,8 @@ KaunterAI is designed to reduce:
 ## Workflows solved now
 
 1. A patient messages the clinic in Telegram; the agent answers in the patient's language.
-2. The patient asks to book; the agent checks demo availability and confirms the booking itself.
-3. The patient changes or cancels; the agent updates the confirmed booking itself and records the action.
+2. The patient asks to book; the agent checks Google Calendar availability when the single admin has connected it, otherwise it checks the deterministic demo schedule, then confirms the booking itself.
+3. The patient changes or cancels; the agent and admin Schedule controls update the confirmed booking, record the action, and synchronize Google Calendar when connected.
 4. A successful create or reschedule can send an `.ics` calendar attachment through Telegram.
 5. If a patient says the autonomous agent got something wrong, the model can flag that conversation
    as an Eval candidate. A human adds the correction before it can enter the Eval-to-Dream release
@@ -204,11 +204,22 @@ TTS voice; if TTS preparation fails, the text remains deliverable. A `staff_hand
 autonomous patient-facing acknowledgement for clinical work, not a gate on administrative booking.
 See [`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md).
 
+### Optional Google Calendar
+
+The default is still a deterministic in-app demo schedule. Set `GOOGLE_CALENDAR_ENABLED=true` only
+when the app administrator wants real calendar-backed availability and appointment CRUD. One admin
+starts the OAuth flow at `POST /api/admin/calendar/google/connect` with their ephemeral
+`x-kaunter-admin-token` header, completes consent in Google, and the server stores only an
+AES-256-GCM encrypted refresh token in Supabase. Create, reschedule, cancellation, and server-side
+Schedule edits enqueue a durable event synchronization; the `.ics` Telegram attachment remains a
+separate patient convenience feature. Exact setup, schema, and DigitalOcean secret instructions:
+[`docs/calendar-outbox.md`](docs/calendar-outbox.md).
+
 ### Current capability boundary
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic text replies; automatic concise text-plus-voice replies after voice transcription; autonomous demo-slot lookup, create, reschedule, and cancellation; idempotent delivery; `.ics` calendar attachment for autonomous create/reschedule; action trace; Eval-to-Dream candidate workflow | Durable job retries; live external availability/EHR booking; phone/voice-call dispatch; user authentication; real-time UI push |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; durable automatic replies; autonomous booking CRUD; `.ics` invitation; optional single-admin Google Calendar availability plus event create/update/delete; action trace; Eval-to-Dream candidate workflow | EHR/PMS authority; phone/voice-call dispatch; user authentication; real-time UI push; live provider-quality validation |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
 17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
@@ -277,8 +288,9 @@ GitHub repository
 
 Runtime rules: the container listens on `0.0.0.0:8080`; App Platform checks `/healthz` and
 `/readyz`; deployed Telegram uses webhooks; every provider call is bounded; staff agent and Eval
-work starts from a browser action, while a new Telegram text update may start one background agent
-reply after the webhook responds; no permanent worker or durable job queue exists in the POC.
+work starts from a browser action, while a new Telegram text update creates a durable Postgres
+outbox job after inbound persistence. The process wakes a worker immediately and also recovers
+pending or stale-running jobs on its five-second sweep.
 
 `PORT=5173` is only for local development. Do not add it to DigitalOcean: leave `PORT` unset so
 the Docker image's `PORT=8080` is used, or explicitly set it to `8080`.

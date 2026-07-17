@@ -127,8 +127,8 @@ prove a real Telegram receipt without the owner-controlled bot chat.
 | 4 | Add ElevenLabs SDK | Reject: one dependency for two small HTTP calls. |
 | 5 | Browser calls ElevenLabs directly | Reject: would expose the secret. |
 | 6 | Replace the booking loop with ElevenLabs tools | Reject: unnecessary second agent control plane. |
-| 7 | Add a queue/outbox now | Defer: production reliability, not the demo root cause. |
-| 8 | Add Google/Outlook OAuth | Defer: `.ics` already proves the outcome. |
+| 7 | Add a narrow Postgres outbox | **Select:** two typed jobs make autonomous replies and optional calendar sync recoverable without Redis or a second service. |
+| 8 | Add optional single-admin Google OAuth | **Select:** FreeBusy and event CRUD strengthen live proof while deterministic demo slots remain the fallback; Outlook stays deferred. |
 | 9 | Add a real clinic scheduler | Defer: breaks the deterministic demo. |
 | 10 | Use ElevenLabs STT without an English gloss | Reject: weakens the multilingual judge moment. |
 | 11 | Use the existing generic text translation for the gloss | **Select:** preserves the existing data contract. |

@@ -242,7 +242,7 @@ export function PatientRail({
   conversation: Conversation;
   showClose: boolean;
   onAddLabel: (label: string) => MutationResult;
-  onCancelBooking: () => MutationResult;
+  onCancelBooking: () => MutationResult | Promise<MutationResult>;
   onClose: () => void;
   onDream: () => void;
   onEditBooking: () => void;
@@ -276,6 +276,11 @@ export function PatientRail({
 
   const run = (mutation: () => MutationResult) => {
     const result = mutation();
+    setError(result.ok ? "" : result.error);
+    return result;
+  };
+  const runAsync = async (mutation: () => MutationResult | Promise<MutationResult>) => {
+    const result = await mutation();
     setError(result.ok ? "" : result.error);
     return result;
   };
@@ -371,7 +376,7 @@ export function PatientRail({
                       : cancellationPreview.error
                   }
                   onConfirm={() => {
-                    run(onCancelBooking);
+                    void runAsync(onCancelBooking);
                   }}
                   title="Cancel this appointment?"
                   trigger={

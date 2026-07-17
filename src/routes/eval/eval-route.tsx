@@ -233,15 +233,17 @@ export default function EvalRoute() {
       setOperation(next);
     };
 
-    void execute(controller.signal, updateCaseStart, updateProgress).then((result) => {
-      if (operationToken.current !== token) {
-        return;
-      }
-      report(result);
-      operationController.current = null;
-      activeOperation.current = null;
-      setOperation(null);
-    });
+    void new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+      .then(() => execute(controller.signal, updateCaseStart, updateProgress))
+      .then((result) => {
+        if (operationToken.current !== token) {
+          return;
+        }
+        report(result);
+        operationController.current = null;
+        activeOperation.current = null;
+        setOperation(null);
+      });
   };
 
   const cancelOperation = () => {

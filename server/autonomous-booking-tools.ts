@@ -12,6 +12,7 @@ import type {
   AgentToolExecution,
   AgentToolExecutor,
 } from "./agent-service";
+import type { CalendarAvailability } from "./google-calendar-service";
 import type { WorkspaceRepository } from "./workspace-repository";
 
 const PROVIDERS = ["Dr. Farah", "Dr. Lim", "Dr. Siti Rahman"] as const;
@@ -152,6 +153,7 @@ type ToolSuccess = {
   booking?: BookingPayload;
   conversationRevision: number | null;
   evalCaseId?: string;
+  availabilitySource?: "demo" | "google";
   slots?: Array<{ provider: string; slotIso: string }>;
 };
 
@@ -266,12 +268,14 @@ function isBookingToolName(name: string): name is BookingToolName {
 }
 
 type AutonomousBookingToolOptions = {
+  calendarAvailability?: CalendarAvailability;
   now?: () => Date;
   workspaceId: string;
   workspaceRepository: WorkspaceRepository;
 };
 
 export function createAutonomousBookingToolExecutor({
+  calendarAvailability,
   now = () => new Date(),
   workspaceId,
   workspaceRepository,
@@ -298,12 +302,27 @@ export function createAutonomousBookingToolExecutor({
       if (!workspace) {
         return failure("not_found", "Workspace was not found.", "Try again later.");
       }
-      const slots = availableSlots(
+      const demoSlots = availableSlots(
         workspace.state,
         parsed.value.provider,
         parsed.value.date,
         now(),
       );
+      let availability: { source: "demo" | "google"; slots: typeof demoSlots };
+      try {
+        availability = calendarAvailability
+          ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
+          : { source: "demo", slots: demoSlots };
+      } catch (error) {
+        return failure(
+          "provider_failed",
+          error instanceof Error
+            ? "Calendar availability could not be confirmed."
+            : "Calendar availability could not be confirmed.",
+          "Retry the availability lookup before offering a slot.",
+        );
+      }
+      const slots = availability.slots;
       const summary =
         slots.length === 0
           ? parsed.value.date
@@ -316,6 +335,7 @@ export function createAutonomousBookingToolExecutor({
           success: true,
           action: "availability_listed",
           conversationRevision: null,
+          availabilitySource: availability.source,
           slots,
         },
       );
@@ -502,12 +522,25 @@ export function createAutonomousBookingToolExecutor({
         auditText = "Autonomous agent cancelled the confirmed appointment.";
       } else {
         const argumentsValue = parsed.value as z.infer<typeof bookingArgumentsSchema>;
-        const slots = availableSlots(
+        const demoSlots = availableSlots(
           workspace.state,
           argumentsValue.provider,
           argumentsValue.slotIso.slice(0, 10),
           now(),
         );
+        let availability: { source: "demo" | "google"; slots: typeof demoSlots };
+        try {
+          availability = calendarAvailability
+            ? await calendarAvailability.filterAvailableSlots({ slots: demoSlots })
+            : { source: "demo", slots: demoSlots };
+        } catch {
+          return failure(
+            "provider_failed",
+            "Calendar availability could not be confirmed.",
+            "Retry the availability lookup before confirming a booking.",
+          );
+        }
+        const slots = availability.slots;
         if (!slots.some((slot) => slot.slotIso === argumentsValue.slotIso)) {
           return failure(
             "slot_unavailable",
@@ -531,7 +564,7 @@ export function createAutonomousBookingToolExecutor({
             revision: (conversation.booking?.revision ?? 0) + 1,
           };
           action = "booking_created";
-          auditText = `Autonomous agent checked demo availability and confirmed an appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed an appointment with ${nextBooking.provider}.`;
         } else {
           if (!conversation.booking || conversation.booking.status !== "approved") {
             return failure(
@@ -548,7 +581,7 @@ export function createAutonomousBookingToolExecutor({
             revision: conversation.booking.revision + 1,
           };
           action = "booking_rescheduled";
-          auditText = `Autonomous agent checked demo availability and rescheduled the appointment with ${nextBooking.provider}.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the appointment with ${nextBooking.provider}.`;
         }
       }
 
