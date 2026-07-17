@@ -74,7 +74,9 @@ test("Chat HITL evidence reaches human-approved Knowledge text verification", as
   const proposedText = (await focusedCorrection.locator(".knowledge-diff--new code").textContent())
     ?.replace(/^\+\s*/, "") ?? "";
   await focusedCorrection.getByRole("button", { name: "Approve correction" }).click();
-  await expect(focusedCorrection).toContainText("approved");
+  await expect(focusedCorrection).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Proposed changes" })).toHaveCount(0);
+  await expect(page.locator(".cm-correction-gutter--approved")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Playbook Markdown editor" })).toContainText(
     proposedText,
   );

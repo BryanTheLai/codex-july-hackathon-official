@@ -9,6 +9,7 @@ import {
 } from "./google-calendar-repository";
 import { createGoogleCalendarService } from "./google-calendar-service";
 import {
+  createSupabaseDemoSeedDataSource,
   createSupabaseGoogleCalendarConnectionDataSource,
   createSupabaseGoogleCalendarEventDataSource,
   createSupabaseOutboxDataSource,
@@ -133,9 +134,28 @@ async function run(): Promise<void> {
     throw new Error(`Confirmation must be exactly ${RESET_CONFIRMATION}`);
   }
 
-  const googleEventsRemoved = await cleanupGoogleEvents(workspaceId);
   const config = readSupabaseConfig();
   const client = createSupabaseServerClient(config);
+  const compiledSeed = await createSupabaseDemoSeedDataSource(client)
+    .readCompiled(seedKey)
+    .catch(() => {
+      throw new Error(
+        "Reset preflight failed. Verify Supabase credentials, apply migration 20260718010000_demo_seed_templates.sql, load supabase/seed.sql, and run demo:seed.",
+      );
+    });
+  if (!compiledSeed) {
+    throw new Error(
+      `Compiled seed template not found: ${seedKey}. Apply migrations and run demo:seed first.`,
+    );
+  }
+  const workspace = await createWorkspaceRepository(
+    createSupabaseWorkspaceDataSource(client),
+  ).load(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const googleEventsRemoved = await cleanupGoogleEvents(workspaceId);
   const { data, error } = await client.rpc("reset_demo_workspace", {
     p_workspace_id: workspaceId,
     p_seed_key: seedKey,

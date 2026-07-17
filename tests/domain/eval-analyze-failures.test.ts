@@ -155,6 +155,28 @@ describe("analyze failures", () => {
     },
   );
 
+  it("targets the Knowledge file linked by the failed criterion instead of case type alone", async () => {
+    const rateCardCaseId = "case-aircon-rate-card-train";
+    const failed = await runEvalCase(
+      createCanonicalSeed(),
+      rateCardCaseId,
+      createFixtureJudgeClient({
+        verdictByCase: { [rateCardCaseId]: "fail" },
+      }),
+    );
+    expect(failed.ok).toBe(true);
+    if (!failed.ok) return;
+
+    const result = analyzeFailures(failed.state, SEED_DATASET_ID);
+
+    expect(result.ok).toBe(true);
+    expect(
+      result.state.corrections.find(
+        (correction) => correction.sourceCaseId === rateCardCaseId,
+      )?.fileId,
+    ).toBe("file-aircon-rate-card");
+  });
+
   it("does not analyze a train case whose committed verdict needs review", async () => {
     const added = addEvaluationCase(
       createCanonicalSeed(),

@@ -159,6 +159,10 @@
   background: var(--kaunter-raised);
 }
 
+.knowledge-workbench--without-changes {
+  grid-template-columns: 190px minmax(480px, 1fr);
+}
+
 .knowledge-files,
 .knowledge-editor-pane,
 .knowledge-changes {
@@ -510,15 +514,17 @@
 
 .knowledge-editor .cm-activeLine,
 .knowledge-editor .cm-activeLineGutter {
-  background: var(--kaunter-selected);
+  background: transparent;
 }
 
 .knowledge-editor .cm-gutterElement.cm-correction-gutter--approved {
   color: var(--kaunter-success-fg);
+  font-weight: 700;
 }
 
 .knowledge-editor .cm-gutterElement.cm-correction-gutter--rejected {
   color: var(--kaunter-risk-fg);
+  font-weight: 700;
 }
 
 .knowledge-editor .cm-gutterElement.cm-correction-gutter--pending {
@@ -545,15 +551,15 @@
 
 .knowledge-editor .cm-correction-preview__remove {
   border-color: var(--kaunter-risk-fg);
-  background: var(--kaunter-paper);
-  color: inherit;
+  background: var(--kaunter-risk-bg);
+  color: var(--kaunter-risk-fg);
   text-decoration: line-through;
 }
 
 .knowledge-editor .cm-correction-preview__add {
   border-color: var(--kaunter-success-fg);
-  background: var(--kaunter-paper);
-  color: inherit;
+  background: var(--kaunter-success-bg);
+  color: var(--kaunter-success-fg);
 }
 
 .knowledge-editor .cm-focused {
@@ -767,12 +773,35 @@
 
 .knowledge-test-dock {
   display: flex;
-  max-height: 40%;
-  min-height: 150px;
+  min-height: 120px;
   flex: 0 0 210px;
   flex-direction: column;
-  border-top: 1px solid var(--kaunter-border-strong);
   background: var(--kaunter-raised);
+}
+
+.knowledge-test-dock__resize-handle {
+  display: grid;
+  min-height: 8px;
+  flex: 0 0 8px;
+  place-items: center;
+  border-top: 1px solid var(--kaunter-border-strong);
+  border-bottom: 1px solid var(--kaunter-hairline);
+  background: var(--kaunter-quiet);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.knowledge-test-dock__resize-handle > span {
+  width: 34px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--kaunter-border-strong);
+}
+
+.knowledge-test-dock__resize-handle:hover,
+.knowledge-test-dock__resize-handle:focus-visible {
+  outline: none;
+  background: var(--kaunter-selected);
 }
 
 .knowledge-test-dock > header {
@@ -1073,6 +1102,10 @@
   .knowledge-workbench {
     grid-template-columns: 230px minmax(0, 1fr) 320px;
   }
+
+  .knowledge-workbench--without-changes {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 999px) {
@@ -1164,10 +1197,6 @@
 
   .knowledge-file-row {
     min-height: 56px;
-  }
-
-  .knowledge-test-dock {
-    max-height: 50dvh;
   }
 
   .knowledge-correction__actions {

@@ -6,7 +6,7 @@ import { createCanonicalSeed } from "../../src/domain";
 import { KnowledgeToolbar } from "../../src/routes/knowledge/knowledge-toolbar";
 
 describe("Knowledge toolbar", () => {
-  it("names saved-text and behavioral replay actions by their actual scope", () => {
+  it("uses one candidate validation action instead of exposing replay internals", () => {
     const file = createCanonicalSeed().playbookFiles[0]!;
     const action = vi.fn();
     render(
@@ -20,8 +20,7 @@ describe("Knowledge toolbar", () => {
           onImport={action}
           onNew={action}
           onRename={action}
-          onReplayAffected={action}
-          onReplayFull={action}
+          onValidate={action}
           onRollback={action}
           onSave={action}
           onTest={action}
@@ -38,8 +37,8 @@ describe("Knowledge toolbar", () => {
     );
 
     expect(screen.getByRole("button", { name: "Check saved text" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Replay affected train cases" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Replay all eval cases" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validate candidate" })).toBeInTheDocument();
+    expect(screen.queryByText(/Replay affected|Replay all/i)).not.toBeInTheDocument();
   });
 
   it("always renders Roll back disabled with reason before first activation", () => {
@@ -55,8 +54,7 @@ describe("Knowledge toolbar", () => {
           onImport={vi.fn()}
           onNew={vi.fn()}
           onRename={vi.fn()}
-          onReplayAffected={vi.fn()}
-          onReplayFull={vi.fn()}
+          onValidate={vi.fn()}
           onRollback={vi.fn()}
           onSave={vi.fn()}
           onTest={vi.fn()}
@@ -98,8 +96,7 @@ describe("Knowledge toolbar", () => {
           onImport={vi.fn()}
           onNew={vi.fn()}
           onRename={vi.fn()}
-          onReplayAffected={vi.fn()}
-          onReplayFull={vi.fn()}
+          onValidate={vi.fn()}
           onRollback={vi.fn()}
           onSave={vi.fn()}
           onTest={vi.fn()}
@@ -135,8 +132,7 @@ describe("Knowledge toolbar", () => {
           onImport={vi.fn()}
           onNew={vi.fn()}
           onRename={vi.fn()}
-          onReplayAffected={vi.fn()}
-          onReplayFull={vi.fn()}
+          onValidate={vi.fn()}
           onRollback={vi.fn()}
           onSave={vi.fn()}
           onTest={vi.fn()}
@@ -172,8 +168,7 @@ describe("Knowledge toolbar", () => {
           onImport={vi.fn()}
           onNew={vi.fn()}
           onRename={vi.fn()}
-          onReplayAffected={vi.fn()}
-          onReplayFull={vi.fn()}
+          onValidate={vi.fn()}
           onRollback={vi.fn()}
           onSave={vi.fn()}
           onTest={vi.fn()}
@@ -214,8 +209,7 @@ describe("Knowledge toolbar", () => {
           onImport={vi.fn()}
           onNew={vi.fn()}
           onRename={vi.fn()}
-          onReplayAffected={vi.fn()}
-          onReplayFull={vi.fn()}
+          onValidate={vi.fn()}
           onRollback={onRollback}
           onSave={vi.fn()}
           onTest={vi.fn()}

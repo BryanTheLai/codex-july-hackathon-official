@@ -93,7 +93,7 @@ function createTelegramConversation(
     id: conversationId(event.externalConversationId),
     revision: 1,
     patient: {
-      name: event.sender.displayName ?? "Telegram patient",
+      name: event.sender.displayName ?? "Telegram customer",
       phone: null,
       medicalRecordNumber: null,
       preferredLanguage: languageName(event.message.language),

@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { serverDomainStateSchema } from "../../src/contracts/app-state";
@@ -123,5 +126,45 @@ describe("compileDemoSeedSource", () => {
       runs: [],
       suites: [],
     });
+  });
+
+  it("compiles the checked-in Supabase aircon seed", async () => {
+    const sql = await readFile(
+      resolve(process.cwd(), "supabase/seed.sql"),
+      "utf8",
+    );
+    const sourceJson = sql.match(/\$json\$(\{[\s\S]*\})\$json\$/)?.[1];
+    if (!sourceJson) {
+      throw new Error("Supabase seed is missing its $json$ source payload");
+    }
+
+    const compiled = await compileDemoSeedSource(JSON.parse(sourceJson));
+    expect(compiled.conversations.map((conversation) => conversation.patient.name)).toEqual([
+      "Aina Demo",
+      "Farid Demo",
+      "Mei Demo",
+    ]);
+    expect(compiled.playbookHistory.versions[0]?.files).toHaveLength(3);
+    expect(compiled.evalDatasets[0]?.cases).toHaveLength(5);
+  });
+
+  it("keeps the reset migration service-role-only", async () => {
+    const migration = await readFile(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20260718010000_demo_seed_templates.sql",
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("security definer");
+    expect(migration).toContain("set search_path = pg_catalog, public");
+    expect(migration).toContain("alter table public.demo_seed_templates enable row level security");
+    expect(migration).toContain(
+      "revoke all on function public.reset_demo_workspace(text, text, text) from public, anon, authenticated",
+    );
+    expect(migration).toContain(
+      "grant execute on function public.reset_demo_workspace(text, text, text) to service_role",
+    );
   });
 });

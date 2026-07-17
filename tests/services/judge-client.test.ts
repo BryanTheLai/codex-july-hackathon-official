@@ -41,7 +41,7 @@ const judgeResponse: JudgeResponse = {
   ],
   metadata: {
     provider: "openai",
-    model: "gpt-5.6",
+    model: "gpt-5.6-luna",
     promptVersion: "2026-07-12.1",
     rubricVersions: { "crit-aircon-confirm": 1 },
     runId: "client-run-1",

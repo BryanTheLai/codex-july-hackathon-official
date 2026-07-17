@@ -157,7 +157,7 @@
 
 .eval-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 5.5rem 7.5rem 5.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(8.5rem, auto) minmax(9rem, auto) minmax(8rem, auto);
   gap: 8px;
   align-items: end;
   min-height: 44px;
@@ -187,15 +187,15 @@
 }
 
 .eval-filters__split {
-  width: 5.5rem;
+  width: 8.5rem;
 }
 
 .eval-filters__language {
-  width: 7.5rem;
+  width: 9rem;
 }
 
 .eval-filters__result {
-  width: 5.75rem;
+  width: 8rem;
 }
 
 .eval-filters select,

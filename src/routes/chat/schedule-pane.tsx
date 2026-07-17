@@ -81,7 +81,7 @@ export function SchedulePane({
   const createBookingControls = bookingCandidates.length > 0 ? (
     <div className="schedule-pane__create-booking">
       <label>
-        <span className="visually-hidden">Customer for new booking</span>
+        <span className="schedule-pane__create-booking-label">Book for</span>
         <select
           aria-label="Customer for new booking"
           onChange={(event) => setBookingCandidateId(event.target.value)}
@@ -141,7 +141,7 @@ export function SchedulePane({
                 aria-label={`Send calendar invitation to ${conversation.patient.name}`}
                 className="chat-button schedule-row__calendar"
                 onClick={() => onSendCalendar(conversation.id)}
-                title="Send the appointment .ics file to Telegram"
+                title="Send the service visit .ics file to Telegram"
                 type="button"
               >
                 <CalendarPlus aria-hidden="true" size={14} />
@@ -194,7 +194,7 @@ export function SchedulePane({
   }
 
   return (
-    <section aria-label="Appointment schedule" className="schedule-pane" role="region">
+    <section aria-label="Service visit schedule" className="schedule-pane" role="region">
       <div className="schedule-board">
         <nav
           aria-label="Schedule day index"

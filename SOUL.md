@@ -44,7 +44,7 @@ production claim.
 
 The artifact changes by route:
 
-- Chat Control: a patient conversation.
+- Chat Control: a customer service conversation.
 - Knowledge: a playbook file and its proposed line changes.
 - Evals: an evaluation case and its grading evidence.
 
@@ -57,7 +57,7 @@ dashboard, analytics portal, or decorative shell around modal workflows.
 |---|---|---|
 | Minimal but complete | Only the surfaces needed to close the full human-supervision loop | Remove evidence, recovery, or edge cases to make a screen look empty |
 | Dense but readable | Keep the working artifact and nearby context visible together | Shrink text, clip timestamps, or hide full content with no recovery |
-| Synthetic but believable | Every control works on bounded synthetic case data; simulated and live judge evidence are labeled | Pretend a patient, clinic, nurse, or emergency service was contacted |
+| Synthetic but believable | Every control works on bounded synthetic case data; simulated and live judge evidence are labeled | Pretend a customer was contacted or a service visit was booked when no provider action occurred |
 | Calm but not bland | Quiet surfaces, sharp hierarchy, rare semantic color | Generic gray cards with no task-specific shape |
 | Familiar but not copied | Reuse proven workbench patterns from strong products | Clone another product's brand, dark theme, or irrelevant controls |
 | Automated but human-owned | The agent proposes and tests; a person promotes or rejects | Treat a score or generated correction as approved behavior |
@@ -70,7 +70,7 @@ more complete.
 
 ## 3. What KaunterAI is
 
-- A task-native clinic front-desk inbox.
+- A task-native aircon service desk inbox.
 - A file-centered human review workbench.
 - A case-centered evaluation lab.
 - A closed synthetic loop from conversation to evidence to proposed playbook change.
@@ -79,12 +79,12 @@ more complete.
 ## 4. What KaunterAI refuses to become
 
 - A generic admin dashboard with a sidebar and card grid.
-- A full clinic ERP.
+- A full field-service ERP.
 - A clone of Chatwoot, Cursor, VS Code, Braintrust, Langfuse, or any other reference.
 - A marketing site with hero copy, feature cards, testimonials, or oversized empty space.
 - A full IDE with terminals, extensions, source control, or unrelated file types.
 - An analytics suite where aggregate charts replace case-level evidence.
-- A chat product where the patient record is hidden behind repeated navigation.
+- A chat product where customer and booking context is hidden behind repeated navigation.
 - A model lab that leaks the expected human answer into generation.
 - An autonomous deployment system that skips human playbook approval.
 - A fake interface with dead icons, placeholder buttons, or decorative data.
@@ -98,7 +98,7 @@ References teach information hierarchy. They do not dictate the brand.
 
 | Reference | KaunterAI copies conceptually | KaunterAI deliberately rejects | Why it fits KaunterAI |
 |---|---|---|---|
-| [Chatwoot dashboard](https://chatwoot.help/hc/user-guide/articles/1677231493-lesson-2-dashboard-basics) | A scannable queue, selected conversation, reply composer, and customer context visible in one working frame | Its global navigation rail, omnichannel administration, campaigns, reports, and broad contact-management surface | Clinic staff need the thread and patient context at decision time, but KaunterAI has only three routes and does not need a support-suite shell |
+| [Chatwoot dashboard](https://chatwoot.help/hc/user-guide/articles/1677231493-lesson-2-dashboard-basics) | A scannable queue, selected conversation, reply composer, and customer context visible in one working frame | Its global navigation rail, omnichannel administration, campaigns, reports, and broad contact-management surface | A small aircon operator needs the thread and service context at decision time, but KaunterAI has only three routes and does not need a support-suite shell |
 | [Cursor review](https://cursor.com/docs/cursor-review/pr-page) | A synchronized changed-file list, focused artifact, review comments, and per-change decision loop | Agent-management chrome, pull-request metadata, merge controls, source control, and session-level bulk approval | Knowledge needs a human to inspect evidence and decide one proposed text change without leaving the file |
 | [VS Code workbench](https://code.visualstudio.com/docs/editing/userinterface) and [Markdown diffs](https://code.visualstudio.com/docs/languages/markdown) | A narrow file explorer, dominant editor, line focus, visible old/new treatment, and a lower panel for test output | Activity bar, terminal, extensions, debug tooling, movable layout settings, and dark IDE styling | Knowledge is file-centered and test-backed, but its only job is playbook review, so the workbench grammar transfers without full IDE complexity |
 | [Braintrust evaluations](https://www.braintrust.dev/docs/evaluate) | Dataset cases with inputs, expected outputs, generated outputs, scorers, and immutable run evidence | Playground sprawl, multi-model comparison controls, production observability, cost and latency dashboards, and CI surfaces | The Evaluation Lab must keep raw case evidence primary while still showing whether a candidate changed across runs |
@@ -151,7 +151,7 @@ The shell is not the product. It stays small so the route can own the frame.
 
 ### 7.1 Color
 
-The palette is light, neutral, and clinical without looking medical-themed. The rules below are
+The palette is light, neutral, and operational without looking like generic field-service software. The rules below are
 the source of truth for color use.
 
 | Token role | Color | Use |
@@ -195,7 +195,7 @@ Rules:
 - Dense row labels and controls: 12px to 13px.
 - Metadata and timestamps: 11px to 12px.
 - Paths, line changes, and model output may use monospace.
-- Patient messages and explanations stay in a readable sans-serif face.
+- Customer messages and explanations stay in a readable sans-serif face.
 - No marketing-size headings.
 - Numbers use stable-width digits when alignment matters.
 - Body line height is 1.45. Dense metadata line height is 1.25. Editor line height is 22px.
@@ -235,9 +235,9 @@ Selection is a location signal, not decoration:
 
 Conversation messages are compact operational chat bubbles:
 
-- Patient messages align left and use a readable 68ch maximum.
+- Customer messages align left and use a readable 68ch maximum.
 - Staff and synthetic-agent replies align right under explicit role labels.
-- Patient, staff, and synthetic-agent colors stay subtle; side, icon, and label carry the role.
+- Customer, staff, and synthetic-agent colors stay subtle; side, icon, and label carry the role.
 - Internal notes use the warning surface and an "Internal note" label.
 - System audit rows stay centered with muted ink, a dashed border, and a lock icon.
 - English translations sit directly below non-English source text with an "English translation" label.
@@ -257,7 +257,7 @@ decision:
 
 | Route | Primary decision | What stays quieter |
 |---|---|---|
-| Chat Control | Respond to or act on the selected patient conversation | Search, Schedule, and simulation utilities |
+| Chat Control | Respond to or act on the selected customer conversation | Search, Schedule, and simulation utilities |
 | Knowledge | Approve, reject, or focus the selected file's pending correction | File maintenance |
 | Evals, no case selected | Run the suite or open one raw case | Dataset and criterion maintenance |
 | Evals, case selected | Inspect or run that case | Run all cases and aggregate context |
@@ -273,42 +273,49 @@ These are identity maps. Exact geometry and behavior live in `PROJECT.md`.
 
 ```text
 +------------------+--------------------------------+------------------+
-| grouped queue    | selected conversation          | patient context  |
-| urgency first    | thread header                  | details          |
-| full timestamps  | messages scroll                | triage           |
+| grouped queue    | selected conversation          | customer context |
+| newest first     | thread header                  | details          |
+| full timestamps  | messages scroll                | service notes    |
 | compact metadata | composer stays reachable       | booking + links  |
 +------------------+--------------------------------+------------------+
 ```
 
-The queue is a list, not a table or card gallery. The conversation is the page's center of
-gravity. Patient context stays adjacent because staff decisions depend on it.
+The queue is a list, not a table or card gallery. Channel names in the thread header use
+Telegram/WhatsApp brand colors when the channel matches. The conversation is the page's center of
+gravity. Customer context stays adjacent because booking decisions depend on it.
 
 Schedule is a view inside Chat Control, not a fourth route:
 
 ```text
 +--------------------+--------------------------------------------------+
 | seven day index    | selected day                                     |
-| date + count       | time | patient | booking state                    |
-| compact list       | booking rows, not calendar cards                 |
+| date + count       | Book for | create | calendar sync                |
+| compact list       | time | customer | compact booking state          |
 +--------------------+--------------------------------------------------+
 ```
 
-It uses the same row density, patient names, status text, and selected edge as the queue. It is
-not a month calendar, KPI panel, or color-block planning dashboard.
+It uses the same row density, customer names, status text, and selected edge as the queue. Create
+booking always names an existing conversation (`Book for`) and shows customer, channel, and
+phone/contact in the dialog with a required service address. Status badges size to content; they
+do not stretch into empty green bars. It is not a month calendar, KPI panel, or color-block
+planning dashboard.
 
 ### 9.2 Knowledge
 
 ```text
 +--------------+--------------------------------------+------------------+
 | playbook     | editable file                        | changes          |
-| files        | line numbers and highlights          | old -> new       |
+| files        | gutter numbers for decided lines     | old -> new       |
 |              |                                      | evidence         |
-|              | test dock opens below editor         | decide in place  |
+|              | Check saved text dock below editor   | decide in place  |
 +--------------+--------------------------------------+------------------+
 ```
 
 Knowledge is an editor with a review rail. It is not a document dashboard. Pending corrections stay
-expanded. Decided corrections compress. Test results open as a dock, not another route or tab.
+expanded. The review rail disappears when no pending decision remains. Approved or rejected candidate
+lines use gutter-number color only; activation clears the markers. Release actions are
+`Validate candidate`, then `Activate` (or `Validate first` while blocked). Test results open in a
+draggable, keyboard-resizable lower dock, not another route or tab.
 
 ### 9.3 Evals
 
@@ -323,9 +330,10 @@ expanded. Decided corrections compress. Test results open as a dock, not another
 
 Evals is a lab bench, not an analytics homepage. Aggregate scores support the rows. They never
 replace them. The first viewport below the toolbar always shows at least one complete case row or
-case card. At middle widths, the summary and chart compress above the cases. On mobile, the compact
-summary stays visible and History opens the chart in a supporting drawer while cases become a
-single-column card list.
+case card. `Analyze failures` stays disabled as `Run train cases first` until a committed failed
+train case exists. At middle widths, the summary and chart compress above the cases. On mobile, the
+compact summary stays visible and History opens the chart in a supporting drawer while cases become
+a single-column card list.
 
 ## 10. Interaction philosophy
 
@@ -418,7 +426,7 @@ Critical child bounds must also fit.
 | Icon-only state | Hides meaning and accessibility | Text plus number or state |
 | Hamburger on wide screens | Hides direct task actions | Ordered toolbar with maintenance overflow only |
 | Generic data grid features | Adds resize, pin, export, and settings with no user need | The named evaluation columns and limited sorting |
-| Folder tree in Knowledge | Adds hierarchy the product does not use | Flat playbook file list |
+| Deep generic file browser | Adds unrelated IDE behavior | Small SOP folder tree with only Markdown maintenance actions |
 | Replay route or tab | Splits one review task into another destination | Bottom test dock inside Knowledge |
 | Detached Sources modal | Makes evidence a second task | Evidence directly below the claim, correction, or grade it supports |
 | Multi-panel mobile squeeze | Preserves geometry but destroys usability | One-pane choreography or cards |

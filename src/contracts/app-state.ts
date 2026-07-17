@@ -103,6 +103,7 @@ export const criterionSchema = z.object({
   instruction: z.string(),
   required: z.boolean(),
   caseTypes: z.array(evalCaseTypeSchema).optional(),
+  knowledgeFileIds: z.array(z.string()).min(1).optional(),
   examples: z
     .object({
       good: z.string().optional(),
@@ -295,7 +296,40 @@ const domainStateFields = {
   evalDatasets: z.array(datasetSchema),
 };
 
-export const domainStateSchema = z.object(domainStateFields);
+function validateKnowledgeFileReferences(
+  state: {
+    playbookFiles: Array<{ id: string }>;
+    evalDatasets: Array<{ criteria: Array<{ knowledgeFileIds?: string[] }> }>;
+  },
+  context: z.RefinementCtx,
+) {
+  const playbookFileIds = new Set(state.playbookFiles.map((file) => file.id));
+  state.evalDatasets.forEach((dataset, datasetIndex) => {
+    dataset.criteria.forEach((criterion, criterionIndex) => {
+      criterion.knowledgeFileIds?.forEach((fileId, fileIndex) => {
+        if (!playbookFileIds.has(fileId)) {
+          context.addIssue({
+            code: "custom",
+            message: "Criterion Knowledge link must reference a playbook file",
+            path: [
+              "evalDatasets",
+              datasetIndex,
+              "criteria",
+              criterionIndex,
+              "knowledgeFileIds",
+              fileIndex,
+            ],
+          });
+        }
+      });
+    });
+  });
+}
+
+const domainStateObjectSchema = z.object(domainStateFields);
+export const domainStateSchema = domainStateObjectSchema.superRefine(
+  validateKnowledgeFileReferences,
+);
 
 export const serverPatientSchema = patientSchema
   .extend({
@@ -411,7 +445,7 @@ const emptyEvalArtifactState = {
   resolutions: [],
 };
 
-export const serverDomainStateSchema = domainStateSchema
+export const serverDomainStateSchema = domainStateObjectSchema
   .omit({ conversations: true })
   .extend({
     conversations: z.array(serverConversationSchema),
@@ -427,6 +461,7 @@ export const serverDomainStateSchema = domainStateSchema
   })
   .strict()
   .superRefine((state, context) => {
+    validateKnowledgeFileReferences(state, context);
     const telegramMessageIds = new Set(
       state.conversations
         .filter(
@@ -464,10 +499,12 @@ export const appSelectionsSchema = z.object({
   evalDatasetId: z.string().nullable(),
 });
 
-export const appStateSchema = z.object({
-  ...domainStateFields,
-  selections: appSelectionsSchema,
-});
+export const appStateSchema = z
+  .object({
+    ...domainStateFields,
+    selections: appSelectionsSchema,
+  })
+  .superRefine(validateKnowledgeFileReferences);
 
 export function toDomainStatePayload(state: z.infer<typeof appStateSchema>) {
   return domainStateSchema.parse(state);

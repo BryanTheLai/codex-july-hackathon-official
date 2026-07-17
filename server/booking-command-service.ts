@@ -111,13 +111,14 @@ export function createBookingCommandService(input: {
         if (availability.slots.length === 0) {
           throw new BookingCommandServiceError(
             "invalid_request",
-            "That appointment slot is no longer available. Choose another time.",
+            "That service slot is no longer available. Choose another time.",
           );
         }
       }
       const booking = request.action === "create"
         ? {
             reason: request.reason,
+            serviceAddress: request.serviceAddress,
             slotIso: request.slotIso,
             status: "approved" as const,
             revision: (conversation.booking?.revision ?? 0) + 1,
@@ -131,14 +132,17 @@ export function createBookingCommandService(input: {
           : {
               ...conversation.booking!,
               reason: request.reason,
+              ...(request.serviceAddress
+                ? { serviceAddress: request.serviceAddress }
+                : {}),
               slotIso: request.slotIso,
               revision: conversation.booking!.revision + 1,
             };
       const actionText = request.action === "create"
-        ? "Admin created the appointment. Google Calendar synchronization runs when connected."
+        ? "Admin created the service visit. Google Calendar synchronization runs when connected."
         : request.action === "cancel"
-          ? "Admin cancelled the appointment. Google Calendar synchronization runs when connected."
-          : "Admin updated the appointment. Google Calendar synchronization runs when connected.";
+          ? "Admin cancelled the service visit. Google Calendar synchronization runs when connected."
+          : "Admin updated the service visit. Google Calendar synchronization runs when connected.";
       const state = structuredClone(workspace.state);
       state.conversations[index] = {
         ...conversation,

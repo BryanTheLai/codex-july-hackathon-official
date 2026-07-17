@@ -329,6 +329,18 @@ export function createEvalService({
           false,
         );
       }
+      const unscoredCase = dataset?.cases.find(
+        (evalCase) =>
+          request.caseIds.includes(evalCase.id) &&
+          evalCase.criterionIds.length === 0,
+      );
+      if (unscoredCase) {
+        fail(
+          "invalid_request",
+          `Eval case ${unscoredCase.id} needs at least one scoring criterion`,
+          false,
+        );
+      }
       let suite: EvalSuiteSnapshot;
       try {
         suite = await freezeEvalSuiteSnapshot({
@@ -449,7 +461,7 @@ export function createEvalService({
         judgeResult,
       );
       signal?.throwIfAborted();
-      const artifact = evalRunArtifactSchema.parse({
+      let committedArtifact = evalRunArtifactSchema.parse({
         id: evalRunId,
         suiteId: suite.id,
         caseId: evalCase.id,
@@ -462,23 +474,71 @@ export function createEvalService({
       const nextState = serverDomainStateSchema.parse(
         structuredClone(workspace.state),
       );
-      nextState.evalArtifacts.runs.push(artifact);
-      const saved = await repository.save(
+      nextState.evalArtifacts.runs.push(committedArtifact);
+      let saved = await repository.save(
         workspaceId,
         workspace.revision,
         nextState,
       );
       if (!saved.ok) {
-        fail(
-          "revision_conflict",
-          "Workspace changed while the Eval case was running",
-          true,
+        const current = await repository.load(workspaceId);
+        const currentSuite = current?.state.evalArtifacts.suites.find(
+          (candidate) => candidate.id === suite.id,
         );
+        if (
+          !current ||
+          !currentSuite ||
+          currentSuite.manifestHash !== suite.manifestHash
+        ) {
+          fail(
+            "revision_conflict",
+            "Frozen Eval suite changed while the case was running",
+            true,
+          );
+        }
+        const latestAttempt = Math.max(
+          0,
+          ...current.state.evalArtifacts.runs
+            .filter(
+              (run) =>
+                run.suiteId === suite.id &&
+                run.caseId === evalCase.id,
+            )
+            .map((run) => run.attempt),
+        );
+        if (latestAttempt >= attempt) {
+          fail(
+            "revision_conflict",
+            "Another Eval run for this case was committed while it was running",
+            true,
+          );
+        }
+        const currentAttempt = latestAttempt + 1;
+        committedArtifact = evalRunArtifactSchema.parse({
+          ...committedArtifact,
+          attempt: currentAttempt,
+        });
+        const rebasedState = serverDomainStateSchema.parse(
+          structuredClone(current.state),
+        );
+        rebasedState.evalArtifacts.runs.push(committedArtifact);
+        saved = await repository.save(
+          workspaceId,
+          current.revision,
+          rebasedState,
+        );
+        if (!saved.ok) {
+          fail(
+            "revision_conflict",
+            "Workspace changed again while the Eval result was being committed",
+            true,
+          );
+        }
       }
       return evalCaseRunResultSchema.parse({
         suiteId: suite.id,
         caseId: evalCase.id,
-        attempt,
+        attempt: committedArtifact.attempt,
         status: "committed",
         evalRunId,
         workspaceRevision: saved.workspace.revision,

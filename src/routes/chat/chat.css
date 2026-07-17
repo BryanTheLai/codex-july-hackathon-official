@@ -580,6 +580,30 @@
   gap: 4px;
 }
 
+.thread-header__channel-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.thread-header__identity .thread-header__channel-name--telegram {
+  color: var(--kaunter-channel-telegram);
+}
+
+.thread-header__identity .thread-header__channel-name--whatsapp {
+  color: var(--kaunter-channel-whatsapp);
+}
+
+.thread-header__identity .thread-header__channel-name--neutral {
+  color: var(--kaunter-muted);
+  font-weight: 500;
+}
+
+.thread-header__channel-meta {
+  color: var(--kaunter-muted);
+}
+
 .thread-header__handler {
   display: inline-grid;
   place-items: center;
@@ -1263,6 +1287,7 @@
 .rail-form input,
 .rail-form select,
 .rail-label-add select,
+.chat-dialog__field input,
 .chat-dialog__field select {
   width: 100%;
   min-height: 34px;
@@ -1471,6 +1496,18 @@
   gap: 6px;
 }
 
+.schedule-pane__create-booking label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-pane__create-booking-label {
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
+  white-space: nowrap;
+}
+
 .schedule-pane__create-booking select {
   max-width: 180px;
   min-height: 32px;
@@ -1564,6 +1601,11 @@
   cursor: pointer;
 }
 
+.schedule-row__open .chat-badge {
+  align-self: center;
+  justify-self: start;
+}
+
 .schedule-row:hover,
 .schedule-row:focus-within {
   background: var(--kaunter-quiet);
@@ -1633,6 +1675,21 @@
 
 .chat-dialog__field {
   margin-bottom: 8px;
+}
+
+.booking-customer-summary {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--kaunter-hairline);
+  border-radius: var(--kaunter-radius-sm);
+  background: var(--kaunter-quiet);
+}
+
+.booking-customer-summary span {
+  color: var(--kaunter-muted);
+  font-size: var(--kaunter-text-meta);
 }
 
 .booking-notification-preview {

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { useMediaQuery } from "../../app/use-media-query";
-import type { EvalCase, EvalCaseId, MutationResult } from "../../domain";
+import {
+  committedFailedTrainCases,
+  type EvalCase,
+  type EvalCaseId,
+  type MutationResult,
+} from "../../domain";
 import { useAppStore } from "../../store/app-store-context";
 import { OperationStatusBanner } from "../../components/operation-status";
 import type { OperationStatus } from "../../contracts/workflow";
@@ -87,6 +92,7 @@ export default function EvalRoute() {
     [dataset, filters, sort],
   );
   const selectedCase = dataset?.cases.find((evalCase) => evalCase.id === selectedCaseId) ?? null;
+  const canAnalyze = dataset ? committedFailedTrainCases(dataset).length > 0 : false;
   const languages = useMemo(
     () => [...new Set((dataset?.cases ?? []).map((evalCase) => evalCase.language))].sort(),
     [dataset],
@@ -379,6 +385,7 @@ export default function EvalRoute() {
   return (
     <section aria-labelledby="eval-route-title" className="eval-route">
       <EvalToolbar
+        canAnalyze={canAnalyze}
         caseSelected={selectedCaseId !== null || drawer === "analyze"}
         datasets={store.state.evalDatasets}
         operationBlocked={operation !== null}

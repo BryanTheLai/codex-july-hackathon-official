@@ -222,13 +222,13 @@ export function createGoogleCalendarService({
     const id = eventId(conversation.id);
     const core = createAppointmentCalendarEvent({
       durationMinutes: config.defaultDurationMinutes,
-      location: config.location,
+      location: conversation.booking.serviceAddress ?? config.location,
       slotIso: conversation.booking.slotIso,
     });
     const event = {
       id,
       summary: core.summary,
-      description: `Patient: ${conversation.patient.name}\nReason: ${conversation.booking.reason}\nKaunter conversation: ${conversation.id}`,
+      description: `Customer: ${conversation.patient.name}\nService request: ${conversation.booking.reason}\nKaunterAI conversation: ${conversation.id}`,
       location: core.location ?? undefined,
       start: { dateTime: core.startIso, timeZone: config.timeZone },
       end: {

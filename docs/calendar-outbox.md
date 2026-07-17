@@ -1,6 +1,6 @@
 # Durable replies and optional Google Calendar
 
-This is the implemented hackathon architecture, not a clinic-management system. It adds no npm
+This is the implemented hackathon architecture, not a field-service ERP. It adds no npm
 package: Node 22 `fetch` and `crypto`, Supabase Postgres, and the existing Express app are enough.
 
 ## Behavior
@@ -23,14 +23,14 @@ package: Node 22 `fetch` and `crypto`, Supabase Postgres, and the existing Expre
 - If a Google sync job reached a terminal failure, completing Google consent again reactivates that
   same booking revision rather than silently leaving it stranded.
 
-ICS and Google Calendar use one appointment core contract:
+ICS and Google Calendar use one service-visit core contract:
 
-- summary: `Appointment`;
+- summary: `Aircon service visit`;
 - start: the saved booking `slotIso`, normalized to UTC;
 - end: start plus `CALENDAR_DEFAULT_DURATION_MINUTES`;
-- location: `CALENDAR_LOCATION`, or absent when it is blank.
+- location: booking `serviceAddress` when present, otherwise `CALENDAR_LOCATION`, or absent when both are blank.
 
-The projections differ only where the channels require it. ICS remains private and excludes patient
+The projections differ only where the channels require it. ICS remains private and excludes customer
 identity, reason, and conversation content. Google uses a deterministic event ID and adds those
 admin-only details plus the booking revision in private extended properties.
 

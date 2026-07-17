@@ -69,6 +69,80 @@ const providerResult = {
 } as const;
 
 describe("shared agent service", () => {
+  it("tells sandbox Eval runs to answer without requesting autonomous tools", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: JSON.stringify(providerResult),
+      usage: {
+        inputTokens: 20,
+        outputTokens: 10,
+        totalTokens: 30,
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-sandbox",
+    });
+
+    await expect(
+      runAgentTurn({ ...request, mode: "sandbox" }),
+    ).resolves.toMatchObject({ runId: "agent-run-sandbox" });
+    expect(createResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining(
+          "This is an evaluation replay. Do not request or call tools.",
+        ),
+        tools: [],
+        toolChoice: "none",
+      }),
+      undefined,
+    );
+  });
+
+  it("retries one malformed sandbox result without weakening structured output validation", async () => {
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        outputText: '{"draft":',
+        usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(providerResult),
+        usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
+      });
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-sandbox-retry",
+    });
+
+    await expect(
+      runAgentTurn({ ...request, mode: "sandbox" }),
+    ).resolves.toMatchObject({ runId: "agent-run-sandbox-retry" });
+    expect(createResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not duplicate a malformed live provider call", async () => {
+    const createResponse = vi.fn(async () => ({
+      outputText: '{"draft":',
+      usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      createRunId: () => "agent-run-live-invalid",
+    });
+
+    await expect(runAgentTurn(request)).rejects.toMatchObject({
+      code: "provider_failed",
+      retryable: true,
+    });
+    expect(createResponse).toHaveBeenCalledTimes(1);
+  });
+
   it("runs one no-tools turn and returns server-owned evidence", async () => {
     const createResponse = vi.fn(async () => ({
       model: "provider-model",

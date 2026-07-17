@@ -29,6 +29,7 @@ const listSlotsSchema = z
 const bookingArgumentsSchema = z
   .object({
     reason: z.string().trim().min(1).max(500),
+    serviceAddress: z.string().trim().min(1).max(256).optional(),
     slotIso: z.iso.datetime({ offset: true }),
   })
   .strict();
@@ -74,8 +75,9 @@ export const autonomousBookingTools: AgentProviderFunctionTool[] = [
       properties: {
         slotIso: { type: "string", format: "date-time" },
         reason: { type: "string", minLength: 1, maxLength: 500 },
+        serviceAddress: { type: "string", minLength: 1, maxLength: 256 },
       },
-      required: ["slotIso", "reason"],
+      required: ["slotIso", "reason", "serviceAddress"],
       additionalProperties: false,
     },
   },
@@ -379,7 +381,7 @@ export function createAutonomousBookingToolExecutor({
         (conversation) => conversation.id === request.conversation.id,
       );
       if (index < 0) {
-        return failure("not_found", "Conversation was not found.", "Ask the patient to send a new message.");
+        return failure("not_found", "Conversation was not found.", "Ask the customer to send a new message.");
       }
       const conversation = workspace.state.conversations[index]!;
       if (conversation.messages.some((message) => message.id === auditMessageId)) {
@@ -408,14 +410,14 @@ export function createAutonomousBookingToolExecutor({
         return failure(
           "revision_conflict",
           "The conversation changed while the agent was working.",
-          "Use the newest patient message and retry the task once.",
+          "Use the newest customer message and retry the task once.",
         );
       }
       if (conversation.workflowStatus === "resolved") {
         return failure(
           "invalid_state",
           "A resolved conversation cannot change a booking.",
-          "Ask the patient to start a new request.",
+          "Ask the customer to start a new request.",
         );
       }
 
@@ -433,7 +435,7 @@ export function createAutonomousBookingToolExecutor({
         if (targetDatasetIndex < 0) {
           return failure(
             "invalid_state",
-            "No Eval dataset is available for patient feedback.",
+            "No Eval dataset is available for customer feedback.",
             "Choose an Eval dataset before retrying the feedback action.",
           );
         }
@@ -441,8 +443,8 @@ export function createAutonomousBookingToolExecutor({
         if (inputMessages.length === 0) {
           return failure(
             "invalid_state",
-            "Patient feedback needs a conversation transcript.",
-            "Wait for a patient message before creating an Eval candidate.",
+            "Customer feedback needs a conversation transcript.",
+            "Wait for a customer message before creating an Eval candidate.",
           );
         }
         const dataset = workspace.state.evalDatasets[targetDatasetIndex]!;
@@ -479,7 +481,7 @@ export function createAutonomousBookingToolExecutor({
             reason: feedback.reason,
           },
         };
-        const auditText = `Autonomous agent flagged patient feedback as Eval candidate ${evalCaseId}.`;
+        const auditText = `Autonomous agent flagged customer feedback as Eval candidate ${evalCaseId}.`;
         const nextState = structuredClone(workspace.state);
         nextState.evalDatasets[targetDatasetIndex] = {
           ...dataset,
@@ -526,8 +528,8 @@ export function createAutonomousBookingToolExecutor({
         if (!conversation.booking || conversation.booking.status !== "approved") {
           return failure(
             "invalid_state",
-            "Only a confirmed appointment can be cancelled.",
-            "Explain the current appointment status and offer available slots if needed.",
+            "Only a confirmed service visit can be cancelled.",
+            "Explain the current service visit status and offer available slots if needed.",
           );
         }
         nextBooking = {
@@ -536,7 +538,7 @@ export function createAutonomousBookingToolExecutor({
           revision: conversation.booking.revision + 1,
         };
         action = "booking_cancelled";
-        auditText = "Autonomous agent cancelled the confirmed appointment.";
+        auditText = "Autonomous agent cancelled the confirmed service visit.";
       } else {
         const argumentsValue = parsed.value as z.infer<typeof bookingArgumentsSchema>;
         const demoSlots = availableSlots(
@@ -567,7 +569,7 @@ export function createAutonomousBookingToolExecutor({
         if (!slots.some((slot) => slot.slotIso === argumentsValue.slotIso)) {
           return failure(
             "slot_unavailable",
-            "That appointment slot is no longer available.",
+            "That service slot is no longer available.",
             "Call list_available_slots again and offer one of the returned slots.",
           );
         }
@@ -575,24 +577,32 @@ export function createAutonomousBookingToolExecutor({
           if (conversation.booking?.status === "approved") {
             return failure(
               "invalid_state",
-              "The patient already has a confirmed appointment.",
+              "The customer already has a confirmed service visit.",
               "Use reschedule_booking or cancel_booking instead.",
+            );
+          }
+          if (!argumentsValue.serviceAddress) {
+            return failure(
+              "invalid_arguments",
+              "A service address is required to create a booking.",
+              "Ask the customer for the service address before confirming the booking.",
             );
           }
           nextBooking = {
             slotIso: argumentsValue.slotIso,
             reason: argumentsValue.reason,
+            serviceAddress: argumentsValue.serviceAddress,
             status: "approved",
             revision: (conversation.booking?.revision ?? 0) + 1,
           };
           action = "booking_created";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed an appointment.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and confirmed a service visit.`;
         } else {
           if (!conversation.booking || conversation.booking.status !== "approved") {
             return failure(
               "invalid_state",
-              "Only a confirmed appointment can be rescheduled.",
-              "Create a new booking or explain the current appointment status.",
+              "Only a confirmed service visit can be rescheduled.",
+              "Create a new booking or explain the current service visit status.",
             );
           }
           nextBooking = {
@@ -602,7 +612,7 @@ export function createAutonomousBookingToolExecutor({
             revision: conversation.booking.revision + 1,
           };
           action = "booking_rescheduled";
-          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the appointment.`;
+          auditText = `Autonomous agent checked ${availability.source === "google" ? "Google Calendar" : "demo"} availability and rescheduled the service visit.`;
         }
       }
 
@@ -645,7 +655,7 @@ export function createAutonomousBookingToolExecutor({
     return failure(
       "revision_conflict",
       "The workspace kept changing while the agent was updating the booking.",
-      "Tell the patient the booking could not be changed and retry from the newest state.",
+      "Tell the customer the booking could not be changed and retry from the newest state.",
     );
   };
 }

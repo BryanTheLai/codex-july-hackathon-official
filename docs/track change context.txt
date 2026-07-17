@@ -110,5 +110,5 @@ To: MSMEs, Finance & Productivity
 Project: KaunterAI
 
 What we are building:
-A multilingual Telegram service desk for Malaysian MSME home-service operators (beachhead: residential aircon servicing in the Klang Valley). Customers book by text/voice; the agent quotes a fixed rate card, confirms a slot, and writes the booking to Google Calendar. The differentiator is a governed learning loop: when the agent is wrong, the complaint becomes Eval evidence, a proposed Markdown SOP diff, regression replay, human Activate, and immutable Rollback — not a silent prompt edit.
-The product is more suitable for MSME operations than healthcare. The engine (Telegram, booking, Calendar, multilingual reply, Eval/Knowledge release) already works; we are pivoting the domain skin to aircon MSME for the demo.
+A multilingual Telegram service desk for Malaysian MSME home-service operators (beachhead: residential aircon servicing in the Klang Valley). Customers book by text/voice; the agent quotes a fixed rate card, confirms a slot and service address, and writes the booking to Google Calendar. The differentiator is a governed learning loop: when the agent is wrong, the complaint becomes Eval evidence, a proposed Markdown SOP diff, Validate candidate, human Activate, and immutable Rollback — not a silent prompt edit.
+The product runs as the aircon MSME demo (not healthcare). Conversation-owned booking, Eval failure analysis, Knowledge validation/activation, and Supabase seed reset are the demo path.

@@ -32,7 +32,10 @@ export function inferCaseType(conversation: AppState["conversations"][number]): 
 export function defaultCriteriaForType(type: EvalCaseType, criteria: Criterion[]): string[] {
   return criteria
     .filter(
-      (item) => item.caseTypes && item.caseTypes.length > 0 && item.caseTypes.includes(type),
+      (item) =>
+        !item.caseTypes ||
+        item.caseTypes.length === 0 ||
+        item.caseTypes.includes(type),
     )
     .map((item) => item.id);
 }

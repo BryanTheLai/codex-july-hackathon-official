@@ -290,6 +290,38 @@ describe("Eval workspace projection", () => {
     );
   });
 
+  it("treats server demo conversations as authoritative over stale browser seed data", async () => {
+    const local = createCanonicalSeed();
+    local.conversations[0] = {
+      ...local.conversations[0]!,
+      id: "stale-browser-conversation",
+      patient: {
+        ...local.conversations[0]!.patient,
+        name: "Stale browser seed",
+      },
+    };
+    const server = await createCanonicalServerState();
+
+    const result = projectServerWorkspace(local, server);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.conversations.map((conversation) => conversation.id)).toEqual(
+      server.conversations.map((conversation) => conversation.id),
+    );
+    expect(result.state.conversations.map((conversation) => conversation.channel)).toEqual(
+      server.conversations.map(() => "Demo"),
+    );
+    expect(
+      result.state.conversations.some(
+        (conversation) => conversation.id === "stale-browser-conversation",
+      ),
+    ).toBe(false);
+    expect(result.state.selections.conversationId).toBe(
+      server.conversations[0]?.id,
+    );
+  });
+
   it("rejects committed server evidence that cannot project locally", async () => {
     const { local, server, suite } = await fixture();
     const missingCaseId = suite.cases[0]!.id;

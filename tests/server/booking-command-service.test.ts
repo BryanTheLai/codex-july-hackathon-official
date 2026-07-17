@@ -64,6 +64,7 @@ describe("booking command service", () => {
       expectedBookingRevision: 1,
       expectedConversationRevision: conversation.revision,
       reason: "Follow-up",
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
       slotIso: "2026-07-17T14:00:00+08:00",
     });
     expect(updated.booking).toMatchObject({
@@ -128,11 +129,13 @@ describe("booking command service", () => {
       conversationId: conversation.id,
       expectedConversationRevision: conversation.revision,
       reason: "Follow-up",
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
       slotIso: "2026-07-17T14:00:00+08:00",
     });
 
     expect(created.booking).toMatchObject({
       revision: 1,
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
       status: "approved",
     });
     expect(enqueue).toHaveBeenCalledWith({
@@ -172,7 +175,7 @@ describe("booking command service", () => {
       }),
     ).rejects.toMatchObject({
       code: "invalid_request",
-      message: "That appointment slot is no longer available. Choose another time.",
+      message: "That service slot is no longer available. Choose another time.",
     });
     expect(filterAvailableSlots).toHaveBeenCalledWith({
       slots: [{ slotIso: "2026-07-17T14:00:00+08:00" }],

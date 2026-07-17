@@ -248,6 +248,9 @@ export function updateBooking(
   const nextBooking: Booking = {
     ...previous,
     reason: trimOrEmpty(input.reason),
+    ...(input.serviceAddress === undefined
+      ? {}
+      : { serviceAddress: trimOrEmpty(input.serviceAddress) }),
     slotIso: trimOrEmpty(input.slotIso),
     revision: previous.revision + 1,
   };
@@ -285,6 +288,7 @@ export function createBooking(
 
   const nextBooking: Booking = {
     reason: trimOrEmpty(input.reason),
+    serviceAddress: trimOrEmpty(input.serviceAddress),
     slotIso: trimOrEmpty(input.slotIso),
     status: "approved",
     revision: (conversation.booking?.revision ?? 0) + 1,

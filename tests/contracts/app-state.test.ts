@@ -172,6 +172,16 @@ describe("app state contract", () => {
     expect(appStateSchema.safeParse(state).success).toBe(false);
   });
 
+  it("rejects criterion links to missing Knowledge files", () => {
+    const state = createCanonicalSeed();
+    state.evalDatasets[0]!.criteria[0] = {
+      ...state.evalDatasets[0]!.criteria[0]!,
+      knowledgeFileIds: ["file-missing"],
+    };
+
+    expect(appStateSchema.safeParse(state).success).toBe(false);
+  });
+
   it("backfills durable case provenance for existing schema-v4 data", () => {
     const seedCase = createCanonicalSeed().evalDatasets[0]!.cases[0]!;
     const { source: _source, ...legacySeedCase } = seedCase;

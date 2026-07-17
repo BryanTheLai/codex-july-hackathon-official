@@ -10,7 +10,10 @@ import {
 } from "../../server/workspace-command-service";
 import type { AgentRunRequest } from "../../src/contracts/agent";
 import type { JudgeRequest, JudgeResponse } from "../../src/contracts/judge";
-import { createCanonicalServerState } from "../../src/domain";
+import {
+  activatePlaybookCandidate,
+  createCanonicalServerState,
+} from "../../src/domain";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
 import { InMemoryWorkspaceDataSource } from "./fixtures/workspace-data-source";
 
@@ -180,6 +183,11 @@ describe("workspace command service", () => {
     );
     expect(activated.workspace.state.playbookHistory.activeVersionId).toBe(candidateId);
     expect(request.playbookBundle.versions.every((version) => version.versionId === candidateId)).toBe(true);
+    expect(
+      request.playbookBundle.versions.find(
+        (version) => version.fileId === "file-aircon-service-selection",
+      )?.content,
+    ).toContain("recommend the RM160 chemical wash");
 
     const restored = await service.execute({
       kind: "rollback_playbook",
@@ -232,6 +240,46 @@ describe("workspace command service", () => {
         .find((version) => version.id === candidateId)
         ?.files.some((file) => file.path === "playbooks/follow-up.md"),
     ).toBe(true);
+    const createRequest = {
+      kind: "manual" as const,
+      conversationId: "convo-aircon-booking",
+      expectedConversationRevision: 1,
+    };
+    expect(
+      buildLiveAgentRunRequest(
+        staged.workspace.state,
+        createRequest,
+        agentConfig.agentConfigVersion,
+      ).playbookBundle.versions.some((file) => file.fileId === "file-follow-up"),
+    ).toBe(false);
+
+    const readyState = structuredClone(staged.workspace.state);
+    const candidate = readyState.playbookHistory.versions.find(
+      (version) => version.id === candidateId,
+    );
+    if (!candidate) {
+      throw new Error("Staged candidate was not found");
+    }
+    candidate.passingSuiteId = "suite-ready";
+    const activated = activatePlaybookCandidate({
+      state: readyState,
+      candidateVersionId: candidateId,
+      activatedAt: "2026-07-14T12:01:00.000Z",
+    });
+    expect(
+      buildLiveAgentRunRequest(
+        activated,
+        createRequest,
+        agentConfig.agentConfigVersion,
+      ).playbookBundle.versions,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fileId: "file-follow-up",
+          content: "# Follow-up\nConfirm the next administrative step.\n",
+        }),
+      ]),
+    );
   });
 
   it("turns failed train evidence into a server-persisted, exact LLM proposal without exposing expected answers", async () => {

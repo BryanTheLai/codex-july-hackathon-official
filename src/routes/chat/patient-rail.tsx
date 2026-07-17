@@ -172,7 +172,7 @@ function BookingTimeline({ conversation }: { conversation: Conversation }) {
     (message) =>
       message.role === "system" &&
       message.text ===
-        `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as appointment.ics for booking revision ${booking.revision}.`,
+        `${CALENDAR_INVITATION_SENT_AUDIT_PREFIX} as booking.ics for booking revision ${booking.revision}.`,
   );
   const availabilityChecked = booking.status === "approved" || booking.status === "cancelled";
   const rescheduled = conversation.messages.some(
@@ -248,7 +248,6 @@ export function PatientRail({
     () => AVAILABLE_LABELS.filter((label) => !conversation.labels.includes(label)),
     [conversation.labels],
   );
-  const systemLabels = conversation.labels.filter((label) => label === "telegram");
   const staffLabels = conversation.labels.filter((label) => label !== "telegram");
   const [newLabel, setNewLabel] = useState(availableLabels[0] ?? "");
   const [error, setError] = useState("");
@@ -348,12 +347,18 @@ export function PatientRail({
                 <dt>Reason</dt>
                 <dd>{conversation.booking.reason}</dd>
               </div>
+              {conversation.booking.serviceAddress ? (
+                <div>
+                  <dt>Service address</dt>
+                  <dd>{conversation.booking.serviceAddress}</dd>
+                </div>
+              ) : null}
             </dl>
             <BookingTimeline conversation={conversation} />
             {conversation.booking.status === "approved" ? (
               <div className="rail-action-row">
                 <ConfirmAction
-                  confirmLabel="Cancel appointment"
+                  confirmLabel="Cancel service visit"
                   description={
                     cancellationPreview.ok
                       ? `${cancellationPreview.preview.text}${
@@ -366,10 +371,10 @@ export function PatientRail({
                   onConfirm={() => {
                     void runAsync(onCancelBooking);
                   }}
-                  title="Cancel this appointment?"
+                  title="Cancel this service visit?"
                   trigger={
                     <button className="chat-button chat-button--risk" type="button">
-                      Cancel appointment
+                      Cancel service visit
                     </button>
                   }
                 />
@@ -382,35 +387,22 @@ export function PatientRail({
           <header className="rail-section__header">
             <h3>Labels</h3>
           </header>
-          {systemLabels.length > 0 ? (
-            <div className="rail-label-group">
-              <span>System labels</span>
-              <div className="rail-labels">
-                {systemLabels.map((label) => (
-                  <span className="rail-label" key={label}>
-                    Telegram · channel
-                  </span>
-                ))}
-              </div>
+          {staffLabels.length > 0 ? (
+            <div className="rail-labels">
+              {staffLabels.map((label) => (
+                <span className="rail-label" key={label}>
+                  {label}
+                  <button
+                    aria-label={`Remove ${label} label`}
+                    onClick={() => run(() => onRemoveLabel(label))}
+                    type="button"
+                  >
+                    <X aria-hidden="true" size={12} />
+                  </button>
+                </span>
+              ))}
             </div>
           ) : null}
-          <div className="rail-label-group">
-            <span>Staff labels</span>
-            <div className="rail-labels">
-            {staffLabels.map((label) => (
-              <span className="rail-label" key={label}>
-                {label}
-                <button
-                  aria-label={`Remove ${label} label`}
-                  onClick={() => run(() => onRemoveLabel(label))}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={12} />
-                </button>
-              </span>
-            ))}
-            </div>
-          </div>
           <div className="rail-label-add">
             <select
               aria-label="Add label"

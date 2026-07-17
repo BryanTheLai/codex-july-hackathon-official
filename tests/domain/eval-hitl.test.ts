@@ -202,14 +202,26 @@ describe("HITL import", () => {
 });
 
 describe("HITL criterion assignment", () => {
-  it("auto-assigns only criteria whose caseTypes include the imported case type", () => {
+  it("auto-assigns global criteria and criteria matching the imported case type", () => {
     const seed = createCanonicalSeed();
     const created = addDataset(seed, { name: "Custom criteria set" });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
 
     const datasetId = created.state.selections.evalDatasetId!;
-    const withBookingCriterion = addCriterion(created.state, datasetId, {
+    const withGlobalCriterion = addCriterion(created.state, datasetId, {
+      label: "Global factual grounding",
+      instruction: "Use only facts present in the active Knowledge bundle.",
+      required: true,
+    });
+    expect(withGlobalCriterion.ok).toBe(true);
+    if (!withGlobalCriterion.ok) return;
+    const globalCriterion = selectedDataset(withGlobalCriterion.state).criteria.find(
+      (criterion) => criterion.label === "Global factual grounding",
+    );
+    expect(globalCriterion).toBeDefined();
+
+    const withBookingCriterion = addCriterion(withGlobalCriterion.state, datasetId, {
       label: "Custom booking offer",
       instruction: "Offer the patient an appropriate appointment slot.",
       required: false,
@@ -235,6 +247,7 @@ describe("HITL criterion assignment", () => {
       evalCase.title.includes("Aina Demo"),
     );
     expect(importedBooking?.criterionIds).toContain(customCriterion!.id);
+    expect(importedBooking?.criterionIds).toContain(globalCriterion!.id);
 
     const withEmergencyCriterion = addCriterion(bookingImport.state, datasetId, {
       label: "Custom emergency services",

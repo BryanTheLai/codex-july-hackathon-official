@@ -208,7 +208,21 @@ function proposalForFailure(
     return null;
   }
 
-  const fileId = playbookIdForCaseType(evalCase.type);
+  const criteria = applicableCriteria(dataset, evalCase);
+  const failedCriterionIds = new Set(
+    evalCase.grade?.criterionResults
+      .filter((result) => result.verdict !== "pass")
+      .map((result) => result.criterionId) ?? [],
+  );
+  const required =
+    criteria.find(
+      (criterion) =>
+        criterion.required && failedCriterionIds.has(criterion.id),
+    ) ?? criteria.find((criterion) => criterion.required);
+  const fileId =
+    required?.knowledgeFileIds?.find((candidateId) =>
+      state.playbookFiles.some((file) => file.id === candidateId),
+    ) ?? playbookIdForCaseType(evalCase.type);
   const file = state.playbookFiles.find((item) => item.id === fileId);
   if (!file) {
     return null;
@@ -219,15 +233,14 @@ function proposalForFailure(
       .split("\n")
       .map((line) => line.trim())
       .find((line) => line && !line.startsWith("#")) ?? file.savedContent;
-  const criteria = applicableCriteria(dataset, evalCase);
-  const required = criteria.find((item) => item.required);
   const rationale = evalCase.grade?.rationale;
 
   let recommendationText = required
     ? `Add guidance: ${required.instruction}`
     : "Add emergency and staff handoff guidance.";
   if (rationale && rationale.toLowerCase().includes("999")) {
-    recommendationText = "Call 999 immediately for emergency triage (chest pain / severe symptoms).";
+    recommendationText =
+      "Escalate urgent safety concerns to the owner; do not diagnose the unit or promise a repair outcome.";
   } else if (rationale) {
     recommendationText = rationale;
   }

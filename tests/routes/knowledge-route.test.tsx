@@ -139,7 +139,7 @@ describe("Knowledge route", () => {
   beforeEach(() => installMatchMedia(1440));
   afterEach(cleanup);
 
-  it("keeps the editable playbook dominant with adjacent files and changes", async () => {
+  it("keeps the editable playbook dominant and hides an empty proposal pane", async () => {
     renderKnowledge();
 
     expect(screen.getByRole("heading", { name: "Knowledge" })).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("Knowledge route", () => {
     );
     expect(screen.getByRole("navigation", { name: "Playbook files" })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Playbook editor" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Proposed changes" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Proposed changes" })).not.toBeInTheDocument();
     expect(screen.queryByText("- remove", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText("+ add", { exact: true })).not.toBeInTheDocument();
     expect(
@@ -268,6 +268,7 @@ describe("Knowledge route", () => {
     await waitFor(() => expect(screen.getAllByText("Saved")).not.toHaveLength(0));
     await user.click(screen.getByRole("button", { name: "Approve correction" }));
     expect((editor as HTMLTextAreaElement).value).toContain(selectionNewLine);
+    expect(screen.queryByRole("complementary", { name: "Proposed changes" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Check saved text" }));
     expect(screen.getByRole("region", { name: "Saved text check results" })).toHaveTextContent(
@@ -288,6 +289,13 @@ describe("Knowledge route", () => {
     expect(results).toHaveTextContent("After");
     expect(results).toHaveTextContent(selectionNewLine);
     expect(results).toHaveTextContent("Saved line 4 matches the approved text.");
+    const resizeHandle = screen.getByRole("separator", {
+      name: "Resize saved text check",
+    });
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "210");
+    resizeHandle.focus();
+    await user.keyboard("{ArrowUp}");
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "230");
   });
 
   it("does not claim an approved correction caused a stale proposal after an ordinary save", async () => {
@@ -403,7 +411,7 @@ describe("Knowledge route", () => {
     expect(screen.getByText(/Explicit booking confirmation train case/i)).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Correction opened from Eval evidence. Review the diff, replay affected cases, then activate only if the full suite passes./i,
+        /Correction opened from Eval evidence. Review the diff, validate the candidate, then activate only if the full suite passes./i,
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/knowledge");
@@ -427,7 +435,7 @@ describe("Knowledge route", () => {
     expect(screen.getByRole("status", { name: "Current location" })).toHaveTextContent("/knowledge");
   });
 
-  it("rejects without changing saved text and keeps the decided line focusable", async () => {
+  it("rejects without changing saved text and removes the completed proposal pane", async () => {
     const user = userEvent.setup();
     renderKnowledge({
       store: createKnowledgeStore({
@@ -440,8 +448,7 @@ describe("Knowledge route", () => {
     await user.click(screen.getByRole("button", { name: "Reject correction" }));
 
     expect((editor as HTMLTextAreaElement).value).toBe(before);
-    expect(screen.getByText("rejected", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Focus correction at line 4" })).toBeEnabled();
+    expect(screen.queryByRole("complementary", { name: "Proposed changes" })).not.toBeInTheDocument();
   });
 
   it("creates a file through maintenance controls and surfaces path validation inline", async () => {

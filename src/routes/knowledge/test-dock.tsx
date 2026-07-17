@@ -1,7 +1,12 @@
 import { ExternalLink, Play, RotateCcw, X } from "lucide-react";
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
 import type { Correction, PlaybookFile } from "../../domain";
 import { correctionLine, type TestDockState } from "./knowledge-model";
+
+const DEFAULT_DOCK_HEIGHT = 210;
+const MIN_DOCK_HEIGHT = 120;
+const KEYBOARD_RESIZE_STEP = 20;
 
 export function TestDock({
   corrections,
@@ -22,10 +27,74 @@ export function TestDock({
   onRun: () => void;
   state: Exclude<TestDockState, { status: "closed" }>;
 }) {
+  const dockRef = useRef<HTMLElement | null>(null);
+  const [height, setHeight] = useState(DEFAULT_DOCK_HEIGHT);
   const result = state.status === "complete" ? state.result : null;
   const stale = state.status === "complete" ? state.stale : false;
+  const maximumHeight = () => {
+    const parentHeight = dockRef.current?.parentElement?.clientHeight ?? 0;
+    return Math.max(MIN_DOCK_HEIGHT, parentHeight > 0 ? Math.floor(parentHeight * 0.7) : 560);
+  };
+  const resize = (nextHeight: number) => {
+    setHeight(Math.min(maximumHeight(), Math.max(MIN_DOCK_HEIGHT, Math.round(nextHeight))));
+  };
+  const resizeFromPointer = (event: PointerEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const parentBottom =
+      dockRef.current?.parentElement?.getBoundingClientRect().bottom ??
+      window.innerHeight;
+    resize(parentBottom - event.clientY);
+  };
+  const resizeFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
+    let nextHeight: number | null = null;
+    switch (event.key) {
+      case "ArrowUp":
+        nextHeight = height + KEYBOARD_RESIZE_STEP;
+        break;
+      case "ArrowDown":
+        nextHeight = height - KEYBOARD_RESIZE_STEP;
+        break;
+      case "Home":
+        nextHeight = MIN_DOCK_HEIGHT;
+        break;
+      case "End":
+        nextHeight = maximumHeight();
+        break;
+      case "Enter":
+        nextHeight = DEFAULT_DOCK_HEIGHT;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    resize(nextHeight);
+  };
   return (
-    <section aria-label="Saved text check results" className="knowledge-test-dock">
+    <section
+      aria-label="Saved text check results"
+      className="knowledge-test-dock"
+      ref={dockRef}
+      style={{ flexBasis: height }}
+    >
+      <div
+        aria-label="Resize saved text check"
+        aria-orientation="horizontal"
+        aria-valuemax={maximumHeight()}
+        aria-valuemin={MIN_DOCK_HEIGHT}
+        aria-valuenow={height}
+        className="knowledge-test-dock__resize-handle"
+        onDoubleClick={() => resize(DEFAULT_DOCK_HEIGHT)}
+        onKeyDown={resizeFromKeyboard}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={resizeFromPointer}
+        role="separator"
+        tabIndex={0}
+      >
+        <span aria-hidden="true" />
+      </div>
       <header>
         <div>
           <Play aria-hidden="true" size={15} />

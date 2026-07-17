@@ -164,8 +164,8 @@ export function EditorPane({
               basicSetup={{
                 bracketMatching: true,
                 foldGutter: false,
-                highlightActiveLine: true,
-                highlightActiveLineGutter: true,
+                highlightActiveLine: false,
+                highlightActiveLineGutter: false,
                 lineNumbers: true,
               }}
               extensions={[...(extensions ?? []), ...correctionDecorations]}

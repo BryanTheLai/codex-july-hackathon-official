@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { createCalendarInvitation } from "../../server/calendar-ics";
 
 describe("calendar invitation", () => {
-  it("creates a minimal private appointment without patient medical data", () => {
+  it("creates a minimal private service visit without customer details", () => {
     const invitation = createCalendarInvitation({
       endIso: "2026-07-21T02:30:00.000Z",
       kind: "publish",
-      location: "KaunterAI Clinic",
+      location: "KaunterAI Aircon Service Hub",
       sequence: 2,
       startIso: "2026-07-21T02:00:00.000Z",
       uid: "booking-demo-convo-42@calendar.kaunterai.test",
@@ -19,7 +19,7 @@ describe("calendar invitation", () => {
     expect(invitation).toContain("SEQUENCE:2\r\n");
     expect(invitation).toContain("DTSTART:20260721T020000Z\r\n");
     expect(invitation).toContain("DTEND:20260721T023000Z\r\n");
-    expect(invitation).toContain("SUMMARY:Appointment\r\n");
+    expect(invitation).toContain("SUMMARY:Aircon service visit\r\n");
     expect(invitation).not.toContain("MRN-");
     expect(invitation).not.toContain("reason");
   });

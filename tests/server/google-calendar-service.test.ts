@@ -39,6 +39,7 @@ async function configuredService(fetcher: typeof fetch) {
     booking: {
       reason: "Routine checkup",
       revision: 1,
+      serviceAddress: "12 Jalan SS2/24, Petaling Jaya",
       slotIso: "2026-07-17T10:30:00+08:00",
       status: "approved",
     },
@@ -99,7 +100,7 @@ async function configuredService(fetcher: typeof fetch) {
         clientId: "client-id",
         clientSecret: "client-secret",
         defaultDurationMinutes: 30,
-        location: "KaunterAI Clinic",
+        location: "KaunterAI Aircon Service Hub",
         redirectUri: "https://example.com/callback",
         timeZone: "Asia/Kuala_Lumpur",
         tokenEncryptionKey: key,
@@ -144,7 +145,7 @@ describe("Google Calendar service", () => {
     });
   });
 
-  it("upserts the appointment and deletes it after a cancellation", async () => {
+  it("upserts the service visit and deletes it after a cancellation", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("oauth2.googleapis.com")) {
@@ -172,8 +173,8 @@ describe("Google Calendar service", () => {
       summary: string;
     };
     expect(event).toMatchObject({
-      location: "KaunterAI Clinic",
-      summary: "Appointment",
+      location: "12 Jalan SS2/24, Petaling Jaya",
+      summary: "Aircon service visit",
       start: { timeZone: "Asia/Kuala_Lumpur" },
       end: { timeZone: "Asia/Kuala_Lumpur" },
     });

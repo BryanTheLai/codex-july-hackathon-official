@@ -12,7 +12,7 @@ const invitationInputSchema = z
     location: z.string().trim().min(1).max(256).nullable(),
     sequence: z.number().int().nonnegative(),
     startIso: z.iso.datetime({ offset: true }),
-    summary: z.literal("Appointment").default("Appointment"),
+    summary: z.literal("Aircon service visit").default("Aircon service visit"),
     uid: z.string().trim().min(1).max(512),
   })
   .strict()
@@ -28,12 +28,12 @@ const invitationInputSchema = z
 
 export type CalendarInvitationInput = z.input<typeof invitationInputSchema>;
 
-/** Appointment-only RFC 5545; excludes patient, reason, medical, and conversation data. */
+/** Service-visit-only RFC 5545; excludes customer, reason, and conversation data. */
 export function createCalendarInvitation(input: CalendarInvitationInput): string {
   const invitation = invitationInputSchema.parse(input);
   const calendar = ical({
-    name: "KaunterAI appointment",
-    prodId: "-//KaunterAI//Appointment//EN",
+    name: "KaunterAI aircon service visit",
+    prodId: "-//KaunterAI//Aircon Service Visit//EN",
   });
   calendar.method(
     invitation.kind === "cancel"
