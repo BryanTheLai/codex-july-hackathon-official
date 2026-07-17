@@ -21,9 +21,20 @@ function selectedDataset(state: AppState) {
   return state.evalDatasets.find((d) => d.id === state.selections.evalDatasetId)!;
 }
 
+function addBookingHumanReview(state: AppState) {
+  const result = sendStaffReply(state, {
+    conversationId: "convo-booking",
+    text: "A human reviewer confirmed the requested appointment details.",
+    kind: "reply",
+  });
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  return result.state;
+}
+
 describe("HITL import", () => {
   it("rejects an unresolved conversation even when it has a staff reply", () => {
-    const seed = createCanonicalSeed();
+    const seed = addBookingHumanReview(createCanonicalSeed());
     const source = seed.conversations.find((conversation) => conversation.id === "convo-booking")!;
 
     expect(source.workflowStatus).toBe("in_progress");
@@ -39,7 +50,11 @@ describe("HITL import", () => {
 
   it("imports multiple resolved conversations atomically with source lineage", () => {
     const seed = createCanonicalSeed();
-    const resolvedBooking = resolveConversation(seed, "convo-booking");
+    const reviewed = addBookingHumanReview(seed);
+    const bookingReviewId = reviewed.conversations
+      .find((conversation) => conversation.id === "convo-booking")!
+      .messages.at(-1)!.id;
+    const resolvedBooking = resolveConversation(reviewed, "convo-booking");
     expect(resolvedBooking.ok).toBe(true);
     if (!resolvedBooking.ok) return;
     const beforeCases = seedDataset(resolvedBooking.state).cases.length;
@@ -66,7 +81,7 @@ describe("HITL import", () => {
       {
         kind: "hitl",
         conversationId: "convo-booking",
-        messageIds: ["bk-1", "bk-2"],
+        messageIds: ["bk-1", "bk-2", bookingReviewId],
       },
     ]);
   });
@@ -101,12 +116,13 @@ describe("HITL import", () => {
 
   it("uses latest staff text as expected output and excludes it from imported input", () => {
     const seed = createCanonicalSeed();
-    const source = seed.conversations.find((c) => c.id === "convo-booking")!;
+    const reviewed = addBookingHumanReview(seed);
+    const source = reviewed.conversations.find((c) => c.id === "convo-booking")!;
     const staff = [...source.messages].reverse().find((m) => m.role === "staff")!;
     const preceding = source.messages.filter(
       (message) => message.role !== "system" && message.id !== staff.id,
     );
-    const resolved = resolveConversation(seed, source.id);
+    const resolved = resolveConversation(reviewed, source.id);
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) return;
 
@@ -207,7 +223,8 @@ describe("HITL criterion assignment", () => {
     );
     expect(customCriterion).toBeDefined();
 
-    const resolvedBooking = resolveConversation(withBookingCriterion.state, "convo-booking");
+    const reviewed = addBookingHumanReview(withBookingCriterion.state);
+    const resolvedBooking = resolveConversation(reviewed, "convo-booking");
     expect(resolvedBooking.ok).toBe(true);
     if (!resolvedBooking.ok) return;
     const bookingImport = importHitlFromConversation(resolvedBooking.state, "convo-booking");

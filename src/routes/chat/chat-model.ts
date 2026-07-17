@@ -6,9 +6,9 @@ export type MobilePane = "list" | "thread" | "details";
 
 export const QUEUE_GROUPS = [
   "Emergency",
-  "Needs approval",
+  "Booking details",
   "Waiting",
-  "Agent drafts",
+  "Autonomous agent",
   "Done",
 ] as const;
 
@@ -19,13 +19,13 @@ export function conversationGroup(conversation: Conversation): QueueGroup {
     return "Emergency";
   }
   if (conversation.booking?.status === "pending") {
-    return "Needs approval";
+    return "Booking details";
   }
   if (conversation.workflowStatus === "resolved") {
     return "Done";
   }
   if (conversation.agentMode === "synthetic_agent") {
-    return "Agent drafts";
+    return "Autonomous agent";
   }
   return "Waiting";
 }

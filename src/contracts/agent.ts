@@ -8,6 +8,12 @@ import {
 
 export const AGENT_RUN_MODES = ["live", "sandbox"] as const;
 export const DEMO_TOOL_POLICY_VERSION = "demo-no-tools-v1" as const;
+export const AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION =
+  "autonomous-booking-v1" as const;
+export const AGENT_TOOL_POLICY_VERSIONS = [
+  DEMO_TOOL_POLICY_VERSION,
+  AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+] as const;
 export const AGENT_PROPOSED_ACTIONS = [
   "reply",
   "staff_handoff",
@@ -79,7 +85,7 @@ export const agentRunRequestSchema = z
     playbookBundle: agentPlaybookBundleSchema,
     agentConfigVersion: idSchema,
     promptVersion: idSchema,
-    toolPolicyVersion: z.literal(DEMO_TOOL_POLICY_VERSION),
+    toolPolicyVersion: z.enum(AGENT_TOOL_POLICY_VERSIONS),
   })
   .strict();
 
@@ -149,11 +155,21 @@ const agentUsageSchema = z
     }
   });
 
+export const agentToolCallSchema = z
+  .object({
+    callId: idSchema,
+    name: idSchema,
+    status: z.enum(["completed", "failed"]),
+    summary: z.string().trim().min(1).max(500),
+    conversationRevision: revisionSchema.nullable(),
+  })
+  .strict();
+
 export const agentRunResultSchema = z
   .object({
     runId: idSchema,
     ...providerAgentResultFields,
-    toolCalls: z.tuple([]),
+    toolCalls: z.array(agentToolCallSchema).max(12),
     stopReason: z.enum(AGENT_STOP_REASONS),
     usage: agentUsageSchema,
     latencyMs: z.number().nonnegative(),
@@ -192,6 +208,7 @@ export type AgentEvidence = z.infer<typeof agentEvidenceSchema>;
 export type ProviderAgentResult = z.infer<
   typeof providerAgentResultSchema
 >;
+export type AgentToolCall = z.infer<typeof agentToolCallSchema>;
 export type AgentRunResult = z.infer<typeof agentRunResultSchema>;
 export type AgentRunCreateRequest = z.infer<
   typeof agentRunCreateRequestSchema

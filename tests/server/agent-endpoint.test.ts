@@ -2,9 +2,10 @@ import type { AddressInfo } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  AgentRunRequest,
-  AgentRunResult,
+import {
+  AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+  type AgentRunRequest,
+  type AgentRunResult,
 } from "../../src/contracts/agent";
 import { createCanonicalServerState } from "../../src/domain";
 import { AGENT_PROMPT_VERSION } from "../../server/agent-prompt";
@@ -154,7 +155,7 @@ describe("workspace-backed agent run endpoint", () => {
         },
         agentConfigVersion: "agent-config-test",
         promptVersion: AGENT_PROMPT_VERSION,
-        toolPolicyVersion: "demo-no-tools-v1",
+        toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
       },
       expect.any(AbortSignal),
     );

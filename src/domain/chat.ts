@@ -30,7 +30,7 @@ import {
 } from "./shared";
 
 function agentModeLabel(mode: AgentMode): string {
-  return mode === "staff_only" ? "Staff only" : "Agent drafts (staff approval)";
+  return mode === "staff_only" ? "Staff only" : "Autonomous agent";
 }
 
 export function sendStaffReply(state: AppState, input: SendStaffReplyInput): MutationResult {
@@ -312,7 +312,7 @@ export function escalateEmergency(state: AppState, conversationId: ConversationI
     messages: [
       ...current.messages,
       systemMessage(
-        "Synthetic agent turned off for staff handling. This demo did not contact any external service.",
+        "Autonomous agent paused for staff handling. This demo did not contact any external service.",
         messageId,
         state.fixtureTime,
       ),
@@ -473,7 +473,7 @@ const SIMULATED_CONVERSATIONS: Record<SimulateScenario, AppState["conversations"
     resolvedAt: null,
     labels: ["booking", "simulated"],
     triageGuidance:
-      "Routine booking fixture: confirm the date, time, and provider before approval.",
+      "Routine booking fixture: the autonomous agent confirms the date, time, and provider before it books.",
     messages: [
       {
         id: "sim-bk-1",

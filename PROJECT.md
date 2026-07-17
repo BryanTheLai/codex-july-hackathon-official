@@ -1,21 +1,21 @@
 ---
 project: KaunterAI
-one_liner: "A synthetic multilingual clinic front-desk workspace where staff handle conversations, evaluate agent replies, and approve playbook changes."
+one_liner: "A multilingual clinic front desk where an autonomous Telegram agent handles administrative work and people govern playbook changes."
 audience: "A product designer, engineer, or coding agent rebuilding the experience without access to the current implementation."
 purpose: "Canonical, stack-agnostic product, spatial, and rebuild contract."
 design_soul: "SOUL.md"
 production_strategy: "PROJECT.md section 17"
-status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text-reply control flow are implemented. A newly persisted live-agent Telegram text message runs the agent and sends one idempotent reply when both live switches are enabled; staff handoff sends nothing and voice waits for transcription. Dashboard authentication, booking authority, durable jobs, and broader provider-quality validation remain outside the demonstrated slice."
-implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, and automatic replies for newly persisted live-agent Telegram text. It retains the existing no-provider deterministic Analyze fallback. Automatic voice reply, booking tools, durable job retry, authentication, and multi-user authorization remain deferred."
+status: "Canonical rebuild contract; the local synthetic baseline, shared Chat and server Eval runner, immutable Eval evidence, fixed-workspace CAS persistence, complete Dream candidate-to-Ready-to-activate-to-rollback lifecycle, and automatic Telegram text control flow are implemented. A newly persisted live-agent Telegram text message runs an autonomous function-calling agent that can check demo availability, create, reschedule, or cancel a booking, then sends one idempotent reply; handoff acknowledgement also sends and voice waits for transcription. Dashboard authentication, durable jobs, live external availability, and broader provider-quality validation remain outside the demonstrated slice."
+implementation_scope: "The built scope includes versioned playbook snapshots, a server command boundary, Markdown-only SOP import, structured-output LLM correction proposals, inactive candidates, server sync and frozen execution of existing imported/manual Eval cases, affected train replay, full train-and-holdout readiness, human activation, immutable one-click rollback, inbound Telegram OGG/Opus-to-WebM-to-Whisper transcription, English glossing, browser transcription recovery, real outbound translation, TTS, recorded-voice fallback, idempotent Text, Voice, and Both delivery records, automatic replies, and autonomous server-owned booking tools for newly persisted live-agent Telegram text. It retains the existing no-provider deterministic Analyze fallback. Automatic voice reply, durable job retry, authentication, multi-user authorization, and live external availability remain deferred."
 created: "2026-07-08"
 last_updated: "2026-07-17"
 last_verified: "2026-07-17"
-last_verified_scope: "Lint, typecheck, 451 automated tests, production build, 20 passing Playwright executions with seven intentional skips, focused automatic-Telegram-reply regression tests, and an interactive local browser smoke. These prove the automatic inbound text control flow with mocked model and Telegram providers, including duplicate suppression and staff-handoff no-send behavior; they do not prove live provider quality or durable background execution."
+last_verified_scope: "Lint, typecheck, 457 automated tests, production build, 20 passing Playwright executions with seven intentional skips, focused autonomous booking and Telegram webhook regression tests, and an interactive local browser smoke. These prove the automatic inbound text control flow with mocked model and Telegram providers, including duplicate suppression, booking revision handoff, and automatic clinical acknowledgement; they do not prove live provider quality or durable background execution."
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
   - "DigitalOcean deployment, public health checks, live Supabase persistence, and protected Telegram inbound text and voice verification"
-  - "Focused automatic-reply tests verified new inbound text -> one agent run -> one outbound delivery; duplicate updates do neither and staff handoff sends nothing"
+  - "Focused autonomous-tool and automatic-reply tests verify booking mutations, new inbound text -> one agent run -> one outbound delivery, duplicate suppression, and automatic handoff acknowledgement"
   - "Independent cold-read design, behavior, and causal-honesty audit"
 routes:
   chat_control: "/"
@@ -27,7 +27,7 @@ route_delivery_budget: "No individual route delivery artifact above 500 kB uncom
 contract_priority:
   - "User-visible behavior"
   - "Data integrity and causal honesty"
-  - "Human approval and safety gates"
+  - "Autonomous task authority, data integrity, and playbook release gates"
   - "Accessibility and responsive behavior"
   - "Reproducible verification"
   - "Replaceable implementation details"
@@ -83,6 +83,15 @@ file. Deploy topology and env runbook live in `README.md`.
 `SOUL.md` explains why the product has this shape. This file states what a conforming
 implementation must show and do.
 
+## Autonomous Telegram supersession
+
+For a live Telegram administrative conversation, the agent is not a staff-gated draft generator.
+It may independently reply, inspect supplied availability, create, reschedule, or cancel a booking
+through schema-validated server tools. A human review is required to change the shared playbook
+policy, not to approve an individual permitted booking action. The implementation and
+[`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md) are authoritative for this
+live path when older fixture-oriented language below says otherwise.
+
 ## 1. Glossary
 
 ### Synthetic demo
@@ -91,10 +100,11 @@ A local, deterministic product simulation. The demo behaves like a working appli
 data and model behavior are generated from fixed fixtures. It does not contact patients, clinic
 systems, model providers, or external services.
 
-### Human in the loop
+### Human-guided policy change
 
-A staff member reviews or changes an agent action before that action is treated as accepted.
-This document abbreviates human in the loop as HITL only after this definition.
+A person reviews Eval evidence and changes a shared agent policy before that policy is activated.
+This document abbreviates human in the loop as HITL only after this definition. HITL does not gate
+an individual administrative action available through the autonomous Telegram tools.
 
 ### Conversation
 
@@ -256,10 +266,12 @@ gloss. It must not imply that the application permanently stores the audio file 
 The target rebuild uses fixtures. Any future live patient-facing agent must:
 
 - continue only admin-safe work automatically;
+- use only supplied, schema-validated administrative tools for booking changes;
 - never diagnose, recommend medication, interpret results, or claim medical certainty;
 - refuse clinical answers and recommend in-person assessment for non-emergency medical questions;
 - direct urgent or emergency-like cases to immediate care;
-- hand off when policy, low confidence, ambiguity, or the patient requires a person;
+- autonomously acknowledge and route clinical or emergency concerns; ask the patient, rather than
+  staff, for routine-booking clarification;
 - preserve the user's active language mix, names, locations, and time expressions;
 - ask one useful question at a time when information is missing;
 - pass tools only values learned from the user or current state;
@@ -354,7 +366,7 @@ imported from Chat.
 | Patient | Channel | Language | Queue role | Important state |
 |---|---|---|---|---|
 | Ahmad bin Hassan | WhatsApp | English | Emergency | Chest pain, in progress, synthetic agent initially active |
-| Nurul Aisyah | WhatsApp | Malay | Needs approval | Pending booking with Dr. Siti Rahman; latest reply is from staff |
+| Nurul Aisyah | WhatsApp | Malay | Booking details | Autonomous agent asks for the date and time before it can book |
 | Mei Lin Tan | Voice transcript | Mandarin | AI handling | Prescription renewal; English gloss is available |
 | Rajesh Kumar | SMS | English | Done | Resolved lab-results conversation; agent mode off |
 
@@ -796,9 +808,9 @@ Direct and overflow rules:
 Groups appear in this order:
 
 1. Emergency.
-2. Needs approval.
+2. Booking details.
 3. Waiting.
-4. AI handling.
+4. Autonomous agent.
 5. Done.
 
 Empty groups are hidden.
@@ -855,7 +867,7 @@ implying permanent local audio storage.
 Message and queue timestamps use the fixed fixture timeline and show absolute date and time when
 space allows. They never use `today`, `just now`, or other copy that implies live audit history.
 
-Agent mode has two states: Synthetic agent on and Staff only.
+Agent mode has two states: Autonomous demo agent and Staff only.
 
 - Changing mode updates only the selected conversation.
 - Emergency escalation forces Staff only.
@@ -2351,7 +2363,7 @@ For every route and width:
 
 1. Choose Reset Demo.
 2. Open Chat Control.
-3. Point out Emergency, Needs approval, AI handling, and Done.
+3. Point out Emergency, Booking details, Autonomous agent, and Done.
 4. State that all data is synthetic.
 
 ### Beat 1: Emergency handoff
@@ -2369,8 +2381,9 @@ Do not claim that an external nurse or emergency service was contacted.
 
 1. Select Nurul Aisyah.
 2. Show Malay text and English gloss.
-3. Approve the pending booking.
-4. Open Schedule and select Nurul.
+3. Point out that the autonomous agent asks only for the missing date and time; a live Telegram
+   booking uses the server-owned availability and booking tools without a staff approval step.
+4. Generate the deterministic demo response to show the action trace surface.
 5. Return to Inbox.
 
 ### Beat 3: Synthetic transcript-only Mandarin flow
@@ -2383,7 +2396,7 @@ Do not claim that an external nurse or emergency service was contacted.
 
 ### Beat 4: Conversation to evaluation
 
-1. Use Nurul's existing staff reply.
+1. Add a short human-reviewed correction to Nurul's autonomous response.
 2. Resolve Nurul's conversation.
 3. Choose Add to Evals.
 4. Confirm Nurul is preselected in Import resolved conversations.
@@ -2688,8 +2701,9 @@ have passed the full local gate and still need deployment:
   requests, provider failure, accepted-delivery reconciliation, reload-safe browser metadata, and
   exact visitor-approved send across all three browser widths. Automatic-reply tests additionally
   prove one agent run and one delivery for a new inbound text update, no duplicate model run or
-  send for a replayed update, and no send on staff handoff.
-- Agent contracts reject judge-only fields, non-empty tool traces, invalid pins, and inconsistent
+  send for a replayed update, automatic handoff acknowledgement, and booking/calendar delivery
+  revision handoff.
+- Agent contracts reject judge-only fields, invalid pins, invalid or excessive tool traces, and inconsistent
   handoff output. One server-owned prompt builder delimits pinned Dream content, bounded context,
   ordered messages, and the strict output schema for both live and sandbox modes.
 - Eval artifact contracts separate agent-visible generation inputs from judge-only evidence, pin
@@ -2740,9 +2754,9 @@ separates runtime configuration and post-POC work from the completed release wor
 - Dashboard authentication, authorization, clinic tenancy, and multi-user coordination before the
   public URL is shared beyond controlled demo use.
 - DigitalOcean alert-recipient confirmation and a deliberate production-provider smoke-test record.
-- Automatic voice reply after transcription, booking notifications, reschedule/cancellation
-  dispatch, and `.ics` calendar attachments. Current booking mutations remain synthetic workspace
-  messages only.
+- Automatic voice reply after transcription. Autonomous Telegram create/reschedule now sends an
+  `.ics` attachment when calendar delivery is configured; live provider smoke and durable retry
+  remain unproven.
 
 ### Deferred TODO: optional DigitalOcean inference provider switch
 
@@ -2783,15 +2797,15 @@ candidate's immutable full-suite evidence is Ready.
 | Area | Current state | Required demo state |
 |---|---|---|
 | Chat, Dream, Eval routes | `BUILT` synthetic workbenches | Preserve layouts; connect real data and states |
-| Booking changes and in-thread patient copy | `BUILT` | Append to synthetic conversation only; no provider delivery |
+| Booking changes and in-thread patient copy | `BUILT` synthetic controls plus autonomous Telegram create/reschedule/cancel tools | Demo availability and mocked proof are complete; live external scheduling remains deferred |
 | Natural-language rubric editor and judge boundary | `BUILT` | Live judge needs API key; automated tests use simulated judge |
 | Shared platform contracts | `BUILT` | API error body, aggregate CAS, Telegram voice/speech contracts, playbook pins |
 | Analyze failures | `BUILT` with configured LLM; fallback without one | One pending exact diff, human review, and no optimization loop |
 | Conversation source | `SIMULATED` | Seed data and local patient simulation |
 | Translation | `BUILT` adapter, automated proof, and controlled live Malay translation | Output quality still requires human review by clinic staff |
 | Telegram | `PARTIAL` protected inbound text/Whisper transcription, staff-approved text/voice delivery, and automatic reply for newly persisted live-agent text when both live switches are enabled | Deploy and smoke the automatic path; voice remains transcription-only and partial provider failure remains deterministic-test-only |
-| Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text replies with mocked proof | Broader live-provider quality validation remains; automatic voice and booking actions are unbuilt |
-| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text-reply orchestration | Broader live-provider quality validation and durable job execution remain |
+| Candidate reply generation | `BUILT` Chat and five-seed Eval paths plus webhook-triggered live-agent text replies and autonomous booking tools with mocked proof | Broader live-provider quality validation and automatic voice remain unproven |
+| Agent generation / shared runner | `BUILT` shared Chat and five-seed Eval runner with mocked proof plus automatic text-reply and function-call orchestration | Broader live-provider quality validation and durable job execution remain |
 | Dream playbook influence | `BUILT` active-version pins for Chat and server Eval | Imported/manual cases in an existing dataset synchronize before frozen replay |
 | Judge | `BUILT` server boundary | Internal semantic service used by Eval |
 | Persistence | `BUILT` three-table server wedge | Live Supabase configuration; broader browser aggregate still local |
@@ -2806,18 +2820,18 @@ candidate's immutable full-suite evidence is Ready.
 | Deferred item | Reason |
 |---|---|
 | WhatsApp and Twilio | Telegram must prove the channel-neutral flow first |
-| Calendar file delivery | Booking convenience does not block the supervision loop |
-| Typed booking tools and structural assertions | The agent may draft and propose without tool execution |
+| Live calendar provider integration | The MVP sends an `.ics` file; external calendar OAuth is not needed for the demo |
+| Additional booking tools | Four typed tools cover availability, create, reschedule, and cancellation without a broad scheduler |
 | Human judge calibration dataset | Manual review is enough for the hackathon claim |
 | Fully normalized conversations and Eval definitions | A revisioned workspace aggregate is faster and replaceable |
 | Authentication, onboarding, and role management | One visitor opens the fixed demo workspace |
 | Patient accounts | Messaging identity is enough for the first slice |
 | EHR or clinic-management-system integration | Communication supervision first, not clinical-system replacement |
-| Live slot inventory or full scheduling engine | Existing booking state plus a later calendar attachment proves the flow |
+| Live slot inventory or full scheduling engine | The MVP uses server-owned demo availability and booking state; an external system is post-demo |
 | Vector database | Two to twenty playbook files fit deterministic routing and full-text search |
-| Multi-agent orchestration | One bounded agent plus human approval is easier to inspect |
+| Multi-agent orchestration | One autonomous agent with clear tool traces is easier to inspect |
 | Fine-tuning | Playbooks, prompts, traces, and evals must work first |
-| Automatic voice or booking dispatch | Text reply is automatic only for newly persisted live-agent Telegram text; voice and booking dispatch remain unbuilt |
+| Automatic voice reply | Text and booking dispatch are autonomous; voice awaits transcription and remains deferred |
 | Real clinical advice | Administrative work only; clinical questions hand off to staff |
 | Full analytics suite | Run traces and a small release scorecard are enough |
 | Production capacity claims | The demo proves behavior, not load or clinic readiness |

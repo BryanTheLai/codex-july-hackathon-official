@@ -42,6 +42,10 @@ import {
 } from "./agent-provider";
 import { AgentServiceError, createAgentService } from "./agent-service";
 import {
+  autonomousBookingTools,
+  createAutonomousBookingToolExecutor,
+} from "./autonomous-booking-tools";
+import {
   AgentWorkspaceError,
   buildLiveAgentRunRequest,
 } from "./agent-workspace";
@@ -234,7 +238,7 @@ function configuredWorkspace(): WorkspaceAppOptions | null {
   };
 }
 
-function configuredAgent(): AgentRunner | null {
+function configuredAgent(workspace: WorkspaceAppOptions | null): AgentRunner | null {
   if (!process.env.LLM_API_KEY) {
     return null;
   }
@@ -247,6 +251,15 @@ function configuredAgent(): AgentRunner | null {
     modelId: config.model,
     run: createAgentService({
       createResponse,
+      ...(workspace
+        ? {
+            toolExecutor: createAutonomousBookingToolExecutor({
+              workspaceId: workspace.workspaceId,
+              workspaceRepository: workspace.repository,
+            }),
+            tools: autonomousBookingTools,
+          }
+        : {}),
       liveEnabled: config.liveEnabled,
       model: config.model,
     }),
@@ -352,6 +365,29 @@ function automaticReplyRequestId(event: NormalizedInboundEvent): string {
   return `agent-auto-${createHash("sha256").update(identity).digest("hex").slice(0, 48)}`;
 }
 
+function autonomousBookingRevision(
+  result: AgentRunResult,
+): { calendar: boolean; conversationRevision: number } | null {
+  const mutation = [...result.toolCalls]
+    .reverse()
+    .find(
+      (call) =>
+        call.status === "completed" &&
+        call.conversationRevision !== null &&
+        (call.name === "create_booking" ||
+          call.name === "reschedule_booking" ||
+          call.name === "cancel_booking"),
+    );
+  if (!mutation || mutation.conversationRevision === null) {
+    return null;
+  }
+  return {
+    calendar:
+      mutation.name === "create_booking" || mutation.name === "reschedule_booking",
+    conversationRevision: mutation.conversationRevision,
+  };
+}
+
 async function runTelegramAutoReply(input: {
   agent: AgentRunner | null;
   agentTimeoutMs: number;
@@ -448,13 +484,37 @@ async function runTelegramAutoReply(input: {
         conversationId: conversation.id,
         runId: result.runId,
       });
-      return;
+    }
+
+    const bookingMutation = autonomousBookingRevision(result);
+    const expectedConversationRevision =
+      bookingMutation?.conversationRevision ?? conversation.revision;
+    if (bookingMutation?.calendar && telegram.calendar) {
+      try {
+        const calendar = await telegram.calendar.send({
+          conversationId: conversation.id,
+          expectedConversationRevision,
+        });
+        log.info("telegram_auto_reply_calendar_sent", {
+          ...logContext,
+          conversationId: conversation.id,
+          requestId: calendar.requestId,
+          runId: result.runId,
+        });
+      } catch (error) {
+        log.error("telegram_auto_reply_calendar_failed", {
+          ...logContext,
+          conversationId: conversation.id,
+          runId: result.runId,
+          ...errorLogFields(error),
+        });
+      }
     }
 
     const delivery = await telegram.outbound.send({
       requestId: automaticReplyRequestId(event),
       conversationId: conversation.id,
-      expectedConversationRevision: conversation.revision,
+      expectedConversationRevision,
       targetLanguage: result.draft.patientLanguage,
       approvedPatientText: result.draft.patientText,
       mode: "text",
@@ -870,14 +930,14 @@ function rateLimiter(
 
 export function createJudgeApp(options: JudgeAppOptions = {}) {
   const {
-    agent = configuredAgent(),
     agentTimeoutMs = 45_000,
     judge = configuredJudge(),
     rateLimit = { requests: 20, windowMs: 60_000 },
     requestTimeoutMs = 30_000,
     now = Date.now,
-    workspace = configuredWorkspace(),
   } = options;
+  const workspace = options.workspace ?? configuredWorkspace();
+  const agent = options.agent === undefined ? configuredAgent(workspace) : options.agent;
   const telegram =
     options.telegram === undefined
       ? configuredTelegram(workspace, agent)

@@ -258,6 +258,91 @@ describe("agent provider adapter", () => {
     );
   });
 
+  it("maps Responses function calls and returns their output through previous_response_id", async () => {
+    const responsesCreate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "response-1",
+        model: "provider-model",
+        output_text: "",
+        output: [
+          {
+            type: "function_call",
+            call_id: "call-1",
+            name: "list_available_slots",
+            arguments: '{"date":null,"provider":"Dr. Farah"}',
+          },
+        ],
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+      })
+      .mockResolvedValueOnce({
+        id: "response-2",
+        model: "provider-model",
+        output_text: '{"proposedAction":"reply"}',
+        usage: { input_tokens: 8, output_tokens: 4, total_tokens: 12 },
+      });
+    const createResponse = createAgentProviderAdapter(
+      {
+        apiKey: "provider-key",
+        apiMode: "responses",
+        baseUrl: "https://provider.example/v1",
+        liveEnabled: true,
+        model: "agent-model",
+      },
+      {
+        responses: { create: responsesCreate },
+        chat: { completions: { create: vi.fn() } },
+      },
+    );
+    const toolInput: AgentProviderCreateInput = {
+      ...input,
+      tools: [
+        {
+          type: "function",
+          name: "list_available_slots",
+          description: "Find slots",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      toolChoice: "auto",
+    };
+
+    const first = await createResponse(toolInput);
+    expect(first).toMatchObject({
+      responseId: "response-1",
+      toolCalls: [
+        {
+          callId: "call-1",
+          name: "list_available_slots",
+        },
+      ],
+    });
+    await expect(
+      createResponse({
+        ...toolInput,
+        previousResponseId: first.responseId,
+        toolOutputs: [{ callId: "call-1", output: '{"success":true}' }],
+      }),
+    ).resolves.toMatchObject({
+      responseId: "response-2",
+      outputText: '{"proposedAction":"reply"}',
+    });
+    expect(responsesCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        previous_response_id: "response-1",
+        input: [
+          {
+            type: "function_call_output",
+            call_id: "call-1",
+            output: '{"success":true}',
+          },
+        ],
+      }),
+      { signal: undefined },
+    );
+  });
+
   it("sanitizes provider failures and classifies aborts as timeouts", async () => {
     const providerFailure = createAgentProviderAdapter(
       {

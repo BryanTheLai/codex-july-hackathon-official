@@ -167,7 +167,7 @@ describe("Chat Control route", () => {
     expect(screen.getByRole("complementary", { name: "Patient context" })).toBeInTheDocument();
     expect(screen.getByText("Emergency")).toBeInTheDocument();
     expect(screen.getAllByText("Ahmad bin Hassan").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Synthetic Demo").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Demo simulation").length).toBeGreaterThan(0);
     expect(screen.queryByText(/overview|welcome back|total conversations/i)).not.toBeInTheDocument();
   });
 
@@ -185,9 +185,9 @@ describe("Chat Control route", () => {
         "Please seek urgent care now. This demo did not contact emergency services.",
       ),
     ).toHaveAttribute("data-message-side", "outgoing");
-    expect(within(selected).getByText("Synthetic agent")).toBeInTheDocument();
+    expect(within(selected).getByText("Autonomous agent")).toBeInTheDocument();
     expect(
-      within(selected).getByLabelText("Synthetic agent drafts require staff approval"),
+      within(selected).getByLabelText("Autonomous agent handling"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open conversation with Rajesh Kumar" }));
@@ -214,7 +214,9 @@ describe("Chat Control route", () => {
       within(selected).getByText("I would like to make an appointment with Dr. Siti Rahman."),
     ).toBeInTheDocument();
     expect(
-      within(selected).getByText("We will check your slot and send confirmation."),
+      within(selected).getByText(
+        "Please share your preferred date and time. I will check a slot and confirm the appointment.",
+      ),
     ).toBeInTheDocument();
 
     const autoTranslate = within(selected).getByRole("button", { name: "Auto-translate" });
@@ -288,7 +290,15 @@ describe("Chat Control route", () => {
             excerpt: "Escalate urgent symptoms.",
           },
         ],
-        toolCalls: [],
+        toolCalls: [
+          {
+            callId: "call-booking-1",
+            name: "create_booking",
+            status: "completed",
+            summary: "Booking confirmed with Dr. Farah for 09:00 MYT.",
+            conversationRevision: 5,
+          },
+        ],
         stopReason: "completed",
         usage: {
           inputTokens: 100,
@@ -329,6 +339,10 @@ describe("Chat Control route", () => {
     ).toBeInTheDocument();
     expect(
       within(selected).getByText("Escalate urgent symptoms."),
+    ).toBeInTheDocument();
+    expect(within(selected).getByText("Autonomous action trace")).toBeInTheDocument();
+    expect(
+      within(selected).getByText("Completed: Booking confirmed with Dr. Farah for 09:00 MYT."),
     ).toBeInTheDocument();
     expect(
       within(selected).getByText("Malay", { selector: ".chat-badge" }),
@@ -481,7 +495,7 @@ describe("Chat Control route", () => {
       within(selected).queryByRole("button", { name: "Auto-translate" }),
     ).not.toBeInTheDocument();
     expect(
-      within(selected).getByLabelText("Telegram inbox: agent drafts require staff approval"),
+      within(selected).getByLabelText("Telegram inbox: autonomous agent can reply and manage bookings"),
     ).toBeInTheDocument();
     expect(
       within(selected).getByRole("button", { name: "Generate draft" }),
@@ -1327,6 +1341,11 @@ describe("Chat Control route", () => {
     });
     expect(importConversation).toBeDisabled();
     expect(screen.getByText("Resolve this conversation before adding it to Evals.")).toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", { name: "Message" }),
+      "A human reviewer confirmed the requested appointment details.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await user.click(
       within(screen.getByRole("alertdialog")).getByRole("button", {

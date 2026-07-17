@@ -51,7 +51,7 @@ function roleLabel(message: Message): string {
     return "Staff";
   }
   if (message.role === "synthetic_agent") {
-    return "Synthetic agent";
+    return "Autonomous agent";
   }
   if (message.role === "system" && message.text.startsWith("Internal note:")) {
     return "Internal note";
@@ -152,7 +152,7 @@ function MessageRow({
             </span>
           ) : null}
           {message.role === "synthetic_agent" ? (
-            <span className="chat-badge chat-badge--info">Synthetic Demo</span>
+            <span className="chat-badge chat-badge--info">Demo simulation</span>
           ) : null}
           <time dateTime={message.sentAt}>{formatFullTimestamp(message.sentAt)}</time>
         </header>
@@ -206,9 +206,9 @@ function HandlerBadge({
 }) {
   const synthetic = !live && mode === "synthetic_agent";
   const label = live
-    ? "Telegram inbox: agent drafts require staff approval"
+    ? "Telegram inbox: autonomous agent can reply and manage bookings"
     : synthetic
-      ? "Synthetic agent drafts require staff approval"
+      ? "Autonomous agent handling"
       : "Staff only handling";
   return (
     <span
@@ -736,7 +736,7 @@ function Composer({
           className="chat-composer__agent-review"
         >
           <div className="chat-composer__agent-review-header">
-            <strong>English draft</strong>
+            <strong>English agent response</strong>
             <span className="chat-badge chat-badge--info">
               {agentRun.draft.patientLanguage}
             </span>
@@ -758,6 +758,18 @@ function Composer({
               <span>No playbook evidence returned.</span>
             )}
           </div>
+          {agentRun.toolCalls.length > 0 ? (
+            <div className="chat-composer__evidence">
+              <strong>Autonomous action trace</strong>
+              <ul>
+                {agentRun.toolCalls.map((call) => (
+                  <li key={call.callId}>
+                    {call.status === "completed" ? "Completed" : "Blocked"}: {call.summary}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
       {translation ? (
@@ -1102,7 +1114,7 @@ export function ThreadPane({
             title={serverControlledAgentMode ? "Telegram agent mode is managed by the server." : undefined}
             value={conversation.agentMode}
           >
-            <option value="synthetic_agent">Agent drafts (staff approval)</option>
+            <option value="synthetic_agent">Agent handling</option>
             <option value="staff_only">Staff only</option>
           </select>
         </label>

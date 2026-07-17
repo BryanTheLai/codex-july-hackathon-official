@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import express from "express";
 
@@ -20,6 +20,10 @@ const agentConfig = {
   apiMode: "responses" as const,
   agentConfigVersion: "deterministic-e2e-agent-v1",
   promptVersion: "deterministic-e2e-agent-prompt-v1",
+  toolPolicyVersion: "autonomous-booking-v1" as const,
+};
+const evalAgentConfig = {
+  ...agentConfig,
   toolPolicyVersion: "demo-no-tools-v1" as const,
 };
 const judgeConfig = {
@@ -31,7 +35,10 @@ let runSequence = 0;
 
 function agentResult(request: AgentRunRequest) {
   const playbook = request.playbookBundle.versions[0]!;
-  const patientText = "Synthetic demo response for imported human-reviewed evidence.";
+  const bookingRequest = request.conversation.id === "convo-booking";
+  const patientText = bookingRequest
+    ? "Boleh kongsi tarikh dan masa pilihan anda? Saya sudah semak bahawa slot demo tersedia."
+    : "Synthetic demo response for imported human-reviewed evidence.";
   return {
     runId: `agent-e2e-${request.conversation.id}`,
     draft: {
@@ -49,7 +56,17 @@ function agentResult(request: AgentRunRequest) {
         excerpt: playbook.content.slice(0, 10),
       },
     ],
-    toolCalls: [] as [],
+    toolCalls: bookingRequest
+      ? [
+          {
+            callId: "e2e-list-availability",
+            name: "list_available_slots",
+            status: "completed" as const,
+            summary: "Checked demo availability; waiting for the patient's preferred date and time.",
+            conversationRevision: request.conversation.revision,
+          },
+        ]
+      : [],
     stopReason: "completed" as const,
     usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
     latencyMs: 10,
@@ -105,7 +122,7 @@ await repository.bootstrap(workspaceId, await createCanonicalServerState());
 const evalService = createEvalService({
   workspaceId,
   repository,
-  agent: { config: agentConfig, run: async (request) => agentResult(request) },
+  agent: { config: evalAgentConfig, run: async (request) => agentResult(request) },
   judge: { config: judgeConfig, run: async (request) => judgeResult(request) },
   createSuiteId: () => `suite-e2e-${++suiteSequence}`,
   createEvalRunId: () => `eval-run-e2e-${++runSequence}`,
@@ -117,6 +134,7 @@ const app = createJudgeApp({
     ...agentConfig,
     run: async (request) => agentResult(request),
   },
+  rateLimit: { requests: 500, windowMs: 60_000 },
   eval: evalService,
   judge: async (request) => judgeResult(request),
   telegram: null,
@@ -141,14 +159,14 @@ app.post("/api/e2e/reset", async (_request, response) => {
   await repository.bootstrap(workspaceId, await createCanonicalServerState());
   response.status(204).end();
 });
-const distPath = resolve(process.cwd(), "dist");
+const distPath = fileURLToPath(new URL("../../dist/", import.meta.url));
 app.use(express.static(distPath));
 app.use((request, response, next) => {
   if (request.method !== "GET" || request.path.startsWith("/api/")) {
     next();
     return;
   }
-  response.sendFile(resolve(distPath, "index.html"));
+  response.sendFile("index.html", { root: distPath });
 });
 
 const argument = process.argv.find((value) => value.startsWith("--port="));

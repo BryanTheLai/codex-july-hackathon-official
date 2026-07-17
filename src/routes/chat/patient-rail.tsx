@@ -158,7 +158,9 @@ function PatientIdentity({
             <dt>Agent</dt>
             <dd>
               {conversation.agentMode === "synthetic_agent"
-                ? "Agent drafts (staff approval)"
+                ? conversation.channel === "Telegram"
+                  ? "Autonomous Telegram agent"
+                  : "Autonomous agent"
                 : "Staff only"}
             </dd>
           </div>
@@ -216,7 +218,7 @@ export function PatientRail({
   const importBlockedReason =
     conversation.workflowStatus !== "resolved"
       ? "Resolve this conversation before adding it to Evals."
-      : "A staff reply is required before adding this conversation to Evals.";
+      : "A human-reviewed staff response is required before adding this conversation to Evals.";
 
   useEffect(() => {
     setNewLabel(availableLabels[0] ?? "");

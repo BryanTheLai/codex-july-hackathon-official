@@ -12,6 +12,7 @@ import { createTelegramInboundService } from "../../server/telegram-inbound-serv
 import type { AgentRunRequest, AgentRunResult } from "../../src/contracts/agent";
 import type { TelegramOutboundService } from "../../server/telegram-outbound-service";
 import type { InboundSpeechService } from "../../server/inbound-speech-service";
+import type { CalendarDispatchService } from "../../server/calendar-dispatch-service";
 import { createTelegramEventRepository } from "../../server/telegram-repository";
 import type { WorkspaceRepository } from "../../server/workspace-repository";
 import { createWorkspaceRepository } from "../../server/workspace-repository";
@@ -68,6 +69,7 @@ async function configuredServer(options?: {
   autoReplyEnabled?: boolean;
   inboundWorkspaceRepository?: WorkspaceRepository;
   maxCasAttempts?: number;
+  calendar?: CalendarDispatchService;
   outbound?: TelegramOutboundService;
   speech?: InboundSpeechService;
 }) {
@@ -101,6 +103,7 @@ async function configuredServer(options?: {
       inbound,
       normalizeInbound: adapter.normalizeInbound,
       outbound: options?.outbound,
+      calendar: options?.calendar,
       speech: options?.speech,
     },
   });
@@ -207,9 +210,16 @@ describe("Telegram webhook", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("logs and does not send when the automatic agent requests staff handoff", async () => {
+  it("sends the agent's autonomous handoff acknowledgement", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    const send = vi.fn();
+    const send = vi.fn(async () => ({
+      deliveryIds: ["agent-auto-handoff-delivery"],
+      status: "sent" as const,
+      text: {
+        acceptedAt: "2026-07-13T12:00:00.000Z",
+        providerMessageId: "124",
+      },
+    }));
     const outbound: TelegramOutboundService = {
       attachRecordedVoice: vi.fn(),
       prepareVoice: vi.fn(),
@@ -247,8 +257,82 @@ describe("Telegram webhook", () => {
         expect.stringContaining('"event":"telegram_auto_reply_handoff"'),
       ),
     );
-    expect(send).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvedPatientText: "Seorang staf akan membantu.",
+        conversationId: "telegram-conversation:-10042",
+      }),
+    );
     info.mockRestore();
+  });
+
+  it("uses the booking mutation revision for autonomous calendar and Telegram delivery", async () => {
+    const calendar = {
+      send: vi.fn(async () => ({
+        requestId: "calendar-1",
+        status: "sent" as const,
+        providerMessageId: "calendar-message-1",
+        providerAcceptedAt: "2026-07-17T01:00:00.000Z",
+      })),
+    } as unknown as CalendarDispatchService;
+    const send = vi.fn(async () => ({
+      deliveryIds: ["agent-auto-booking-delivery"],
+      status: "sent" as const,
+      text: {
+        acceptedAt: "2026-07-17T01:00:00.000Z",
+        providerMessageId: "125",
+      },
+    }));
+    const outbound: TelegramOutboundService = {
+      attachRecordedVoice: vi.fn(),
+      prepareVoice: vi.fn(),
+      readVoiceAudio: vi.fn(),
+      reconcile: vi.fn(),
+      send,
+    };
+    const { baseUrl } = await configuredServer({
+      agent: {
+        agentConfigVersion: "auto-agent-v1",
+        liveEnabled: true,
+        run: vi.fn(async (): Promise<AgentRunResult> => ({
+          draft: {
+            englishText: "The appointment is confirmed.",
+            patientLanguage: "Malay",
+            patientText: "Temu janji anda telah disahkan.",
+          },
+          evidence: [],
+          handoffReason: null,
+          latencyMs: 12,
+          proposedAction: "reply",
+          runId: "agent-auto-booking",
+          stopReason: "completed",
+          toolCalls: [
+            {
+              callId: "call-create-1",
+              name: "create_booking",
+              status: "completed",
+              summary: "Autonomous booking confirmed.",
+              conversationRevision: 2,
+            },
+          ],
+          usage: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+        })),
+      },
+      autoReplyEnabled: true,
+      calendar,
+      outbound,
+    });
+
+    expect((await postWebhook(baseUrl, update)).status).toBe(200);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(calendar.send).toHaveBeenCalledWith({
+      conversationId: "telegram-conversation:-10042",
+      expectedConversationRevision: 2,
+    });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedConversationRevision: 2 }),
+    );
   });
 
   it("rejects a wrong provider secret before persistence", async () => {

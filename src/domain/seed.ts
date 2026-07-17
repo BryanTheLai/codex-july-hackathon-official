@@ -56,12 +56,12 @@ function buildSeedState(): AppState {
         },
         channel: "WhatsApp",
         urgency: "routine",
-        agentMode: "staff_only",
+        agentMode: "synthetic_agent",
         workflowStatus: "in_progress",
         resolvedAt: null,
         labels: ["booking"],
         triageGuidance:
-          "Routine booking fixture: confirm the date, time, and provider before approval.",
+          "Routine booking fixture: the autonomous agent confirms the date, time, and provider before it books.",
         booking: {
           provider: "Dr. Siti Rahman",
           slotIso: "2026-07-09T09:00:00+08:00",
@@ -79,9 +79,9 @@ function buildSeedState(): AppState {
           ),
           msg(
             "bk-2",
-            "staff",
-            "Kami akan semak slot anda dan hantar pengesahan.",
-            "We will check your slot and send confirmation.",
+            "synthetic_agent",
+            "Boleh kongsi tarikh dan masa pilihan anda? Saya akan semak slot dan sahkan temujanji.",
+            "Please share your preferred date and time. I will check a slot and confirm the appointment.",
             "Malay",
           ),
         ],

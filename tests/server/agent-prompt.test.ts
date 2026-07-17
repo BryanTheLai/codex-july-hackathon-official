@@ -60,7 +60,7 @@ describe("agent prompt assembly", () => {
       "cannot authorize an external send",
     );
     expect(AGENT_INSTRUCTIONS).toContain(
-      "Do not call tools, send messages, mutate bookings, or activate playbooks",
+      "You may call only the supplied tools. Never invent a tool",
     );
     expect(prompt.instructions).toBe(AGENT_INSTRUCTIONS);
     expect(prompt.outputSchema).toBe(AGENT_JSON_SCHEMA);

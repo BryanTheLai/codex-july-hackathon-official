@@ -6,7 +6,7 @@ audience:
   - "Product designers and engineers"
   - "Coding agents rebuilding the product"
 purpose: "Explain the current product, its evidence boundary, and the canonical read order."
-status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message runs the existing agent and sends one idempotent reply; staff handoff sends nothing. Voice waits for transcription. Dashboard authentication, booking authority, durable background jobs, and broader provider-quality validation remain."
+status: "The Dream-to-versioned-playbook release loop is implemented. The fixed workspace persists through Supabase and accepts protected Telegram webhooks. When live Telegram and live-agent flags are enabled, each newly persisted Telegram text message runs an autonomous agent that can reply, check slots, create, reschedule, or cancel a booking, then sends one idempotent reply. Voice waits for transcription. Dashboard authentication, durable background jobs, live external availability, and broader provider-quality validation remain."
 event: "Codex Community Hackathon Kuala Lumpur 2026"
 demo_day: "2026-07-18"
 location: "Sunway University, Kuala Lumpur"
@@ -15,9 +15,9 @@ last_verified: "2026-07-17"
 verification_method:
   - "npm run lint, npm run typecheck, npm test, and npm run build"
   - "Mocked Telegram, OpenAI speech, Eval, and release-workflow tests"
-  - "451 automated tests, 20 passing Playwright executions with seven intentional scenario/viewport skips, production build, and local browser smoke verification"
+  - "457 automated tests, 20 passing Playwright executions with seven intentional scenario/viewport skips, production build, and local browser smoke verification"
   - "Controlled owner-chat smoke: direct-OpenAI agent drafting, five-case Eval judging, exact SOP proposal, translation, Telegram text, TTS voice, and recorded-voice provider acceptance"
-  - "Focused Telegram webhook tests prove one automatic reply for a new inbound text update, duplicate suppression, and no send on staff handoff"
+  - "Focused autonomous-tool and Telegram webhook tests prove atomic booking actions, duplicate suppression, calendar/delivery revision handoff, and automatic handoff acknowledgement"
 sources_consulted:
   - "PROJECT.md"
   - "SOUL.md"
@@ -27,12 +27,13 @@ update_protocol: "Update this file when the product pitch, evidence boundary, ca
 related_docs:
   - "SOUL.md"
   - "PROJECT.md"
+  - "docs/autonomous-booking-agent.md"
 ---
 
 # KaunterAI
 
-KaunterAI is a synthetic multilingual clinic front-desk workspace where staff handle
-conversations, evaluate agent replies, and approve playbook changes.
+KaunterAI is a multilingual clinic front-desk workspace where an autonomous agent handles
+Telegram administrative work, while people evaluate and approve changes to the agent's playbooks.
 
 It targets operational friction in Malaysian clinic work: multilingual messages, repeated
 front-desk coordination, unclear handoffs, and unsafe automation. The product keeps the working
@@ -44,7 +45,8 @@ The [Codex Community Hackathon Kuala Lumpur 2026](https://codexhackathon.my/) as
 practical Malaysia-first products. KaunterAI sits in the Health and Care track:
 
 - **Usefulness:** staff move from a patient conversation to a concrete action or evaluation.
-- **Responsible AI:** synthetic output never becomes approved behavior without a human decision.
+- **Responsible AI:** the agent can act inside strict booking tools; policy changes still require
+  replayed Eval evidence and human activation.
 - **Technical execution:** one state model connects conversation handling, deterministic
   candidate generation, server-side semantic judging, and playbook review.
 - **Continuation potential:** the same supervision model can later sit behind a real clinic
@@ -70,11 +72,12 @@ Separate from the Malaysia demo day. Rules: https://openai.devpost.com/rules
 
 ## Read order
 
-Only three durable docs:
+Four durable docs:
 
 1. `SOUL.md` — taste and anti-generic UI
 2. `PROJECT.md` — behavior, acceptance, MVP order (section 16), channel/Meta research (section 17)
 3. This file — pitch, runbook, deploy
+4. `docs/autonomous-booking-agent.md` — implemented autonomous booking architecture
 
 Canonical contract hierarchy: `PROJECT.md` section "Read order and contract hierarchy". Rejected
 architecture options and the former demo-day / production-roadmap workbooks remain recoverable from
@@ -94,10 +97,11 @@ also verified live Supabase, protected inbound text, English voice transcription
 agent drafting and Eval judging, exact SOP proposal generation, outbound translation, Telegram
 text, AI TTS voice, and staff-recorded voice provider acceptance. For live Telegram text, a new
 persisted update can run the active agent and deliver its reply automatically when both live
-switches are on. A duplicate update does not rerun the model or resend; a staff handoff remains in
-the thread without an outbound message. Voice stays pending until transcription completes.
-Authentication, actual booking authority, durable background jobs, automatic booking dispatch, and
-broader provider-quality validation remain pending.
+switches are on. The agent can call server-owned availability, create, reschedule, and cancellation
+tools without staff approval. A duplicate update does not rerun the model or resend; a clinical
+handoff acknowledgement is also delivered automatically. Voice stays pending until transcription
+completes. Authentication, durable background jobs, live external availability, and broader
+provider-quality validation remain pending.
 
 - MVP order, deferred list, capability matrix, activation/rollback: `PROJECT.md` section 16
 - Product loop, causal boundaries, local acceptance: `PROJECT.md` sections 2, 3, and 14
@@ -118,6 +122,17 @@ KaunterAI is designed to reduce:
 - multilingual handling overhead;
 - unclear escalation context;
 - unreviewed agent behavior changes.
+
+## Workflows solved now
+
+1. A patient messages the clinic in Telegram; the agent answers in the patient's language.
+2. The patient asks to book; the agent checks demo availability and confirms the booking itself.
+3. The patient changes or cancels; the agent updates the confirmed booking itself and records the action.
+4. A successful create or reschedule can send an `.ics` calendar attachment through Telegram.
+5. A patient flags something wrong; the next message can trigger a correction, while representative
+   feedback can enter the existing Eval-to-Dream release workflow for a governed playbook change.
+6. Clinical or urgent requests receive an immediate safe acknowledgement and routing message; the
+   agent does not diagnose or prescribe.
 
 ## Responsible boundary
 
@@ -173,17 +188,19 @@ speech. `TTS_MODEL` and `TTS_VOICE` can override the outbound voice settings. Pr
 environment values are not stored in the repository, so the deployed text-model override must be
 checked in the deployment settings rather than inferred from this file.
 
-The agent has two bounded paths. Staff can explicitly generate, edit, and approve a grounded draft.
-For a newly persisted Telegram **text** message in a live-agent conversation, the webhook can also
-start the same agent in the background and deliver one reply automatically when both
-`LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` are true. A `staff_handoff` result sends nothing;
-voice waits for transcription. The agent has no booking or clinic-system tools.
+The agent has two bounded paths. Staff can still explicitly generate and edit a grounded draft.
+For a newly persisted Telegram **text** message in a live-agent conversation, the webhook starts the
+same agent in the background. With both `LIVE_TELEGRAM_ENABLED` and `LIVE_AGENT_ENABLED` true, it
+can autonomously call `list_available_slots`, `create_booking`, `reschedule_booking`, and
+`cancel_booking`, then deliver its reply. A `staff_handoff` is an autonomous patient-facing
+acknowledgement for clinical work, not a gate on administrative booking. Voice waits for
+transcription. See [`docs/autonomous-booking-agent.md`](docs/autonomous-booking-agent.md).
 
 ### Current capability boundary
 
 | Works now | Not built yet |
 | --- | --- |
-| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic reply for newly persisted live-agent text messages; manual agent drafts; server-side `.ics` documents for already-approved Telegram bookings; synthetic booking decisions; Eval-to-Dream candidate workflow | Automatic voice reply after transcription; live availability and booking creation; durable job retries; phone/voice-call dispatch; user authentication; real-time UI push |
+| Telegram text and voice ingress; transcription, gloss, staff-approved text/voice replies; automatic text replies; autonomous demo-slot lookup, create, reschedule, and cancellation; idempotent delivery; `.ics` calendar attachment for autonomous create/reschedule; action trace; Eval-to-Dream candidate workflow | Automatic voice reply after transcription; durable job retries; live external availability/EHR booking; phone/voice-call dispatch; user authentication; real-time UI push |
 
 For the exact MVP order and the booking/calendar data contract, see `PROJECT.md` sections 16 and
 17. The concise readiness audit is in `.tmp/2026-07-16-mvp-readiness-audit.md` for this build
@@ -226,9 +243,8 @@ Telegram documents `secret_token` and the matching
 [setWebhook](https://core.telegram.org/bots/api#setwebhook).
 
 Keep both `LIVE_TELEGRAM_ENABLED=false` and `LIVE_AGENT_ENABLED=false` for a local or separate test
-bot unless an automatic text reply is intended. Automatic replies require both switches; a staff
-handoff sends no Telegram message. Do not test a real outbound reply until the target chat and
-exact message are approved.
+bot unless autonomous text handling is intended. Automatic replies and booking actions require both
+switches. Do not test a real outbound reply until the target chat and exact message are approved.
 
 If a process crashes while a delivery is `sending`, fail closed. Do not auto-resend. Inspect the
 delivery record before any manual recovery. Telegram Bot API has no request idempotency key that

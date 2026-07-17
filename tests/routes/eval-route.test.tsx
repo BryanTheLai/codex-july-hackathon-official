@@ -371,6 +371,13 @@ describe("Evaluation Lab route", () => {
   it("multi-selects resolved conversations and disables them after import", async () => {
     const user = userEvent.setup();
     const store = createAppStore(new MemoryStorage());
+    expect(
+      store.getState().sendStaffReply({
+        conversationId: "convo-booking",
+        text: "A human reviewer confirmed the requested appointment details.",
+        kind: "reply",
+      }).ok,
+    ).toBe(true);
     expect(store.getState().resolveConversation("convo-booking").ok).toBe(true);
     renderEval({ store });
 

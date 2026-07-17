@@ -1,4 +1,5 @@
 import {
+  AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
   agentRunRequestSchema,
   type AgentRunCreateRequest,
   type AgentRunRequest,
@@ -90,7 +91,7 @@ export function buildLiveAgentRunRequest(
     },
     agentConfigVersion,
     promptVersion: AGENT_PROMPT_VERSION,
-    toolPolicyVersion: "demo-no-tools-v1",
+    toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
   });
   if (!request.success) {
     throw new AgentWorkspaceError(

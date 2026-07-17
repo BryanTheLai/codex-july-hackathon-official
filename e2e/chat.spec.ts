@@ -56,7 +56,7 @@ test("Chat Control satisfies its responsive workbench contract", async ({
       .getByRole("button", { name: "Open conversation with Ahmad bin Hassan" })
       .click();
     await expect(page.getByRole("region", { name: "Selected conversation" })).toBeVisible();
-    await expect(page.getByLabel("Synthetic agent drafts require staff approval")).toBeVisible();
+    await expect(page.getByLabel("Autonomous agent handling")).toBeVisible();
     expect(
       await page
         .getByRole("button", { name: "Send", exact: true })
@@ -117,6 +117,16 @@ test("Chat Control satisfies its responsive workbench contract", async ({
       fullPage: true,
       path: "test-results/screenshots/chat-desktop-mandarin.png",
     });
+    await page
+      .getByRole("button", { name: "Open conversation with Nurul Aisyah" })
+      .click();
+    await page.getByRole("button", { name: "Generate draft" }).click();
+    await expect(page.getByText("Autonomous action trace")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Completed: Checked demo availability; waiting for the patient's preferred date and time.",
+      ),
+    ).toBeVisible();
   }
 
   await page.getByRole("tab", { name: "Schedule" }).click();

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgentRunRequest } from "../../src/contracts/agent";
+import {
+  AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+  type AgentRunRequest,
+} from "../../src/contracts/agent";
 import {
   createAgentService,
   AgentServiceError,
@@ -148,6 +151,89 @@ describe("shared agent service", () => {
       stopReason: "handoff",
       toolCalls: [],
     });
+  });
+
+  it("continues a real function-call loop and exposes only an audited action trace", async () => {
+    const createResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        responseId: "response-1",
+        outputText: "",
+        toolCalls: [
+          {
+            callId: "call-1",
+            name: "list_available_slots",
+            argumentsJson: '{"date":null,"provider":"Dr. Farah"}',
+          },
+        ],
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      })
+      .mockResolvedValueOnce({
+        outputText: JSON.stringify(providerResult),
+        usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      });
+    const toolExecutor = vi.fn(async () => ({
+      status: "completed" as const,
+      summary: "Found 2 available slots for Dr. Farah.",
+      conversationRevision: null,
+      output: {
+        success: true,
+        action: "availability_listed",
+        slots: [],
+      },
+    }));
+    const runAgentTurn = createAgentService({
+      createResponse,
+      liveEnabled: true,
+      model: "agent-model",
+      toolExecutor,
+      tools: [
+        {
+          type: "function",
+          name: "list_available_slots",
+          description: "Find slots",
+          strict: true,
+          parameters: { type: "object" },
+        },
+      ],
+      createRunId: () => "agent-run-tool-loop",
+    });
+
+    await expect(
+      runAgentTurn({
+        ...request,
+        toolPolicyVersion: AUTONOMOUS_BOOKING_TOOL_POLICY_VERSION,
+      }),
+    ).resolves.toMatchObject({
+      runId: "agent-run-tool-loop",
+      toolCalls: [
+        {
+          callId: "call-1",
+          name: "list_available_slots",
+          status: "completed",
+          summary: "Found 2 available slots for Dr. Farah.",
+          conversationRevision: null,
+        },
+      ],
+      usage: { inputTokens: 18, outputTokens: 9, totalTokens: 27 },
+    });
+    expect(toolExecutor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        call: expect.objectContaining({ callId: "call-1" }),
+      }),
+    );
+    expect(createResponse).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        previousResponseId: "response-1",
+        toolOutputs: [
+          expect.objectContaining({
+            callId: "call-1",
+            output: expect.stringContaining('"success":true'),
+          }),
+        ],
+      }),
+      undefined,
+    );
   });
 
   it("rejects evidence not grounded in the pinned Dream bundle", async () => {

@@ -8,6 +8,8 @@ import { isAbortError } from "../src/shared/errors";
 import type {
   AgentProviderCreateInput,
   AgentProviderCreateOutput,
+  AgentProviderFunctionTool,
+  AgentProviderToolCall,
   CreateAgentProviderResponse,
 } from "./agent-service";
 
@@ -62,8 +64,15 @@ export function createAgentConfigVersion(
 }
 
 type ResponsesOutput = {
+  id?: string;
   model?: string;
   output_text: string;
+  output?: Array<{
+    type: string;
+    call_id?: string;
+    name?: string;
+    arguments?: string;
+  }>;
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -71,11 +80,18 @@ type ResponsesOutput = {
   };
 };
 
+type ChatToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
 type ChatCompletionsOutput = {
   model?: string;
   choices: Array<{
     message: {
       content: string | null;
+      tool_calls?: ChatToolCall[];
     };
   }>;
   usage?: {
@@ -85,38 +101,61 @@ type ChatCompletionsOutput = {
   };
 };
 
+type ResponsesInput = {
+  model: string;
+  instructions: string;
+  input:
+    | string
+    | Array<{
+        type: "function_call_output";
+        call_id: string;
+        output: string;
+      }>;
+  previous_response_id?: string;
+  text: AgentProviderCreateInput["text"];
+  tools: AgentProviderFunctionTool[];
+  tool_choice: AgentProviderCreateInput["toolChoice"];
+};
+
+type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: null; tool_calls: ChatToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+type ChatInput = {
+  model: string;
+  messages: ChatMessage[];
+  response_format: {
+    type: "json_schema";
+    json_schema: {
+      name: "kaunter_agent_result";
+      strict: true;
+      schema: AgentProviderCreateInput["text"]["format"]["schema"];
+    };
+  };
+  tools?: Array<{
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      strict: true;
+      parameters: Record<string, unknown>;
+    };
+  }>;
+  tool_choice?: "auto" | "none";
+};
+
 type AgentProviderClient = {
   responses: {
     create(
-      input: {
-        model: string;
-        instructions: string;
-        input: string;
-        text: AgentProviderCreateInput["text"];
-        tools: [];
-        tool_choice: "none";
-      },
+      input: ResponsesInput,
       options: { signal?: AbortSignal },
     ): Promise<ResponsesOutput>;
   };
   chat: {
     completions: {
       create(
-        input: {
-          model: string;
-          messages: Array<{
-            role: "system" | "user";
-            content: string;
-          }>;
-          response_format: {
-            type: "json_schema";
-            json_schema: {
-              name: "kaunter_agent_result";
-              strict: true;
-              schema: AgentProviderCreateInput["text"]["format"]["schema"];
-            };
-          };
-        },
+        input: ChatInput,
         options: { signal?: AbortSignal },
       ): Promise<ChatCompletionsOutput>;
     };
@@ -187,25 +226,44 @@ function defaultClient(config: AgentProviderConfig): AgentProviderClient {
   return {
     responses: {
       async create(input, options) {
-        return client.responses.create(input, options);
+        return client.responses.create(input as never, options) as Promise<ResponsesOutput>;
       },
     },
     chat: {
       completions: {
         async create(input, options) {
-          return client.chat.completions.create(input, options);
+          return client.chat.completions.create(input as never, options) as Promise<ChatCompletionsOutput>;
         },
       },
     },
   };
 }
 
+function responseToolCalls(response: ResponsesOutput): AgentProviderToolCall[] {
+  return (response.output ?? [])
+    .filter(
+      (item) =>
+        item.type === "function_call" &&
+        typeof item.call_id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.arguments === "string",
+    )
+    .map((item) => ({
+      callId: item.call_id!,
+      name: item.name!,
+      argumentsJson: item.arguments!,
+    }));
+}
+
 function responsesOutput(
   response: ResponsesOutput,
 ): AgentProviderCreateOutput {
+  const toolCalls = responseToolCalls(response);
   return {
     model: response.model,
     outputText: response.output_text,
+    ...(response.id ? { responseId: response.id } : {}),
+    ...(toolCalls.length > 0 ? { toolCalls } : {}),
     usage: response.usage
       ? {
           inputTokens: response.usage.input_tokens,
@@ -219,9 +277,16 @@ function responsesOutput(
 function chatOutput(
   response: ChatCompletionsOutput,
 ): AgentProviderCreateOutput {
+  const message = response.choices[0]?.message;
+  const toolCalls = (message?.tool_calls ?? []).map((call) => ({
+    callId: call.id,
+    name: call.function.name,
+    argumentsJson: call.function.arguments,
+  }));
   return {
     model: response.model,
-    outputText: response.choices[0]?.message.content ?? "",
+    outputText: message?.content ?? "",
+    ...(toolCalls.length > 0 ? { toolCalls } : {}),
     usage: response.usage
       ? {
           inputTokens: response.usage.prompt_tokens,
@@ -230,6 +295,32 @@ function chatOutput(
         }
       : undefined,
   };
+}
+
+function chatMessages(input: AgentProviderCreateInput): ChatMessage[] {
+  const messages: ChatMessage[] = [
+    { role: "system", content: input.instructions },
+    { role: "user", content: input.input },
+  ];
+  for (const round of input.toolHistory ?? []) {
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: round.calls.map((call) => ({
+        id: call.callId,
+        type: "function",
+        function: { name: call.name, arguments: call.argumentsJson },
+      })),
+    });
+    for (const output of round.outputs) {
+      messages.push({
+        role: "tool",
+        tool_call_id: output.callId,
+        content: output.output,
+      });
+    }
+  }
+  return messages;
 }
 
 export function createAgentProviderAdapter(
@@ -244,10 +335,19 @@ export function createAgentProviderAdapter(
             {
               model: input.model,
               instructions: input.instructions,
-              input: input.input,
+              input: input.previousResponseId
+                ? (input.toolOutputs ?? []).map((output) => ({
+                    type: "function_call_output" as const,
+                    call_id: output.callId,
+                    output: output.output,
+                  }))
+                : input.input,
+              ...(input.previousResponseId
+                ? { previous_response_id: input.previousResponseId }
+                : {}),
               text: input.text,
-              tools: [],
-              tool_choice: "none",
+              tools: input.tools,
+              tool_choice: input.toolChoice,
             },
             { signal },
           ),
@@ -258,10 +358,7 @@ export function createAgentProviderAdapter(
         await client.chat.completions.create(
           {
             model: input.model,
-            messages: [
-              { role: "system", content: input.instructions },
-              { role: "user", content: input.input },
-            ],
+            messages: chatMessages(input),
             response_format: {
               type: "json_schema",
               json_schema: {
@@ -270,6 +367,20 @@ export function createAgentProviderAdapter(
                 schema: input.text.format.schema,
               },
             },
+            ...(input.tools.length > 0
+              ? {
+                  tools: input.tools.map((tool) => ({
+                    type: "function" as const,
+                    function: {
+                      name: tool.name,
+                      description: tool.description,
+                      strict: tool.strict,
+                      parameters: tool.parameters,
+                    },
+                  })),
+                  tool_choice: input.toolChoice,
+                }
+              : {}),
           },
           { signal },
         ),
